@@ -3,11 +3,22 @@
 /**
  * Preview Component
  *
- * Displays the sandbox preview in an iframe.
+ * Displays the sandbox preview using ai-elements WebPreview.
  */
 
-import { ExternalLink, Globe, RefreshCw } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  Globe,
+  RefreshCwIcon,
+} from "lucide-react";
 import { Panel, PanelHeader } from "@/components/ui/panel";
+import {
+  WebPreview,
+  WebPreviewNavigation,
+  WebPreviewNavigationButton,
+  WebPreviewUrl,
+  WebPreviewBody,
+} from "@/components/ai-elements/web-preview";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
@@ -37,48 +48,40 @@ export function Preview({ className }: PreviewProps) {
           <Globe className="h-4 w-4" />
           Preview
         </div>
-        <div className="flex items-center gap-2">
-          {previewUrl && (
-            <>
-              <button
-                type="button"
-                onClick={refresh}
-                className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                title="Refresh"
-              >
-                <RefreshCw className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={openExternal}
-                className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                title="Open in new tab"
-              >
-                <ExternalLink className="h-3 w-3" />
-              </button>
-            </>
-          )}
-          <span className="font-mono text-xs text-zinc-500">
-            {status === "creating"
-              ? "[creating...]"
-              : sandboxId
-                ? `[${sandboxId.slice(0, 8)}...]`
-                : "[no sandbox]"}
-          </span>
-        </div>
+        <span className="font-mono text-xs text-zinc-500">
+          {status === "creating"
+            ? "[creating...]"
+            : sandboxId
+              ? `[${sandboxId.slice(0, 8)}...]`
+              : "[no sandbox]"}
+        </span>
       </PanelHeader>
 
-      <div className="flex-1 bg-zinc-100 dark:bg-zinc-900">
+      <div className="flex-1 min-h-0">
         {previewUrl ? (
-          <iframe
-            key={key}
-            src={previewUrl}
-            className="h-full w-full border-0"
-            title="Preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
-          />
+          <WebPreview
+            defaultUrl={previewUrl}
+            className="h-full border-0 rounded-none"
+          >
+            <WebPreviewNavigation>
+              <WebPreviewNavigationButton
+                onClick={refresh}
+                tooltip="Refresh"
+              >
+                <RefreshCwIcon className="h-4 w-4" />
+              </WebPreviewNavigationButton>
+              <WebPreviewUrl readOnly className="font-mono text-xs" />
+              <WebPreviewNavigationButton
+                onClick={openExternal}
+                tooltip="Open in new tab"
+              >
+                <ExternalLinkIcon className="h-4 w-4" />
+              </WebPreviewNavigationButton>
+            </WebPreviewNavigation>
+            <WebPreviewBody key={key} />
+          </WebPreview>
         ) : (
-          <div className="flex h-full items-center justify-center">
+          <div className="flex h-full items-center justify-center bg-zinc-100 dark:bg-zinc-900">
             <div className="text-center">
               <Globe className="mx-auto mb-2 h-8 w-8 text-zinc-400" />
               <p className="font-mono text-sm text-zinc-500">

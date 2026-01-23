@@ -3,12 +3,17 @@
 /**
  * File Explorer Component
  *
- * Displays the file tree from the sandbox and allows viewing file content.
+ * Displays the file tree from the sandbox using ai-elements FileTree.
  */
 
-import { useState, useCallback } from "react";
-import { FolderTree, FileIcon, FolderIcon, ChevronRight } from "lucide-react";
-import { Panel, PanelHeader, PanelContent } from "@/components/ui/panel";
+import { useState, useCallback, useMemo } from "react";
+import { FolderTree } from "lucide-react";
+import { Panel, PanelHeader } from "@/components/ui/panel";
+import {
+  FileTree,
+  FileTreeFolder,
+  FileTreeFile,
+} from "@/components/ai-elements/file-tree";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
 import { cn } from "@/lib/utils";
 
@@ -76,30 +81,44 @@ function buildTree(paths: string[]): TreeNode[] {
   return sortTree(root);
 }
 
+// Recursively render tree nodes
+function TreeNodes({ nodes }: { nodes: TreeNode[] }) {
+  return (
+    <>
+      {nodes.map((node) =>
+        node.type === "folder" ? (
+          <FileTreeFolder key={node.path} path={node.path} name={node.name}>
+            {node.children && <TreeNodes nodes={node.children} />}
+          </FileTreeFolder>
+        ) : (
+          <FileTreeFile key={node.path} path={node.path} name={node.name} />
+        )
+      )}
+    </>
+  );
+}
+
 export function FileExplorer({ className }: FileExplorerProps) {
   const { files, sandboxId } = useSandboxStore();
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | undefined>();
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set()
-  );
 
-  const tree = buildTree(files);
+  const tree = useMemo(() => buildTree(files), [files]);
 
-  const toggleFolder = useCallback((path: string) => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
+  // Default expand the root folders
+  const defaultExpanded = useMemo(() => {
+    const expanded = new Set<string>();
+    // Expand first level folders
+    tree.forEach((node) => {
+      if (node.type === "folder") {
+        expanded.add(node.path);
       }
-      return next;
     });
-  }, []);
+    return expanded;
+  }, [tree]);
 
-  const loadFile = useCallback(
+  const loadFileAsync = useCallback(
     async (path: string) => {
       if (!sandboxId) return;
 
@@ -120,6 +139,14 @@ export function FileExplorer({ className }: FileExplorerProps) {
     [sandboxId]
   );
 
+  // Wrapper to satisfy FileTree's synchronous onSelect type
+  const loadFile = useCallback(
+    (path: string) => {
+      void loadFileAsync(path);
+    },
+    [loadFileAsync]
+  );
+
   return (
     <Panel className={cn("flex flex-col", className)}>
       <PanelHeader>
@@ -134,24 +161,20 @@ export function FileExplorer({ className }: FileExplorerProps) {
 
       <div className="flex flex-1 min-h-0">
         {/* File Tree */}
-        <div className="w-1/2 overflow-auto border-r border-zinc-200 p-2 dark:border-zinc-800">
+        <div className="w-1/2 overflow-auto border-r border-zinc-200 dark:border-zinc-800">
           {files.length === 0 ? (
-            <p className="p-2 font-mono text-xs text-zinc-500">
+            <p className="p-4 font-mono text-xs text-zinc-500">
               No files yet. Start a conversation to generate code.
             </p>
           ) : (
-            <ul className="space-y-0.5">
-              {tree.map((node) => (
-                <TreeItem
-                  key={node.path}
-                  node={node}
-                  selectedPath={selectedPath}
-                  expandedFolders={expandedFolders}
-                  onSelect={loadFile}
-                  onToggle={toggleFolder}
-                />
-              ))}
-            </ul>
+            <FileTree
+              defaultExpanded={defaultExpanded}
+              selectedPath={selectedPath}
+              onSelect={loadFile}
+              className="border-0 rounded-none bg-transparent"
+            >
+              <TreeNodes nodes={tree} />
+            </FileTree>
           )}
         </div>
 
@@ -176,83 +199,5 @@ export function FileExplorer({ className }: FileExplorerProps) {
         </div>
       </div>
     </Panel>
-  );
-}
-
-interface TreeItemProps {
-  node: TreeNode;
-  selectedPath: string | null;
-  expandedFolders: Set<string>;
-  onSelect: (path: string) => void;
-  onToggle: (path: string) => void;
-  depth?: number;
-}
-
-function TreeItem({
-  node,
-  selectedPath,
-  expandedFolders,
-  onSelect,
-  onToggle,
-  depth = 0,
-}: TreeItemProps) {
-  const isExpanded = expandedFolders.has(node.path);
-  const isSelected = selectedPath === node.path;
-
-  if (node.type === "folder") {
-    return (
-      <li>
-        <button
-          type="button"
-          className={cn(
-            "flex w-full items-center gap-1 rounded px-2 py-1 font-mono text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800",
-            isSelected && "bg-zinc-100 dark:bg-zinc-800"
-          )}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
-          onClick={() => onToggle(node.path)}
-        >
-          <ChevronRight
-            className={cn(
-              "h-3 w-3 transition-transform",
-              isExpanded && "rotate-90"
-            )}
-          />
-          <FolderIcon className="h-3 w-3 text-blue-500" />
-          <span className="truncate">{node.name}</span>
-        </button>
-        {isExpanded && node.children && (
-          <ul>
-            {node.children.map((child) => (
-              <TreeItem
-                key={child.path}
-                node={child}
-                selectedPath={selectedPath}
-                expandedFolders={expandedFolders}
-                onSelect={onSelect}
-                onToggle={onToggle}
-                depth={depth + 1}
-              />
-            ))}
-          </ul>
-        )}
-      </li>
-    );
-  }
-
-  return (
-    <li>
-      <button
-        type="button"
-        className={cn(
-          "flex w-full items-center gap-1 rounded px-2 py-1 font-mono text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800",
-          isSelected && "bg-zinc-200 dark:bg-zinc-700"
-        )}
-        style={{ paddingLeft: `${depth * 12 + 20}px` }}
-        onClick={() => onSelect(node.path)}
-      >
-        <FileIcon className="h-3 w-3 text-zinc-400" />
-        <span className="truncate">{node.name}</span>
-      </button>
-    </li>
   );
 }
