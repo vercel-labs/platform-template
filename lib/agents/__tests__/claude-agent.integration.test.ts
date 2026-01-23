@@ -29,6 +29,9 @@ function findChunks<T extends StreamChunk["type"]>(
   return chunks.filter((c): c is Extract<StreamChunk, { type: T }> => c.type === type);
 }
 
+// Use Haiku for tests to minimize cost
+const TEST_MODEL = "haiku";
+
 describe("ClaudeAgentProvider Integration", () => {
   let provider: ClaudeAgentProvider;
   let sandbox: Sandbox;
@@ -63,6 +66,7 @@ describe("ClaudeAgentProvider Integration", () => {
         provider.execute({
           prompt: "Say hello in exactly 3 words.",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
@@ -86,6 +90,7 @@ describe("ClaudeAgentProvider Integration", () => {
       const agentOutput = provider.execute({
         prompt: "What is 2 + 2? Answer with just the number.",
         sandboxContext,
+        model: TEST_MODEL,
       });
 
       const stream = createAgentStream(agentOutput);
@@ -111,8 +116,9 @@ describe("ClaudeAgentProvider Integration", () => {
       const chunks = await collectChunks(
         provider.execute({
           prompt:
-            "Write a file at /vercel/sandbox/test.txt with the content 'Hello from test'. Use the write_file tool.",
+            "Write a file at /vercel/sandbox/test.txt with the content 'Hello from test'. Use the Write tool.",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
@@ -120,8 +126,8 @@ describe("ClaudeAgentProvider Integration", () => {
       const toolStarts = findChunks(chunks, "tool-start");
       expect(toolStarts.length).toBeGreaterThan(0);
 
-      // Should have used write_file (with mcp__sandbox__ prefix)
-      const writeFileTool = toolStarts.find((c) => c.toolName.includes("write_file"));
+      // Should have used Write tool (with mcp__sandbox__ prefix)
+      const writeFileTool = toolStarts.find((c) => c.toolName.includes("Write"));
       expect(writeFileTool).toBeDefined();
 
       // Should have tool-result
@@ -169,12 +175,13 @@ describe("ClaudeAgentProvider Integration", () => {
           prompt:
             "Read the file at /vercel/sandbox/read-test.txt and tell me what it contains.",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
-      // Should have used read_file tool
+      // Should have used Read tool
       const toolStarts = findChunks(chunks, "tool-start");
-      const readFileTool = toolStarts.find((c) => c.toolName.includes("read_file"));
+      const readFileTool = toolStarts.find((c) => c.toolName.includes("Read"));
       expect(readFileTool).toBeDefined();
 
       // Should have tool result with file content
@@ -193,13 +200,14 @@ describe("ClaudeAgentProvider Integration", () => {
         provider.execute({
           prompt: "Run the command 'echo Hello World' in the sandbox.",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
-      // Should have used run_command tool
+      // Should have used Bash tool
       const toolStarts = findChunks(chunks, "tool-start");
-      const runCommandTool = toolStarts.find((c) => c.toolName.includes("run_command"));
-      expect(runCommandTool).toBeDefined();
+      const bashTool = toolStarts.find((c) => c.toolName.includes("Bash"));
+      expect(bashTool).toBeDefined();
 
       // Should have tool result with command output
       const toolResults = findChunks(chunks, "tool-result");
@@ -223,6 +231,7 @@ describe("ClaudeAgentProvider Integration", () => {
           prompt: "Write a very long story about a cat. Make it at least 1000 words.",
           sandboxContext,
           signal: abortController.signal,
+          model: TEST_MODEL,
         })) {
           chunks.push(chunk);
           // Abort after receiving some chunks
@@ -251,6 +260,7 @@ describe("ClaudeAgentProvider Integration", () => {
           prompt:
             "Try to read the file at /etc/passwd using the read_file tool.",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 

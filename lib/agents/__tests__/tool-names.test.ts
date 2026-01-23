@@ -6,21 +6,24 @@ import { test, describe } from "vitest";
 import { query, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
+// Use Haiku for tests to minimize cost
+const TEST_MODEL = "haiku";
+
 describe("Tool Names Investigation", () => {
   test("check registered tool names", async () => {
     const sandboxMcp = createSdkMcpServer({
       name: "sandbox",
       tools: [
         {
-          name: "write_file",
+          name: "Write",
           description: "Write a file",
-          inputSchema: { path: z.string(), content: z.string() },
+          inputSchema: { file_path: z.string(), content: z.string() },
           handler: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
         },
         {
-          name: "read_file", 
+          name: "Read", 
           description: "Read a file",
-          inputSchema: { path: z.string() },
+          inputSchema: { file_path: z.string() },
           handler: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
         },
       ],
@@ -36,6 +39,7 @@ describe("Tool Names Investigation", () => {
         systemPrompt: "You are a helpful assistant. List the tools you have access to.",
         includePartialMessages: true,
         persistSession: false,
+        model: TEST_MODEL,
       },
     });
 

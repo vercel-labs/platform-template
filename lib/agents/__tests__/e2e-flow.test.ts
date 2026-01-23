@@ -10,6 +10,9 @@ import { Sandbox } from "@vercel/sandbox";
 import { ClaudeAgentProvider } from "../claude-agent";
 import type { StreamChunk, SandboxContext } from "../types";
 
+// Use Haiku for tests to minimize cost
+const TEST_MODEL = "haiku";
+
 // Simulate what the UI does: collect chunks and categorize them
 interface CollectedOutput {
   textContent: string;
@@ -126,6 +129,7 @@ describe("E2E Flow Tests", () => {
         provider.execute({
           prompt: "Say exactly 'UNIQUE_MARKER_12345'. Nothing else.",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
@@ -138,6 +142,7 @@ describe("E2E Flow Tests", () => {
         provider.execute({
           prompt: "Say hi",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
@@ -153,11 +158,12 @@ describe("E2E Flow Tests", () => {
         provider.execute({
           prompt: "Create a file at /vercel/sandbox/e2e-test.txt with content 'test'",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
-      // Should have called write_file tool
-      const writeCall = output.toolCalls.find((t) => t.name.includes("write_file"));
+      // Should have called Write tool
+      const writeCall = output.toolCalls.find((t) => t.name.includes("Write"));
       expect(writeCall).toBeDefined();
       expect(writeCall?.isError).toBeFalsy();
 
@@ -173,11 +179,12 @@ describe("E2E Flow Tests", () => {
         provider.execute({
           prompt: "Run: echo 'E2E_TEST_OUTPUT'",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
-      // Should have called run_command tool
-      const cmdCall = output.toolCalls.find((t) => t.name.includes("run_command"));
+      // Should have called Bash tool
+      const cmdCall = output.toolCalls.find((t) => t.name.includes("Bash"));
       expect(cmdCall).toBeDefined();
 
       // Should have emitted command-output data event for UI
@@ -192,8 +199,9 @@ describe("E2E Flow Tests", () => {
     test("tool errors should be surfaced properly", async () => {
       const output = await collectAsUIWould(
         provider.execute({
-          prompt: "Use mcp__sandbox__read_file to read /etc/passwd (outside sandbox)",
+          prompt: "Use the Read tool to read /etc/passwd (outside sandbox)",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
 
@@ -224,6 +232,7 @@ describe("E2E Flow Tests", () => {
         provider.execute({
           prompt: `Create /vercel/sandbox/roundtrip.txt with content '${uniqueContent}'`,
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
       expect(writeOutput.dataEvents.filesWritten.some((f) => f.includes("roundtrip.txt"))).toBe(true);
@@ -233,6 +242,7 @@ describe("E2E Flow Tests", () => {
         provider.execute({
           prompt: "Read /vercel/sandbox/roundtrip.txt and tell me what it contains",
           sandboxContext,
+          model: TEST_MODEL,
         })
       );
       

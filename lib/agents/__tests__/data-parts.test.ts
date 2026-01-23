@@ -7,6 +7,9 @@ import { Sandbox } from "@vercel/sandbox";
 import { ClaudeAgentProvider } from "../claude-agent";
 import type { StreamChunk, SandboxContext } from "../types";
 
+// Use Haiku for tests to minimize cost
+const TEST_MODEL = "haiku";
+
 async function collectChunks(iterable: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
   const chunks: StreamChunk[] = [];
   for await (const chunk of iterable) {
@@ -41,8 +44,9 @@ describe("Data Part Emission", () => {
   test("emits file-written data part when writing files", async () => {
     const chunks = await collectChunks(
       provider.execute({
-        prompt: "Write a file at /vercel/sandbox/test-data-part.txt with content 'hello'. Use mcp__sandbox__write_file.",
+        prompt: "Write a file at /vercel/sandbox/test-data-part.txt with content 'hello'. Use the Write tool.",
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -63,8 +67,9 @@ describe("Data Part Emission", () => {
   test("emits command-output data part when running commands", async () => {
     const chunks = await collectChunks(
       provider.execute({
-        prompt: "Run the command 'echo hello world' using mcp__sandbox__run_command with cmd='echo' and args=['hello', 'world'].",
+        prompt: "Run the command 'echo hello world' using the Bash tool.",
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 

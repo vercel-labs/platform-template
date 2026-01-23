@@ -2,7 +2,7 @@
  * Claude Agent Provider
  *
  * Implements the AgentProvider interface using the Claude Agent SDK.
- * Handles conversion from SDK messages to StreamChunk internally.
+ * Uses Claude Code-compatible tool signatures that operate on the Vercel Sandbox.
  */
 
 import {
@@ -23,73 +23,76 @@ import type {
 } from "./types";
 
 // ============================================================================
-// System Prompt
+// System Prompt - Append sandbox-specific instructions to Claude Code default
 // ============================================================================
 
-const SYSTEM_PROMPT = `You are an AI coding assistant running in a Vercel Sandbox environment.
-
-You have access to sandbox tools via MCP. Use the exact tool names as provided:
-- mcp__sandbox__read_file: Read files from /vercel/sandbox
-- mcp__sandbox__write_file: Write files to /vercel/sandbox  
-- mcp__sandbox__run_command: Execute shell commands. Set background=true for dev servers, timeout=60000 for npm install.
-- mcp__sandbox__list_files: List files in the sandbox
-- mcp__sandbox__get_preview_url: Get the public URL for a running dev server (port 3000 or 5173)
-
-When asked to build an application:
-1. Create the necessary files (package.json, source files, etc.) using mcp__sandbox__write_file
-2. For Vite projects, ALWAYS create vite.config.js with server.allowedHosts: true (required for sandbox preview):
-   \`\`\`js
-   import { defineConfig } from 'vite'
-   export default defineConfig({
-     server: { host: '0.0.0.0', allowedHosts: true }
-   })
-   \`\`\`
-3. Install dependencies: mcp__sandbox__run_command with cmd="npm", args=["install"], timeout=60000
-4. Start dev server in BACKGROUND: mcp__sandbox__run_command with cmd="npm", args=["run", "dev"], background=true
-5. Get the preview URL: mcp__sandbox__get_preview_url with port=3000 (or 5173 for Vite)
-
-IMPORTANT: 
-- Always use background=true for dev servers (npm run dev, npm start, etc.) or they will hang!
-- Always configure Vite with allowedHosts: true or the preview iframe won't work!
-
-All file paths must be within /vercel/sandbox.`;
+const SANDBOX_INSTRUCTIONS = `
+IMPORTANT SANDBOX ENVIRONMENT NOTES:
+- You are running in a Vercel Sandbox environment at /vercel/sandbox
+- All file paths should be within /vercel/sandbox (this is your working directory)
+- For Vite projects, ALWAYS create vite.config.js with server.allowedHosts: true:
+  \`\`\`js
+  import { defineConfig } from 'vite'
+  export default defineConfig({
+    server: { host: '0.0.0.0', allowedHosts: true }
+  })
+  \`\`\`
+- When running dev servers (npm run dev), they run in the background automatically
+- Use timeout=60000 for npm install commands
+- After starting a dev server, use the LS tool or check port 3000/5173 for the preview
+`;
 
 // ============================================================================
-// Tool Definitions
+// Claude Code Compatible Tool Definitions
 // ============================================================================
 
 /**
- * Creates sandbox tools for the Claude Agent SDK.
- * These tools interact with the @vercel/sandbox instance.
- * 
- * Note: The handler signature must match SdkMcpToolDefinition which expects
- * (args: { [x: string]: unknown }, extra: unknown) => Promise<CallToolResult>
+ * Creates Claude Code-compatible tools that operate on the Vercel Sandbox.
+ * Tool signatures match the built-in Claude Code tools (Read, Edit, Write, Bash, Glob, Grep).
  */
 function createSandboxTools(ctx: SandboxContext) {
   return [
+    // ========================================================================
+    // Read - File reading with offset/limit support
+    // ========================================================================
     {
-      name: "read_file",
-      description: "Read a file from the sandbox filesystem",
+      name: "Read",
+      description:
+        "Read a file from the filesystem. Supports reading specific line ranges with offset/limit.",
       inputSchema: {
-        path: z.string().describe("Absolute path within /vercel/sandbox"),
+        file_path: z.string().describe("The absolute path to the file to read"),
+        offset: z
+          .number()
+          .optional()
+          .describe("The line number to start reading from (0-based)"),
+        limit: z
+          .number()
+          .optional()
+          .describe("The number of lines to read"),
       },
-      handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-        const path = args.path as string;
-        if (!path.startsWith("/vercel/sandbox")) {
-          return {
-            content: [
-              { type: "text" as const, text: "Error: Path must be within /vercel/sandbox" },
-            ],
-          };
-        }
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const filePath = args.file_path as string;
+        const offset = args.offset as number | undefined;
+        const limit = args.limit as number | undefined;
+
+        // Ensure path is within sandbox
+        const fullPath = filePath.startsWith("/vercel/sandbox")
+          ? filePath
+          : `/vercel/sandbox/${filePath.replace(/^\/+/, "")}`;
+
         try {
-          const stream = await ctx.sandbox.readFile({ path });
+          const stream = await ctx.sandbox.readFile({ path: fullPath });
           if (!stream) {
             return {
-              content: [{ type: "text" as const, text: `Error: File not found: ${path}` }],
+              content: [
+                { type: "text" as const, text: `Error: File not found: ${fullPath}` },
+              ],
               isError: true,
             };
           }
+
           const chunks: Uint8Array[] = [];
           for await (const chunk of stream) {
             if (chunk instanceof Uint8Array) {
@@ -100,9 +103,23 @@ function createSandboxTools(ctx: SandboxContext) {
               chunks.push(new TextEncoder().encode(chunk));
             }
           }
-          const content = new TextDecoder().decode(
+
+          let content = new TextDecoder().decode(
             chunks.length === 1 ? chunks[0] : Buffer.concat(chunks)
           );
+
+          // Apply offset/limit if specified
+          if (offset !== undefined || limit !== undefined) {
+            const lines = content.split("\n");
+            const startLine = offset ?? 0;
+            const endLine = limit ? startLine + limit : lines.length;
+            const selectedLines = lines.slice(startLine, endLine);
+            // Format with line numbers like cat -n
+            content = selectedLines
+              .map((line, i) => `${String(startLine + i + 1).padStart(6, " ")}\t${line}`)
+              .join("\n");
+          }
+
           return { content: [{ type: "text" as const, text: content }] };
         } catch (error) {
           return {
@@ -117,30 +134,157 @@ function createSandboxTools(ctx: SandboxContext) {
         }
       },
     },
+
+    // ========================================================================
+    // Edit - String replacement editing
+    // ========================================================================
     {
-      name: "write_file",
-      description: "Write content to a file in the sandbox",
+      name: "Edit",
+      description:
+        "Edit a file by replacing a specific string with another string. The old_string must match exactly.",
       inputSchema: {
-        path: z.string().describe("Absolute path within /vercel/sandbox"),
-        content: z.string().describe("Content to write to the file"),
+        file_path: z.string().describe("The absolute path to the file to modify"),
+        old_string: z.string().describe("The text to replace"),
+        new_string: z
+          .string()
+          .describe("The text to replace it with (must be different from old_string)"),
+        replace_all: z
+          .boolean()
+          .optional()
+          .describe("Replace all occurrences of old_string (default false)"),
       },
-      handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-        const path = args.path as string;
-        const content = args.content as string;
-        if (!path.startsWith("/vercel/sandbox")) {
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const filePath = args.file_path as string;
+        const oldString = args.old_string as string;
+        const newString = args.new_string as string;
+        const replaceAll = args.replace_all as boolean | undefined;
+
+        const fullPath = filePath.startsWith("/vercel/sandbox")
+          ? filePath
+          : `/vercel/sandbox/${filePath.replace(/^\/+/, "")}`;
+
+        try {
+          // Read the file first
+          const stream = await ctx.sandbox.readFile({ path: fullPath });
+          if (!stream) {
+            return {
+              content: [
+                { type: "text" as const, text: `Error: File not found: ${fullPath}` },
+              ],
+              isError: true,
+            };
+          }
+
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of stream) {
+            if (chunk instanceof Uint8Array) {
+              chunks.push(chunk);
+            } else if (Buffer.isBuffer(chunk)) {
+              chunks.push(new Uint8Array(chunk));
+            } else if (typeof chunk === "string") {
+              chunks.push(new TextEncoder().encode(chunk));
+            }
+          }
+
+          let content = new TextDecoder().decode(
+            chunks.length === 1 ? chunks[0] : Buffer.concat(chunks)
+          );
+
+          // Check if old_string exists
+          if (!content.includes(oldString)) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Error: old_string not found in file content`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          // Check for multiple matches when not using replace_all
+          if (!replaceAll) {
+            const matches = content.split(oldString).length - 1;
+            if (matches > 1) {
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: `Error: old_string found ${matches} times. Use replace_all=true or provide more context to make it unique.`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+
+          // Perform the replacement
+          const newContent = replaceAll
+            ? content.split(oldString).join(newString)
+            : content.replace(oldString, newString);
+
+          // Write the file back
+          await ctx.sandbox.writeFiles([
+            { path: fullPath, content: Buffer.from(newContent, "utf-8") },
+          ]);
+
           return {
             content: [
-              { type: "text" as const, text: "Error: Path must be within /vercel/sandbox" },
+              {
+                type: "text" as const,
+                text: `Successfully edited ${fullPath}`,
+              },
             ],
           };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Error editing file: ${error instanceof Error ? error.message : String(error)}`,
+              },
+            ],
+            isError: true,
+          };
         }
+      },
+    },
+
+    // ========================================================================
+    // Write - Write full file content
+    // ========================================================================
+    {
+      name: "Write",
+      description: "Write content to a file, creating it if it doesn't exist or overwriting if it does.",
+      inputSchema: {
+        file_path: z
+          .string()
+          .describe("The absolute path to the file to write (must be absolute, not relative)"),
+        content: z.string().describe("The content to write to the file"),
+      },
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const filePath = args.file_path as string;
+        const content = args.content as string;
+
+        const fullPath = filePath.startsWith("/vercel/sandbox")
+          ? filePath
+          : `/vercel/sandbox/${filePath.replace(/^\/+/, "")}`;
+
         try {
           await ctx.sandbox.writeFiles([
-            { path, content: Buffer.from(content, "utf-8") },
+            { path: fullPath, content: Buffer.from(content, "utf-8") },
           ]);
           return {
             content: [
-              { type: "text" as const, text: `Wrote ${content.length} bytes to ${path}` },
+              {
+                type: "text" as const,
+                text: `Wrote ${content.length} bytes to ${fullPath}`,
+              },
             ],
           };
         } catch (error) {
@@ -156,71 +300,94 @@ function createSandboxTools(ctx: SandboxContext) {
         }
       },
     },
+
+    // ========================================================================
+    // Bash - Command execution
+    // ========================================================================
     {
-      name: "run_command",
-      description: "Execute a shell command in the sandbox. For long-running commands like dev servers, set background=true.",
+      name: "Bash",
+      description:
+        "Execute a shell command in the sandbox. Long-running commands like dev servers run in the background.",
       inputSchema: {
-        cmd: z.string().describe("Command to run (e.g., 'npm', 'node')"),
-        args: z.array(z.string()).optional().describe("Command arguments"),
-        cwd: z.string().optional().describe("Working directory"),
-        background: z.boolean().optional().describe("Run in background (for dev servers). Default false."),
-        timeout: z.number().optional().describe("Timeout in ms. Default 30000. Set higher for npm install."),
+        command: z.string().describe("The command to execute"),
+        timeout: z
+          .number()
+          .optional()
+          .describe("Optional timeout in milliseconds (max 600000). Default 30000."),
+        description: z
+          .string()
+          .optional()
+          .describe("Clear, concise description of what this command does"),
       },
-      handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-        const cmd = args.cmd as string;
-        const cmdArgs = (args.args as string[] | undefined) ?? [];
-        const cwd = args.cwd as string | undefined;
-        const background = args.background as boolean | undefined;
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const command = args.command as string;
         const timeout = (args.timeout as number | undefined) ?? 30000;
-        
+
         try {
-          if (background) {
-            // For background commands (dev servers), start and don't wait
-            const result = ctx.sandbox.runCommand({
-              cmd,
-              args: cmdArgs,
-              cwd: cwd ?? "/vercel/sandbox",
+          // Detect if this is a dev server command that should run in background
+          const isDevServer =
+            command.includes("npm run dev") ||
+            command.includes("npm start") ||
+            command.includes("yarn dev") ||
+            command.includes("pnpm dev") ||
+            command.includes("vite") ||
+            command.includes("next dev");
+
+          if (isDevServer) {
+            // For dev servers, start and don't wait - let it run in background
+            ctx.sandbox.runCommand({
+              cmd: "sh",
+              args: ["-c", command],
+              cwd: "/vercel/sandbox",
             });
-            // Don't await - let it run in background
-            // Just give it a moment to start
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await new Promise((resolve) => setTimeout(resolve, 3000));
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: `Started background command: ${cmd} ${cmdArgs.join(" ")}\nThe server should be starting up.`,
+                  text: `Started background command: ${command}\nThe server should be starting up. Check port 3000 or 5173 for the preview.`,
                 },
               ],
             };
           }
-          
-          // For regular commands, run with timeout
+
+          // For regular commands, run and wait for completion
           const result = await ctx.sandbox.runCommand({
-            cmd,
-            args: cmdArgs,
-            cwd: cwd ?? "/vercel/sandbox",
+            cmd: "sh",
+            args: ["-c", command],
+            cwd: "/vercel/sandbox",
           });
-          
+
           // Wait for completion with timeout
           const stdoutPromise = result.stdout();
           const stderrPromise = result.stderr();
-          
-          const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error(`Command timed out after ${timeout}ms`)), timeout)
+
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Command timed out after ${timeout}ms`)),
+              timeout
+            )
           );
-          
-          const [stdout, stderr] = await Promise.race([
+
+          const [stdout, stderr] = (await Promise.race([
             Promise.all([stdoutPromise, stderrPromise]),
-            timeoutPromise.then(() => { throw new Error("timeout"); }),
-          ]) as [string, string];
-          
+            timeoutPromise.then(() => {
+              throw new Error("timeout");
+            }),
+          ])) as [string, string];
+
+          const output = [
+            stdout ? `stdout:\n${stdout}` : "",
+            stderr ? `stderr:\n${stderr}` : "",
+            `Exit code: ${result.exitCode}`,
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+
           return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Exit code: ${result.exitCode}\nstdout:\n${stdout}\nstderr:\n${stderr}`,
-              },
-            ],
+            content: [{ type: "text" as const, text: output }],
             isError: result.exitCode !== 0,
           };
         } catch (error) {
@@ -236,31 +403,78 @@ function createSandboxTools(ctx: SandboxContext) {
         }
       },
     },
+
+    // ========================================================================
+    // Glob - File pattern matching
+    // ========================================================================
     {
-      name: "list_files",
-      description: "List files in the sandbox",
+      name: "Glob",
+      description:
+        "Find files matching a glob pattern. Returns matching file paths sorted by modification time.",
       inputSchema: {
-        path: z.string().optional().describe("Directory path to list"),
-        recursive: z.boolean().optional().describe("List recursively"),
+        pattern: z.string().describe("The glob pattern to match files against"),
+        path: z
+          .string()
+          .optional()
+          .describe(
+            "The directory to search in. Defaults to /vercel/sandbox."
+          ),
       },
-      handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-        const path = args.path as string | undefined;
-        const recursive = args.recursive as boolean | undefined;
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const pattern = args.pattern as string;
+        const searchPath = (args.path as string | undefined) ?? "/vercel/sandbox";
+
+        const fullPath = searchPath.startsWith("/vercel/sandbox")
+          ? searchPath
+          : `/vercel/sandbox/${searchPath.replace(/^\/+/, "")}`;
+
         try {
-          const targetPath = path ?? "/vercel/sandbox";
-          const cmdArgs = recursive
-            ? [targetPath, "-type", "f", "-not", "-path", "*/node_modules/*"]
-            : ["-la", targetPath];
-          const cmd = recursive ? "find" : "ls";
-          const result = await ctx.sandbox.runCommand({ cmd, args: cmdArgs });
+          // Use find with -name for glob patterns
+          const result = await ctx.sandbox.runCommand({
+            cmd: "find",
+            args: [
+              fullPath,
+              "-type",
+              "f",
+              "-name",
+              pattern,
+              "-not",
+              "-path",
+              "*/node_modules/*",
+              "-not",
+              "-path",
+              "*/.git/*",
+            ],
+            cwd: "/vercel/sandbox",
+          });
+
           const stdout = await result.stdout();
-          return { content: [{ type: "text" as const, text: stdout }] };
+          const files = stdout.trim().split("\n").filter(Boolean);
+
+          if (files.length === 0) {
+            return {
+              content: [
+                { type: "text" as const, text: `No files found matching pattern: ${pattern}` },
+              ],
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${files.length} files:\n${files.join("\n")}`,
+              },
+            ],
+          };
         } catch (error) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Error listing files: ${error instanceof Error ? error.message : String(error)}`,
+                text: `Error searching files: ${error instanceof Error ? error.message : String(error)}`,
               },
             ],
             isError: true,
@@ -268,24 +482,142 @@ function createSandboxTools(ctx: SandboxContext) {
         }
       },
     },
+
+    // ========================================================================
+    // Grep - Content search
+    // ========================================================================
     {
-      name: "get_preview_url",
-      description: "Get the public URL for a port exposed by the sandbox",
+      name: "Grep",
+      description:
+        "Search file contents using a regular expression pattern. Returns matching files and line numbers.",
       inputSchema: {
-        port: z.number().describe("Port number (e.g., 3000, 5173)"),
+        pattern: z
+          .string()
+          .describe("The regular expression pattern to search for"),
+        path: z
+          .string()
+          .optional()
+          .describe("File or directory to search in. Defaults to /vercel/sandbox."),
+        glob: z
+          .string()
+          .optional()
+          .describe('Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")'),
       },
-      handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-        const port = args.port as number;
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const pattern = args.pattern as string;
+        const searchPath = (args.path as string | undefined) ?? "/vercel/sandbox";
+        const glob = args.glob as string | undefined;
+
+        const fullPath = searchPath.startsWith("/vercel/sandbox")
+          ? searchPath
+          : `/vercel/sandbox/${searchPath.replace(/^\/+/, "")}`;
+
         try {
-          // sandbox.domain() returns the full URL as a string
-          const url = ctx.sandbox.domain(port);
-          return { content: [{ type: "text" as const, text: `Preview URL: ${url}` }] };
+          // Use grep -r for recursive search
+          const grepArgs = [
+            "-r",
+            "-n", // line numbers
+            "-E", // extended regex
+            "--include",
+            glob ?? "*",
+            pattern,
+            fullPath,
+          ];
+
+          // Exclude common directories
+          grepArgs.push("--exclude-dir=node_modules", "--exclude-dir=.git");
+
+          const result = await ctx.sandbox.runCommand({
+            cmd: "grep",
+            args: grepArgs,
+            cwd: "/vercel/sandbox",
+          });
+
+          const stdout = await result.stdout();
+          const stderr = await result.stderr();
+
+          if (result.exitCode === 1) {
+            // No matches found (grep returns 1 for no matches)
+            return {
+              content: [
+                { type: "text" as const, text: `No matches found for pattern: ${pattern}` },
+              ],
+            };
+          }
+
+          if (result.exitCode !== 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Grep error: ${stderr || "Unknown error"}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const lines = stdout.trim().split("\n").filter(Boolean);
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Found ${lines.length} matches:\n${stdout}`,
+              },
+            ],
+          };
         } catch (error) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Error: Port ${port} is not exposed or sandbox domain unavailable`,
+                text: `Error searching: ${error instanceof Error ? error.message : String(error)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      },
+    },
+
+    // ========================================================================
+    // LS - List directory contents (bonus tool for sandbox)
+    // ========================================================================
+    {
+      name: "LS",
+      description: "List directory contents with file details.",
+      inputSchema: {
+        path: z
+          .string()
+          .optional()
+          .describe("Directory path to list. Defaults to /vercel/sandbox."),
+      },
+      handler: async (
+        args: Record<string, unknown>
+      ): Promise<CallToolResult> => {
+        const dirPath = (args.path as string | undefined) ?? "/vercel/sandbox";
+
+        const fullPath = dirPath.startsWith("/vercel/sandbox")
+          ? dirPath
+          : `/vercel/sandbox/${dirPath.replace(/^\/+/, "")}`;
+
+        try {
+          const result = await ctx.sandbox.runCommand({
+            cmd: "ls",
+            args: ["-la", fullPath],
+            cwd: "/vercel/sandbox",
+          });
+
+          const stdout = await result.stdout();
+          return { content: [{ type: "text" as const, text: stdout }] };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
               },
             ],
             isError: true,
@@ -304,7 +636,7 @@ export class ClaudeAgentProvider implements AgentProvider {
   id = "claude-agent";
   name = "Claude Agent";
   description = "Claude Code SDK with full agent capabilities";
-  
+
   // Track pending tool calls to match results with tool names
   private pendingToolCalls = new Map<string, { name: string; input: unknown }>();
 
@@ -313,9 +645,9 @@ export class ClaudeAgentProvider implements AgentProvider {
    * Yields StreamChunk objects for streaming to the client.
    */
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
-    const { prompt, sandboxContext, signal, sessionId } = params;
+    const { prompt, sandboxContext, signal, sessionId, model } = params;
 
-    // Create MCP server with sandbox tools
+    // Create MCP server with Claude Code-compatible sandbox tools
     const sandboxMcp = createSdkMcpServer({
       name: "sandbox",
       tools: createSandboxTools(sandboxContext),
@@ -328,19 +660,61 @@ export class ClaudeAgentProvider implements AgentProvider {
     }
 
     try {
-      // Query the Claude Agent SDK
+      // Build explicit env to avoid inheriting shell environment variables (like ANTHROPIC_API_KEY from .zshrc)
+      // Configure for Vercel AI Gateway authentication
+      const sdkEnv: Record<string, string | undefined> = {
+        // Vercel AI Gateway configuration
+        ANTHROPIC_BASE_URL: "https://ai-gateway.vercel.sh",
+        ANTHROPIC_AUTH_TOKEN: process.env.VERCEL_OIDC_TOKEN,
+        ANTHROPIC_API_KEY: "", // Empty string required - prevents SDK from using shell env
+        // Minimal system env for subprocess execution
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        TMPDIR: process.env.TMPDIR,
+      };
+
+      // Query the Claude Agent SDK with Claude Code system prompt + sandbox additions
       const queryResult = query({
         prompt,
         options: {
-          tools: [], // Disable built-in tools, we provide our own via MCP
+          // Explicit env to avoid inheriting shell variables like ANTHROPIC_API_KEY from .zshrc
+          env: sdkEnv,
+          // Enable only the Task tool from built-in tools (for subagent spawning)
+          // All other tools (Read, Write, Edit, Bash, Glob, Grep, LS) are provided via MCP
+          tools: ["Task"],
+          // Auto-allow all our MCP tools and the Task tool without permission prompts
+          allowedTools: ["Task", "mcp__sandbox__Read", "mcp__sandbox__Write", "mcp__sandbox__Edit", "mcp__sandbox__Bash", "mcp__sandbox__Glob", "mcp__sandbox__Grep", "mcp__sandbox__LS"],
           mcpServers: { sandbox: sandboxMcp },
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           abortController,
-          systemPrompt: SYSTEM_PROMPT,
-          includePartialMessages: true, // Get streaming events
-          persistSession: true, // Enable session persistence for conversation memory
-          ...(sessionId && { resume: sessionId }), // Resume if session ID provided
+          // Use Claude Code's default system prompt with sandbox-specific additions
+          systemPrompt: {
+            type: "preset",
+            preset: "claude_code",
+            append: SANDBOX_INSTRUCTIONS,
+          },
+          // Define subagents that can be spawned via the Task tool
+          agents: {
+            general: {
+              description:
+                "General-purpose agent for researching and executing multi-step tasks",
+              prompt:
+                "You are a helpful coding assistant working in a Vercel Sandbox. Complete the task thoroughly using the sandbox tools.",
+              model: "inherit",
+            },
+            explore: {
+              description:
+                "Fast agent for exploring codebases - finding files, searching code",
+              prompt:
+                "You are a fast code exploration assistant working in a Vercel Sandbox. Use Glob and Grep to find relevant files and code patterns. Be thorough but efficient.",
+              model: "haiku",
+            },
+          },
+          includePartialMessages: true,
+          persistSession: true,
+          ...(sessionId && { resume: sessionId }),
+          ...(model && { model }),
         },
       });
 
@@ -352,7 +726,6 @@ export class ClaudeAgentProvider implements AgentProvider {
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        // Graceful abort, don't yield error
         return;
       }
       yield {
@@ -367,10 +740,6 @@ export class ClaudeAgentProvider implements AgentProvider {
   // Private: SDK Message → StreamChunk Conversion
   // ============================================================================
 
-  /**
-   * Converts a Claude Agent SDK message to StreamChunk(s).
-   * This is the internal conversion layer - the public interface only sees StreamChunk.
-   */
   private *convertToStreamChunks(sdkMessage: SDKMessage): Generator<StreamChunk> {
     switch (sdkMessage.type) {
       case "assistant":
@@ -392,9 +761,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         break;
 
       case "system":
-        // System messages (init, status) - emit session info and status
         if (sdkMessage.subtype === "init") {
-          // Emit message-start with session ID for the client to track
           yield {
             type: "message-start",
             id: sdkMessage.uuid,
@@ -410,14 +777,12 @@ export class ClaudeAgentProvider implements AgentProvider {
         break;
 
       case "user":
-        // User messages contain tool results
         for (const chunk of this.convertUserMessage(sdkMessage)) {
           yield chunk;
         }
         break;
 
       case "tool_progress":
-        // Tool is running - emit status update
         yield {
           type: "data",
           dataType: "agent-status",
@@ -429,25 +794,24 @@ export class ClaudeAgentProvider implements AgentProvider {
         break;
 
       default:
-        // Other message types (status, hook, etc.) are handled internally by SDK
         break;
     }
   }
 
-  /**
-   * Convert user message which may contain tool results.
-   */
   private *convertUserMessage(
-    sdkMessage: { type: "user"; message?: { content?: unknown }; tool_use_result?: unknown }
+    sdkMessage: {
+      type: "user";
+      message?: { content?: unknown };
+      tool_use_result?: unknown;
+    }
   ): Generator<StreamChunk> {
-    // Check for tool_use_result directly on the message
     if (sdkMessage.tool_use_result) {
       const result = sdkMessage.tool_use_result as {
         tool_use_id?: string;
         content?: string | Array<{ type: string; text?: string }>;
         is_error?: boolean;
       };
-      
+
       if (result.tool_use_id) {
         let output = "";
         if (typeof result.content === "string") {
@@ -465,15 +829,13 @@ export class ClaudeAgentProvider implements AgentProvider {
           output,
           isError: result.is_error,
         };
-        
-        // Emit data parts based on which tool completed
+
         for (const chunk of this.emitToolDataParts(result.tool_use_id, output)) {
           yield chunk;
         }
       }
     }
 
-    // Also check message.content for tool_result blocks
     const content = sdkMessage.message?.content;
     if (Array.isArray(content)) {
       for (const block of content) {
@@ -506,9 +868,11 @@ export class ClaudeAgentProvider implements AgentProvider {
             output,
             isError: toolResult.is_error,
           };
-          
-          // Emit data parts based on which tool completed
-          for (const chunk of this.emitToolDataParts(toolResult.tool_use_id, output)) {
+
+          for (const chunk of this.emitToolDataParts(
+            toolResult.tool_use_id,
+            output
+          )) {
             yield chunk;
           }
         }
@@ -516,29 +880,13 @@ export class ClaudeAgentProvider implements AgentProvider {
     }
   }
 
-  /**
-   * Convert assistant message with complete content blocks.
-   * 
-   * NOTE: When includePartialMessages is true (which we use), the SDK sends both:
-   * 1. stream_event messages with content_block_delta (real-time streaming)
-   * 2. assistant messages with the complete assembled content
-   * 
-   * We should NOT re-emit text from assistant messages since we already emitted
-   * it via stream_event deltas. However, we still need to process tool_use blocks
-   * that might appear in assistant messages for non-streaming scenarios.
-   */
   private *convertAssistantMessage(
-    sdkMessage: SDKAssistantMessage
+    _sdkMessage: SDKAssistantMessage
   ): Generator<StreamChunk> {
-    // Skip assistant messages entirely when streaming is enabled.
-    // The content was already emitted via stream_event deltas.
-    // This prevents duplicate output.
+    // Skip - content already emitted via stream_event deltas
     return;
   }
 
-  /**
-   * Convert streaming events for real-time updates.
-   */
   private *convertStreamEvent(
     sdkMessage: SDKPartialAssistantMessage
   ): Generator<StreamChunk> {
@@ -559,51 +907,47 @@ export class ClaudeAgentProvider implements AgentProvider {
         break;
 
       case "content_block_stop":
-        // Block finished - no action needed
         break;
 
-      // Message-level events
       case "message_start":
       case "message_delta":
       case "message_stop":
-        // Handled at higher level
         break;
     }
   }
 
-  /**
-   * Handle the start of a content block (text or tool_use).
-   */
-  private *handleContentBlockStart(
-    event: { type: "content_block_start"; content_block: { type: string; id?: string; name?: string } }
-  ): Generator<StreamChunk> {
+  private *handleContentBlockStart(event: {
+    type: "content_block_start";
+    content_block: { type: string; id?: string; name?: string };
+  }): Generator<StreamChunk> {
     const block = event.content_block;
     if (block.type === "tool_use" && block.id && block.name) {
-      // Track this tool call so we can emit data parts when it completes
       this.pendingToolCalls.set(block.id, { name: block.name, input: {} });
-      
+
       yield {
         type: "tool-start",
         toolCallId: block.id,
         toolName: block.name,
       };
     }
-    // Text blocks don't need a "start" event - we just accumulate deltas
   }
 
-  /**
-   * Handle content block deltas (streaming text or tool input).
-   */
-  private *handleContentBlockDelta(
-    event: { type: "content_block_delta"; index: number; delta: { type: string; text?: string; thinking?: string; partial_json?: string } }
-  ): Generator<StreamChunk> {
+  private *handleContentBlockDelta(event: {
+    type: "content_block_delta";
+    index: number;
+    delta: {
+      type: string;
+      text?: string;
+      thinking?: string;
+      partial_json?: string;
+    };
+  }): Generator<StreamChunk> {
     const delta = event.delta;
     if (delta.type === "text_delta" && delta.text) {
       yield { type: "text-delta", text: delta.text };
     } else if (delta.type === "thinking_delta" && delta.thinking) {
       yield { type: "reasoning-delta", text: delta.thinking };
     } else if (delta.type === "input_json_delta" && delta.partial_json) {
-      // This is tool input streaming - we track by block index
       yield {
         type: "tool-input-delta",
         toolCallId: `block-${event.index}`,
@@ -612,48 +956,6 @@ export class ClaudeAgentProvider implements AgentProvider {
     }
   }
 
-  /**
-   * Convert a complete content block to StreamChunk(s).
-   */
-  private *convertContentBlock(
-    block: { type: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown }
-  ): Generator<StreamChunk> {
-    switch (block.type) {
-      case "text":
-        if (block.text) {
-          yield { type: "text-delta", text: block.text };
-        }
-        break;
-
-      case "thinking":
-        if (block.thinking) {
-          yield { type: "reasoning-delta", text: block.thinking };
-        }
-        break;
-
-      case "tool_use":
-        if (block.id && block.name) {
-          yield {
-            type: "tool-start",
-            toolCallId: block.id,
-            toolName: block.name,
-          };
-          yield {
-            type: "tool-input-delta",
-            toolCallId: block.id,
-            input: JSON.stringify(block.input, null, 2),
-          };
-        }
-        break;
-
-      // Note: tool_result blocks come in user messages, not assistant messages
-      // The SDK handles tool execution internally
-    }
-  }
-
-  /**
-   * Convert result message (success or error).
-   */
   private *convertResultMessage(
     sdkMessage: SDKResultMessage
   ): Generator<StreamChunk> {
@@ -666,15 +968,13 @@ export class ClaudeAgentProvider implements AgentProvider {
         },
       };
     } else {
-      // Error result
       const errorTypes: Record<string, string> = {
         error_during_execution: "Agent execution error",
         error_max_turns: "Maximum turns exceeded",
         error_max_budget_usd: "Budget exceeded",
         error_max_structured_output_retries: "Output validation failed",
       };
-      const errorMessage =
-        errorTypes[sdkMessage.subtype] || "Unknown error";
+      const errorMessage = errorTypes[sdkMessage.subtype] || "Unknown error";
       yield {
         type: "error",
         message: sdkMessage.errors?.join(", ") || errorMessage,
@@ -692,18 +992,20 @@ export class ClaudeAgentProvider implements AgentProvider {
 
   /**
    * Emit data parts based on which tool completed.
-   * This updates the UI (file list, terminal, preview) based on tool results.
+   * Maps Claude Code tool names to UI updates.
    */
-  private *emitToolDataParts(toolUseId: string, output: string): Generator<StreamChunk> {
+  private *emitToolDataParts(
+    toolUseId: string,
+    output: string
+  ): Generator<StreamChunk> {
     const toolCall = this.pendingToolCalls.get(toolUseId);
     if (!toolCall) return;
-    
+
     const toolName = toolCall.name;
     this.pendingToolCalls.delete(toolUseId);
-    
-    // Handle write_file - emit file-written data part
-    if (toolName.includes("write_file")) {
-      // Parse the path from output like "Wrote 123 bytes to /vercel/sandbox/foo.js"
+
+    // Handle Write tool - emit file-written data part
+    if (toolName === "Write" || toolName.includes("Write")) {
       const match = output.match(/to\s+(\/vercel\/sandbox\/[^\s]+)/);
       if (match) {
         yield {
@@ -713,24 +1015,25 @@ export class ClaudeAgentProvider implements AgentProvider {
         };
       }
     }
-    
-    // Handle run_command - emit command-output data part
-    if (toolName.includes("run_command")) {
-      // Parse stdout/stderr from output
-      const stdoutMatch = output.match(/stdout:\n([\s\S]*?)(?=\nstderr:|$)/);
-      const stderrMatch = output.match(/stderr:\n([\s\S]*?)$/);
+
+    // Handle Bash tool - emit command-output data part
+    if (toolName === "Bash" || toolName.includes("Bash")) {
+      const stdoutMatch = output.match(/stdout:\n([\s\S]*?)(?=\n\nstderr:|$)/);
+      const stderrMatch = output.match(/stderr:\n([\s\S]*?)(?=\n\nExit|$)/);
       const exitCodeMatch = output.match(/Exit code: (\d+)/);
-      
+
       const stdout = stdoutMatch?.[1]?.trim() || "";
       const stderr = stderrMatch?.[1]?.trim() || "";
-      const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
-      
+      const exitCode = exitCodeMatch
+        ? parseInt(exitCodeMatch[1], 10)
+        : undefined;
+
       if (stdout) {
         yield {
           type: "data",
           dataType: "command-output",
-          data: { 
-            command: "command", // We don't have the original command here
+          data: {
+            command: "bash",
             output: stdout,
             stream: "stdout" as const,
             exitCode,
@@ -741,8 +1044,8 @@ export class ClaudeAgentProvider implements AgentProvider {
         yield {
           type: "data",
           dataType: "command-output",
-          data: { 
-            command: "command",
+          data: {
+            command: "bash",
             output: stderr,
             stream: "stderr" as const,
             exitCode,
@@ -750,24 +1053,8 @@ export class ClaudeAgentProvider implements AgentProvider {
         };
       }
     }
-    
-    // Handle get_preview_url - emit preview-url data part
-    if (toolName.includes("get_preview_url")) {
-      // Parse URL from output like "Preview URL: https://..."
-      const match = output.match(/Preview URL:\s*(https?:\/\/[^\s]+)/);
-      if (match) {
-        yield {
-          type: "data",
-          dataType: "preview-url",
-          data: { url: match[1], port: 3000 }, // Default to 3000
-        };
-      }
-    }
   }
 
-  /**
-   * Classify an error for client handling.
-   */
   private classifyError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("rate limit")) return "rate_limit";

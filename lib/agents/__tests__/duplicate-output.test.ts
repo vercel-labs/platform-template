@@ -9,6 +9,9 @@ import { Sandbox } from "@vercel/sandbox";
 import { ClaudeAgentProvider } from "../claude-agent";
 import type { StreamChunk, SandboxContext } from "../types";
 
+// Use Haiku for tests to minimize cost
+const TEST_MODEL = "haiku";
+
 // Helper to collect all chunks
 async function collectChunks(
   iterable: AsyncIterable<StreamChunk>
@@ -61,6 +64,7 @@ describe("Duplicate Output Investigation", () => {
       provider.execute({
         prompt: "Say exactly: 'Hello World'. Nothing else.",
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -92,6 +96,7 @@ describe("Duplicate Output Investigation", () => {
       provider.execute({
         prompt: "Say: 'Test'",
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -138,6 +143,7 @@ describe("Duplicate Output Investigation", () => {
         systemPrompt: "You are a helpful assistant.",
         includePartialMessages: true,
         persistSession: false,
+        model: TEST_MODEL,
       },
     });
 

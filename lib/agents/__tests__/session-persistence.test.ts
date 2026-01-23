@@ -12,6 +12,9 @@ import { Sandbox } from "@vercel/sandbox";
 import { ClaudeAgentProvider } from "../claude-agent";
 import type { StreamChunk, SandboxContext } from "../types";
 
+// Use Haiku for tests to minimize cost
+const TEST_MODEL = "haiku";
+
 // Helper to collect all chunks from the async iterable
 async function collectChunks(
   iterable: AsyncIterable<StreamChunk>
@@ -77,6 +80,7 @@ describe("Session Persistence", () => {
       provider.execute({
         prompt: "Say hello",
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -96,6 +100,7 @@ describe("Session Persistence", () => {
       provider.execute({
         prompt: `Remember this secret word: "${secretWord}". Just say OK if you understand.`,
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -112,6 +117,7 @@ describe("Session Persistence", () => {
         prompt: "What was the secret word I told you earlier?",
         sandboxContext,
         sessionId,
+        model: TEST_MODEL,
       })
     );
 
@@ -129,6 +135,7 @@ describe("Session Persistence", () => {
       provider.execute({
         prompt: `Remember this secret number: ${secretNumber}. Just say OK if you understand.`,
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -145,6 +152,7 @@ describe("Session Persistence", () => {
       provider.execute({
         prompt: "What was the secret number I told you earlier? If you don't know, say 'I don't know'.",
         sandboxContext,
+        model: TEST_MODEL,
         // Note: NOT passing sessionId
       })
     );
@@ -173,6 +181,7 @@ describe("Session Persistence", () => {
         prompt:
           'Create a file at /vercel/sandbox/session-test.txt with content "Session test content"',
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -192,6 +201,7 @@ describe("Session Persistence", () => {
         prompt: "What file did you just create? What was the path and content?",
         sandboxContext,
         sessionId,
+        model: TEST_MODEL,
       })
     );
 
@@ -212,6 +222,7 @@ describe("Session Persistence", () => {
       provider.execute({
         prompt: "Hello, start of conversation",
         sandboxContext,
+        model: TEST_MODEL,
       })
     );
 
@@ -224,6 +235,7 @@ describe("Session Persistence", () => {
         prompt: "Continuing the conversation",
         sandboxContext,
         sessionId: sessionId1,
+        model: TEST_MODEL,
       })
     );
 

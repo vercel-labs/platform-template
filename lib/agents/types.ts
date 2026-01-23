@@ -104,6 +104,8 @@ export interface ExecuteParams {
   signal?: AbortSignal;
   /** Optional session ID to resume a previous conversation */
   sessionId?: string;
+  /** Optional model override (e.g., 'haiku' for tests) */
+  model?: string;
 }
 
 /**
