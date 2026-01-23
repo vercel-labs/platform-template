@@ -83,11 +83,17 @@ const initialState: SandboxState = {
 // Store
 // ============================================================================
 
-export const useSandboxStore = create<SandboxStore>()((set) => ({
+export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   ...initialState,
 
   setSandbox: (sandboxId, status = "ready") =>
-    set({ sandboxId, status, files: [], commands: [], previewUrl: null }),
+    set((state) => {
+      // Only reset files/commands/preview if it's a different sandbox
+      if (state.sandboxId === sandboxId) {
+        return { sandboxId, status };
+      }
+      return { sandboxId, status, files: [], commands: [], previewUrl: null };
+    }),
 
   setPreviewUrl: (previewUrl) => set({ previewUrl }),
 
