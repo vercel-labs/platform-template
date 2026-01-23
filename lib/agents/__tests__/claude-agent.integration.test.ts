@@ -7,7 +7,7 @@
 import { test, expect, describe, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
 import { ClaudeAgentProvider } from "../claude-agent";
-import { MessageAccumulator } from "../message-accumulator";
+import { createAgentStream } from "../stream";
 import type { StreamChunk, SandboxContext } from "../types";
 
 // Helper to collect all chunks from the async iterable
@@ -82,30 +82,27 @@ describe("ClaudeAgentProvider Integration", () => {
       expect(usage?.outputTokens).toBeGreaterThan(0);
     }, 60_000);
 
-    test("should accumulate chunks into a valid message", async () => {
-      const accumulator = new MessageAccumulator("test-msg", {
-        agentId: "claude-agent",
-      });
-
-      for await (const chunk of provider.execute({
+    test("should convert to AI SDK stream format", async () => {
+      const agentOutput = provider.execute({
         prompt: "What is 2 + 2? Answer with just the number.",
         sandboxContext,
-      })) {
-        accumulator.process(chunk);
+      });
+
+      const stream = createAgentStream(agentOutput);
+      const reader = stream.getReader();
+      const uiChunks: unknown[] = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        uiChunks.push(value);
       }
 
-      const message = accumulator.getMessage();
-      expect(message.id).toBe("test-msg");
-      expect(message.role).toBe("assistant");
-      expect(message.parts.length).toBeGreaterThan(0);
-
-      // Should have a text part
-      const textPart = message.parts.find((p) => p.type === "text");
-      expect(textPart).toBeDefined();
-      if (textPart && textPart.type === "text") {
-        console.log("Accumulated text:", textPart.text);
-        expect(textPart.text).toContain("4");
-      }
+      // Should have text-start, text-delta(s), text-end
+      const types = uiChunks.map((c: any) => c.type);
+      expect(types).toContain("text-start");
+      expect(types).toContain("text-delta");
+      expect(types).toContain("text-end");
     }, 60_000);
   });
 
@@ -139,10 +136,15 @@ describe("ClaudeAgentProvider Integration", () => {
 
       // Verify the file was written by reading it directly from sandbox
       const fileStream = await sandbox.readFile({ path: "/vercel/sandbox/test.txt" });
+      if (!fileStream) {
+        throw new Error("File not found after write");
+      }
       const fileChunks: Uint8Array[] = [];
       for await (const chunk of fileStream) {
         if (chunk instanceof Uint8Array) {
           fileChunks.push(chunk);
+        } else if (Buffer.isBuffer(chunk)) {
+          fileChunks.push(new Uint8Array(chunk));
         } else if (typeof chunk === "string") {
           fileChunks.push(new TextEncoder().encode(chunk));
         }

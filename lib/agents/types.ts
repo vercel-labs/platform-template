@@ -66,7 +66,7 @@ export type DataPartPayload = {
  * INSIDE each provider - this is the public interface.
  */
 export type StreamChunk =
-  | { type: "message-start"; id: string; role: "assistant" }
+  | { type: "message-start"; id: string; role: "assistant"; sessionId?: string }
   | { type: "text-delta"; text: string }
   | { type: "reasoning-delta"; text: string }
   | { type: "tool-start"; toolCallId: string; toolName: string }
@@ -102,6 +102,8 @@ export interface ExecuteParams {
   sandboxContext: SandboxContext;
   /** Optional signal for aborting the operation */
   signal?: AbortSignal;
+  /** Optional session ID to resume a previous conversation */
+  sessionId?: string;
 }
 
 /**

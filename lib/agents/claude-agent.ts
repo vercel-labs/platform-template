@@ -28,18 +28,29 @@ import type {
 
 const SYSTEM_PROMPT = `You are an AI coding assistant running in a Vercel Sandbox environment.
 
-You have access to these tools:
-- read_file: Read files from /vercel/sandbox
-- write_file: Write files to /vercel/sandbox
-- run_command: Execute shell commands (npm, node, etc.)
-- list_files: List files in the sandbox
-- get_preview_url: Get the public URL for a running dev server
+You have access to sandbox tools via MCP. Use the exact tool names as provided:
+- mcp__sandbox__read_file: Read files from /vercel/sandbox
+- mcp__sandbox__write_file: Write files to /vercel/sandbox  
+- mcp__sandbox__run_command: Execute shell commands. Set background=true for dev servers, timeout=60000 for npm install.
+- mcp__sandbox__list_files: List files in the sandbox
+- mcp__sandbox__get_preview_url: Get the public URL for a running dev server (port 3000 or 5173)
 
 When asked to build an application:
-1. Create the necessary files (package.json, source files, etc.)
-2. Install dependencies with 'npm install'
-3. Start the dev server (e.g., 'npm run dev')
-4. Use get_preview_url to provide the user with a preview link
+1. Create the necessary files (package.json, source files, etc.) using mcp__sandbox__write_file
+2. For Vite projects, ALWAYS create vite.config.js with server.allowedHosts: true (required for sandbox preview):
+   \`\`\`js
+   import { defineConfig } from 'vite'
+   export default defineConfig({
+     server: { host: '0.0.0.0', allowedHosts: true }
+   })
+   \`\`\`
+3. Install dependencies: mcp__sandbox__run_command with cmd="npm", args=["install"], timeout=60000
+4. Start dev server in BACKGROUND: mcp__sandbox__run_command with cmd="npm", args=["run", "dev"], background=true
+5. Get the preview URL: mcp__sandbox__get_preview_url with port=3000 (or 5173 for Vite)
+
+IMPORTANT: 
+- Always use background=true for dev servers (npm run dev, npm start, etc.) or they will hang!
+- Always configure Vite with allowedHosts: true or the preview iframe won't work!
 
 All file paths must be within /vercel/sandbox.`;
 
@@ -73,10 +84,18 @@ function createSandboxTools(ctx: SandboxContext) {
         }
         try {
           const stream = await ctx.sandbox.readFile({ path });
+          if (!stream) {
+            return {
+              content: [{ type: "text" as const, text: `Error: File not found: ${path}` }],
+              isError: true,
+            };
+          }
           const chunks: Uint8Array[] = [];
           for await (const chunk of stream) {
             if (chunk instanceof Uint8Array) {
               chunks.push(chunk);
+            } else if (Buffer.isBuffer(chunk)) {
+              chunks.push(new Uint8Array(chunk));
             } else if (typeof chunk === "string") {
               chunks.push(new TextEncoder().encode(chunk));
             }
@@ -139,27 +158,67 @@ function createSandboxTools(ctx: SandboxContext) {
     },
     {
       name: "run_command",
-      description: "Execute a shell command in the sandbox",
+      description: "Execute a shell command in the sandbox. For long-running commands like dev servers, set background=true.",
       inputSchema: {
         cmd: z.string().describe("Command to run (e.g., 'npm', 'node')"),
         args: z.array(z.string()).optional().describe("Command arguments"),
         cwd: z.string().optional().describe("Working directory"),
+        background: z.boolean().optional().describe("Run in background (for dev servers). Default false."),
+        timeout: z.number().optional().describe("Timeout in ms. Default 30000. Set higher for npm install."),
       },
       handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
         const cmd = args.cmd as string;
         const cmdArgs = (args.args as string[] | undefined) ?? [];
         const cwd = args.cwd as string | undefined;
+        const background = args.background as boolean | undefined;
+        const timeout = (args.timeout as number | undefined) ?? 30000;
+        
         try {
+          if (background) {
+            // For background commands (dev servers), start and don't wait
+            const result = ctx.sandbox.runCommand({
+              cmd,
+              args: cmdArgs,
+              cwd: cwd ?? "/vercel/sandbox",
+            });
+            // Don't await - let it run in background
+            // Just give it a moment to start
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Started background command: ${cmd} ${cmdArgs.join(" ")}\nThe server should be starting up.`,
+                },
+              ],
+            };
+          }
+          
+          // For regular commands, run with timeout
           const result = await ctx.sandbox.runCommand({
             cmd,
             args: cmdArgs,
             cwd: cwd ?? "/vercel/sandbox",
           });
+          
+          // Wait for completion with timeout
+          const stdoutPromise = result.stdout();
+          const stderrPromise = result.stderr();
+          
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error(`Command timed out after ${timeout}ms`)), timeout)
+          );
+          
+          const [stdout, stderr] = await Promise.race([
+            Promise.all([stdoutPromise, stderrPromise]),
+            timeoutPromise.then(() => { throw new Error("timeout"); }),
+          ]) as [string, string];
+          
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Exit code: ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+                text: `Exit code: ${result.exitCode}\nstdout:\n${stdout}\nstderr:\n${stderr}`,
               },
             ],
             isError: result.exitCode !== 0,
@@ -194,7 +253,8 @@ function createSandboxTools(ctx: SandboxContext) {
             : ["-la", targetPath];
           const cmd = recursive ? "find" : "ls";
           const result = await ctx.sandbox.runCommand({ cmd, args: cmdArgs });
-          return { content: [{ type: "text" as const, text: result.stdout }] };
+          const stdout = await result.stdout();
+          return { content: [{ type: "text" as const, text: stdout }] };
         } catch (error) {
           return {
             content: [
@@ -217,9 +277,8 @@ function createSandboxTools(ctx: SandboxContext) {
       handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
         const port = args.port as number;
         try {
-          // sandbox.domain() returns a function that resolves to the URL
-          const domainFn = ctx.sandbox.domain(port);
-          const url = typeof domainFn === "function" ? await domainFn() : String(domainFn);
+          // sandbox.domain() returns the full URL as a string
+          const url = ctx.sandbox.domain(port);
           return { content: [{ type: "text" as const, text: `Preview URL: ${url}` }] };
         } catch (error) {
           return {
@@ -245,13 +304,16 @@ export class ClaudeAgentProvider implements AgentProvider {
   id = "claude-agent";
   name = "Claude Agent";
   description = "Claude Code SDK with full agent capabilities";
+  
+  // Track pending tool calls to match results with tool names
+  private pendingToolCalls = new Map<string, { name: string; input: unknown }>();
 
   /**
    * Execute a prompt using the Claude Agent SDK.
    * Yields StreamChunk objects for streaming to the client.
    */
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
-    const { prompt, sandboxContext, signal } = params;
+    const { prompt, sandboxContext, signal, sessionId } = params;
 
     // Create MCP server with sandbox tools
     const sandboxMcp = createSdkMcpServer({
@@ -277,7 +339,8 @@ export class ClaudeAgentProvider implements AgentProvider {
           abortController,
           systemPrompt: SYSTEM_PROMPT,
           includePartialMessages: true, // Get streaming events
-          persistSession: false, // Ephemeral - no persistence
+          persistSession: true, // Enable session persistence for conversation memory
+          ...(sessionId && { resume: sessionId }), // Resume if session ID provided
         },
       });
 
@@ -329,8 +392,15 @@ export class ClaudeAgentProvider implements AgentProvider {
         break;
 
       case "system":
-        // System messages (init, status) - could emit agent-status data parts
+        // System messages (init, status) - emit session info and status
         if (sdkMessage.subtype === "init") {
+          // Emit message-start with session ID for the client to track
+          yield {
+            type: "message-start",
+            id: sdkMessage.uuid,
+            role: "assistant" as const,
+            sessionId: sdkMessage.session_id,
+          };
           yield {
             type: "data",
             dataType: "agent-status",
@@ -395,6 +465,11 @@ export class ClaudeAgentProvider implements AgentProvider {
           output,
           isError: result.is_error,
         };
+        
+        // Emit data parts based on which tool completed
+        for (const chunk of this.emitToolDataParts(result.tool_use_id, output)) {
+          yield chunk;
+        }
       }
     }
 
@@ -431,6 +506,11 @@ export class ClaudeAgentProvider implements AgentProvider {
             output,
             isError: toolResult.is_error,
           };
+          
+          // Emit data parts based on which tool completed
+          for (const chunk of this.emitToolDataParts(toolResult.tool_use_id, output)) {
+            yield chunk;
+          }
         }
       }
     }
@@ -438,18 +518,22 @@ export class ClaudeAgentProvider implements AgentProvider {
 
   /**
    * Convert assistant message with complete content blocks.
+   * 
+   * NOTE: When includePartialMessages is true (which we use), the SDK sends both:
+   * 1. stream_event messages with content_block_delta (real-time streaming)
+   * 2. assistant messages with the complete assembled content
+   * 
+   * We should NOT re-emit text from assistant messages since we already emitted
+   * it via stream_event deltas. However, we still need to process tool_use blocks
+   * that might appear in assistant messages for non-streaming scenarios.
    */
   private *convertAssistantMessage(
     sdkMessage: SDKAssistantMessage
   ): Generator<StreamChunk> {
-    const content = sdkMessage.message?.content;
-    if (!content) return;
-
-    for (const block of content) {
-      for (const chunk of this.convertContentBlock(block)) {
-        yield chunk;
-      }
-    }
+    // Skip assistant messages entirely when streaming is enabled.
+    // The content was already emitted via stream_event deltas.
+    // This prevents duplicate output.
+    return;
   }
 
   /**
@@ -495,6 +579,9 @@ export class ClaudeAgentProvider implements AgentProvider {
   ): Generator<StreamChunk> {
     const block = event.content_block;
     if (block.type === "tool_use" && block.id && block.name) {
+      // Track this tool call so we can emit data parts when it completes
+      this.pendingToolCalls.set(block.id, { name: block.name, input: {} });
+      
       yield {
         type: "tool-start",
         toolCallId: block.id,
@@ -600,6 +687,81 @@ export class ClaudeAgentProvider implements AgentProvider {
           outputTokens: sdkMessage.usage.output_tokens,
         },
       };
+    }
+  }
+
+  /**
+   * Emit data parts based on which tool completed.
+   * This updates the UI (file list, terminal, preview) based on tool results.
+   */
+  private *emitToolDataParts(toolUseId: string, output: string): Generator<StreamChunk> {
+    const toolCall = this.pendingToolCalls.get(toolUseId);
+    if (!toolCall) return;
+    
+    const toolName = toolCall.name;
+    this.pendingToolCalls.delete(toolUseId);
+    
+    // Handle write_file - emit file-written data part
+    if (toolName.includes("write_file")) {
+      // Parse the path from output like "Wrote 123 bytes to /vercel/sandbox/foo.js"
+      const match = output.match(/to\s+(\/vercel\/sandbox\/[^\s]+)/);
+      if (match) {
+        yield {
+          type: "data",
+          dataType: "file-written",
+          data: { path: match[1] },
+        };
+      }
+    }
+    
+    // Handle run_command - emit command-output data part
+    if (toolName.includes("run_command")) {
+      // Parse stdout/stderr from output
+      const stdoutMatch = output.match(/stdout:\n([\s\S]*?)(?=\nstderr:|$)/);
+      const stderrMatch = output.match(/stderr:\n([\s\S]*?)$/);
+      const exitCodeMatch = output.match(/Exit code: (\d+)/);
+      
+      const stdout = stdoutMatch?.[1]?.trim() || "";
+      const stderr = stderrMatch?.[1]?.trim() || "";
+      const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : undefined;
+      
+      if (stdout) {
+        yield {
+          type: "data",
+          dataType: "command-output",
+          data: { 
+            command: "command", // We don't have the original command here
+            output: stdout,
+            stream: "stdout" as const,
+            exitCode,
+          },
+        };
+      }
+      if (stderr) {
+        yield {
+          type: "data",
+          dataType: "command-output",
+          data: { 
+            command: "command",
+            output: stderr,
+            stream: "stderr" as const,
+            exitCode,
+          },
+        };
+      }
+    }
+    
+    // Handle get_preview_url - emit preview-url data part
+    if (toolName.includes("get_preview_url")) {
+      // Parse URL from output like "Preview URL: https://..."
+      const match = output.match(/Preview URL:\s*(https?:\/\/[^\s]+)/);
+      if (match) {
+        yield {
+          type: "data",
+          dataType: "preview-url",
+          data: { url: match[1], port: 3000 }, // Default to 3000
+        };
+      }
     }
   }
 

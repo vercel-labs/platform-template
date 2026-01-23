@@ -23,17 +23,12 @@ export {
   isError,
 } from "./types";
 
-// Message Accumulator
+// Stream utilities for AI SDK integration
 export {
-  MessageAccumulator,
-  extractSandboxId,
-  extractPreviewUrl,
-  extractWrittenFiles,
-  type ChatMessage,
-  type ChatMessagePart,
-  type MessageMetadata,
-  type DataPart,
-} from "./message-accumulator";
+  createAgentStream,
+  toUIMessageChunk,
+  type AgentDataTypes,
+} from "./stream";
 
 // Registry
 export {
