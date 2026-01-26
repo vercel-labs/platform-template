@@ -4,21 +4,11 @@
  * oRPC procedure for AI chat with agent streaming.
  */
 
-import { os, ORPCError, streamToEventIterator, eventIterator } from "@orpc/server";
+import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
 import { getAgent, isValidAgent, getDefaultAgent } from "@/lib/agents";
-import { createAgentStream } from "@/lib/agents/stream";
-import { sessionTokens } from "@/lib/store/session-tokens";
 import type { SandboxContext } from "@/lib/agents/types";
-import type { UIMessageChunk } from "ai";
-
-/**
- * Generate a unique proxy session ID for sandbox API calls
- */
-function generateProxySessionId(): string {
-  return `proxy-${crypto.randomUUID()}`;
-}
 
 /**
  * Send a chat message and stream the response
@@ -52,7 +42,7 @@ export const sendMessage = os
       } else {
         isNewSandbox = true;
         const snapshotId = process.env.NEXTJS_SNAPSHOT_ID;
-        
+
         if (snapshotId) {
           // Create from snapshot - instant Next.js + Tailwind + dev server
           // Use 2 vCPUs (4GB RAM) for faster dev server startup
@@ -82,22 +72,6 @@ export const sendMessage = os
       });
     }
 
-    // Generate proxy session ID and store in Redis
-    const proxySessionId = generateProxySessionId();
-    const oidcToken = process.env.VERCEL_OIDC_TOKEN;
-    if (oidcToken) {
-      await sessionTokens.set(proxySessionId, oidcToken);
-    }
-
-    // Determine the proxy base URL
-    const host = process.env.VERCEL_URL || "localhost:3000";
-    const protocol = process.env.VERCEL_URL ? "https" : "http";
-    const proxyBaseUrl = `${protocol}://${host}/api/anthropic`;
-
-    // Update sandbox context with proxy info
-    sandboxContext.proxySessionId = proxySessionId;
-    sandboxContext.proxyBaseUrl = proxyBaseUrl;
-
     // Yield sandbox ID first so client knows which sandbox we're using
     yield {
       type: "sandbox-id" as const,
@@ -120,18 +94,6 @@ export const sendMessage = os
       devServerStarted = true;
     }
 
-    // Write .env file (fire and forget)
-    const envContent = `# Anthropic API proxy configuration
-ANTHROPIC_BASE_URL=${proxyBaseUrl}
-ANTHROPIC_API_KEY=${proxySessionId}
-ANTHROPIC_AUTH_TOKEN=${proxySessionId}
-`;
-    sandbox.writeFiles([
-      { path: "/vercel/sandbox/.env", content: Buffer.from(envContent, "utf-8") },
-    ]).catch((error) => {
-      console.error("[chat] Failed to write .env file:", error);
-    });
-
     // Execute agent and stream chunks
     // Pass sessionId if provided to resume conversation
     const agentOutput = agent.execute({
@@ -147,7 +109,7 @@ ANTHROPIC_AUTH_TOKEN=${proxySessionId}
 
     // After agent response completes, send preview URL if server is ready
     const previewUrl = sandbox.domain(3000);
-    
+
     if (devServerStarted) {
       // Poll until server is ready (max 10 seconds - should be ready by now)
       console.log(`[chat] Agent finished, waiting for dev server: ${previewUrl}`);

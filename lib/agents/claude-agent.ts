@@ -336,15 +336,6 @@ function createSandboxTools(ctx: SandboxContext) {
         const command = args.command as string;
         const timeout = (args.timeout as number | undefined) ?? 30000;
 
-        // Build environment variables for the command
-        // Include proxy config so any code in the sandbox can call Anthropic API through our proxy
-        const env: Record<string, string> = {};
-        if (ctx.proxySessionId && ctx.proxyBaseUrl) {
-          env.ANTHROPIC_BASE_URL = ctx.proxyBaseUrl;
-          env.ANTHROPIC_API_KEY = ctx.proxySessionId;
-          env.ANTHROPIC_AUTH_TOKEN = ctx.proxySessionId;
-        }
-
         try {
           // Detect if this is a dev server command that should run in background
           const isDevServer =
@@ -370,7 +361,6 @@ function createSandboxTools(ctx: SandboxContext) {
               cmd: "sh",
               args: ["-c", command],
               cwd: "/vercel/sandbox",
-              env,
             });
             await new Promise((resolve) => setTimeout(resolve, 3000));
             return {
@@ -388,7 +378,6 @@ function createSandboxTools(ctx: SandboxContext) {
             cmd: "sh",
             args: ["-c", command],
             cwd: "/vercel/sandbox",
-            env,
           });
 
           // Wait for completion with timeout
@@ -432,7 +421,6 @@ function createSandboxTools(ctx: SandboxContext) {
                     cmd: "sh",
                     args: ["-c", "npm run dev"],
                     cwd: "/vercel/sandbox",
-                    env,
                     detached: true,
                   });
                   // Wait for it to start
