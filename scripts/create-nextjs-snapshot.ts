@@ -1,13 +1,16 @@
 /**
- * Script to create a Next.js sandbox snapshot
+ * Script to create a Next.js sandbox snapshot with AI coding agents
  *
  * Run with: pnpm tsx scripts/create-nextjs-snapshot.ts
  *
  * This creates a snapshot with:
- * - Next.js 15 + React 19 + TypeScript
+ * - Next.js (latest) + React 19 + TypeScript
  * - Tailwind CSS configured
  * - shadcn/ui initialized (add components with: npx shadcn@latest add <name>)
  * - All dependencies pre-installed (no npm install needed)
+ * - Claude Code CLI (claude) - Anthropic's coding agent
+ * - OpenCode CLI (opencode) - Open source coding agent  
+ * - Codex CLI (codex) - OpenAI's coding agent
  *
  * Note: Snapshots expire after 7 days, so you'll need to recreate periodically.
  */
@@ -137,8 +140,77 @@ export default nextConfig;
     ]);
     console.log("   ✅ Starter page created\n");
 
+    // Step 4b: Install AI coding agents
+    console.log("4️⃣b Installing AI coding agents...\n");
+
+    // Install Claude Code
+    console.log("   📦 Installing Claude Code...");
+    const claudeInstall = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "curl -fsSL https://claude.ai/install.sh | bash"],
+      cwd: "/vercel/sandbox",
+    });
+    const claudeStdout = await claudeInstall.stdout();
+    if (claudeInstall.exitCode === 0) {
+      console.log("   ✅ Claude Code installed");
+    } else {
+      console.log("   ⚠️  Claude Code install had issues:", await claudeInstall.stderr());
+    }
+
+    // Verify Claude installation
+    const claudeVersion = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "source ~/.bashrc 2>/dev/null; claude --version"],
+      cwd: "/vercel/sandbox",
+    });
+    console.log(`   Claude version: ${(await claudeVersion.stdout()).trim()}`);
+
+    // Install OpenCode
+    console.log("\n   📦 Installing OpenCode...");
+    const opencodeInstall = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "curl -fsSL https://opencode.ai/install | bash"],
+      cwd: "/vercel/sandbox",
+    });
+    if (opencodeInstall.exitCode === 0) {
+      console.log("   ✅ OpenCode installed");
+    } else {
+      console.log("   ⚠️  OpenCode install had issues:", await opencodeInstall.stderr());
+    }
+
+    // Verify OpenCode installation
+    const opencodeVersion = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "source ~/.bashrc 2>/dev/null; opencode --version 2>/dev/null || echo 'version check skipped'"],
+      cwd: "/vercel/sandbox",
+    });
+    console.log(`   OpenCode version: ${(await opencodeVersion.stdout()).trim()}`);
+
+    // Install Codex (via npm global)
+    console.log("\n   📦 Installing Codex...");
+    const codexInstall = await sandbox.runCommand({
+      cmd: "npm",
+      args: ["install", "-g", "@openai/codex"],
+      cwd: "/vercel/sandbox",
+    });
+    if (codexInstall.exitCode === 0) {
+      console.log("   ✅ Codex installed");
+    } else {
+      console.log("   ⚠️  Codex install had issues:", await codexInstall.stderr());
+    }
+
+    // Verify Codex installation
+    const codexVersion = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "codex --version 2>/dev/null || echo 'version check skipped'"],
+      cwd: "/vercel/sandbox",
+    });
+    console.log(`   Codex version: ${(await codexVersion.stdout()).trim()}`);
+
+    console.log("\n   ✅ AI coding agents installed\n");
+
     // Step 5: Start dev server and wait for it to compile (builds .next cache)
-    console.log("5️⃣  Starting dev server to build Turbopack cache...");
+    console.log("5️⃣  Starting dev server to build Turbopack cache...\n");
     
     // Start dev server in background
     sandbox.runCommand({
@@ -197,6 +269,15 @@ export default nextConfig;
     console.log("   .next contents:");
     console.log((await lsNext.stdout()).split('\n').map(l => `      ${l}`).join('\n'));
 
+    // Get Next.js version for the snapshot info (before snapshotting)
+    const nextVersionResult = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "cat package.json | grep '\"next\":' | head -1"],
+      cwd: "/vercel/sandbox",
+    });
+    const nextVersionLine = (await nextVersionResult.stdout()).trim();
+    console.log(`   Next.js version: ${nextVersionLine}`);
+
     // Step 6: Create snapshot (this stops the sandbox)
     console.log("\n6️⃣  Creating snapshot...");
     const snapshot = await sandbox.snapshot();
@@ -210,16 +291,21 @@ export default nextConfig;
     console.log("\n" + "=".repeat(60));
 
     // Save snapshot ID
-    const snapshotInfo = `# Next.js Sandbox Snapshot
+    const snapshotInfo = `# Next.js Sandbox Snapshot with AI Coding Agents
 # Created: ${new Date().toISOString()}
 # Expires: ~7 days from creation
 #
 # Contents:
-# - Next.js 15 + React 19 + TypeScript
+# - Next.js (latest) + React 19 + TypeScript ${nextVersionLine ? `(${nextVersionLine})` : ''}
 # - Tailwind CSS
 # - shadcn/ui (initialized, add components with: npx shadcn@latest add <name>)
 # - ESLint configured
-# - Turbopack enabled
+# - Turbopack enabled with filesystem cache
+#
+# AI Coding Agents:
+# - Claude Code (claude) - Anthropic
+# - OpenCode (opencode) - Open source
+# - Codex (codex) - OpenAI
 #
 NEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}
 `;
