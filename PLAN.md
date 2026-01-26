@@ -1223,71 +1223,6 @@ export async function GET() {
 }
 ```
 
-### Sandbox Files Route
-
-List files in sandbox (needed for deployment UI):
-
-```typescript
-// app/api/sandboxes/[sandboxId]/files/route.ts
-
-import { NextResponse } from "next/server";
-import { Sandbox } from "@vercel/sandbox";
-
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ sandboxId: string }> }
-) {
-  const { sandboxId } = await params;
-
-  try {
-    const sandbox = await Sandbox.get({ sandboxId });
-    const result = await sandbox.runCommand({
-      cmd: "find",
-      args: ["/vercel/sandbox", "-type", "f", "-not", "-path", "*/node_modules/*"],
-    });
-
-    const files = result.stdout
-      .split("\n")
-      .filter(Boolean)
-      .filter((f) => !f.includes("node_modules"));
-
-    return NextResponse.json({ files });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to list files" },
-      { status: 500 }
-    );
-  }
-}
-```
-
-### Sandbox Cleanup Route
-
-Stop sandbox when session ends:
-
-```typescript
-// app/api/sandboxes/[sandboxId]/route.ts
-
-import { NextResponse } from "next/server";
-import { Sandbox } from "@vercel/sandbox";
-
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ sandboxId: string }> }
-) {
-  const { sandboxId } = await params;
-
-  try {
-    const sandbox = await Sandbox.get({ sandboxId });
-    await sandbox.stop();
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    // Sandbox may already be stopped
-    return NextResponse.json({ success: true });
-  }
-}
-```
-
 ---
 
 ## State Management
@@ -1795,57 +1730,48 @@ export function ChatInput() {
 ## File Structure
 
 ```
-platform-template/platforms-template/
+platform-template/
 ├── app/
 │   ├── layout.tsx
 │   ├── page.tsx
-│   └── api/
-│       ├── chat/
-│       │   └── route.ts              # Main chat endpoint
-│       ├── deploy/
-│       │   └── route.ts              # Deploy to Vercel
-│       ├── agents/
-│       │   └── route.ts              # List available agents
-│       └── sandboxes/
-│           └── [sandboxId]/
-│               ├── route.ts          # DELETE to stop sandbox
-│               └── files/
-│                   └── route.ts      # GET to list files
+│   └── rpc/
+│       └── [[...rest]]/
+│           └── route.ts              # RPC endpoint (chat, sandbox)
 ├── components/
-│   ├── chat-panel.tsx
-│   ├── chat-input.tsx
-│   ├── preview-panel.tsx
-│   ├── files-panel.tsx
-│   ├── logs-panel.tsx
-│   ├── agent-selector.tsx
-│   ├── deploy-button.tsx
-│   └── ui/                           # shadcn + AI Elements (installed via CLI)
+│   ├── chat/
+│   │   └── chat.tsx                  # Chat panel with messages + input
+│   ├── preview.tsx                   # Preview iframe
+│   ├── workspace-panel.tsx           # Files + Commands tabs
+│   ├── ai-elements/                  # AI Elements components
+│   │   ├── file-tree.tsx
+│   │   ├── terminal.tsx
+│   │   ├── message.tsx
+│   │   └── ...
+│   └── ui/                           # shadcn components
 │       ├── button.tsx
-│       ├── conversation.tsx
-│       ├── message.tsx
-│       ├── prompt-input.tsx
-│       ├── file-tree.tsx
-│       ├── web-preview.tsx
-│       ├── terminal.tsx
-│       ├── tool.tsx
-│       ├── reasoning.tsx
+│       ├── tabs.tsx
 │       └── ...
-├── hooks/
-│   ├── use-app-chat.ts               # Wrapper around useChat with app state
-│   └── use-deployment.ts             # Deployment state + polling
 ├── lib/
-│   ├── types.ts                      # ChatMessage, DataPart, ToolSet types
-│   ├── store.ts                      # Zustand store (app state only)
+│   ├── types.ts                      # StreamChunk, DataPart types
+│   ├── chat-context.tsx              # Chat context provider
+│   ├── store/
+│   │   └── sandbox-store.ts          # Zustand store
 │   ├── agents/
-│   │   ├── types.ts                  # AgentProvider interface
+│   │   ├── types.ts                  # AgentProvider, SandboxContext
 │   │   ├── registry.ts               # Agent registry
-│   │   ├── tool-definitions.ts       # Provider-agnostic tool definitions
-│   │   ├── claude-agent.ts
-│   │   ├── codex-agent.ts
-│   │   └── opencode-agent.ts
-│   ├── vercel.ts                     # @vercel/sdk client
+│   │   ├── stream.ts                 # Stream utilities
+│   │   └── claude-agent.ts           # Claude Agent implementation
+│   ├── rpc/
+│   │   ├── client.ts                 # RPC client
+│   │   ├── router.ts                 # RPC router
+│   │   └── procedures/
+│   │       ├── chat.ts               # Chat streaming procedure
+│   │       └── sandbox.ts            # Sandbox operations
+│   ├── vercel.ts                     # @vercel/sdk client (for deploy)
 │   └── deploy.ts                     # Deployment functions
-├── middleware.ts                     # Rate limiting (optional)
+├── scripts/
+│   ├── create-nextjs-snapshot.ts     # Create optimized snapshot
+│   └── benchmark-sandbox.ts          # Benchmark startup time
 ├── components.json                   # shadcn config
 ├── package.json
 ├── tsconfig.json
@@ -2236,35 +2162,6 @@ if (!path.startsWith("/vercel/sandbox")) {
 }
 ```
 
-### Sensitive File Detection
-
-Before deployment, warn about potentially sensitive files:
-
-```typescript
-// lib/deploy.ts
-
-const SENSITIVE_PATTERNS = [".env", "credentials", ".pem", ".key", ".secret"];
-
-export function detectSensitiveFiles(files: string[]): string[] {
-  return files.filter((f) =>
-    SENSITIVE_PATTERNS.some((pattern) => f.toLowerCase().includes(pattern))
-  );
-}
-
-// In deploy route
-const sensitiveFiles = detectSensitiveFiles(files);
-if (sensitiveFiles.length > 0) {
-  return NextResponse.json(
-    {
-      error: "Potentially sensitive files detected",
-      files: sensitiveFiles,
-      message: "Remove these files or confirm deployment",
-    },
-    { status: 400 }
-  );
-}
-```
-
 ### Command Separation
 
 Commands use separate `cmd` and `args` fields to prevent injection:
@@ -2275,32 +2172,6 @@ Commands use separate `cmd` and `args` fields to prevent injection:
 
 // Bad - string splitting can break on spaces in paths
 command.split(" ")
-```
-
-### Rate Limiting (Recommended for Production)
-
-```typescript
-// middleware.ts (example using Upstash)
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-
-const ratelimit = new Ratelimit({
-  redis: Redis.fromEnv(),
-  limiter: Ratelimit.slidingWindow(10, "1 m"), // 10 requests per minute
-});
-
-export async function middleware(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anonymous";
-  const { success } = await ratelimit.limit(ip);
-  
-  if (!success) {
-    return new Response("Rate limited", { status: 429 });
-  }
-}
-
-export const config = {
-  matcher: ["/api/chat", "/api/deploy"],
-};
 ```
 
 ---
