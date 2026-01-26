@@ -17,13 +17,13 @@ describe("Subagent Support", () => {
   beforeAll(async () => {
     console.log("Creating sandbox...");
     sandbox = await Sandbox.create({
-      timeoutMs: 60000,
+      timeout: 60000,
     });
-    console.log(`Sandbox created: ${sandbox.id}`);
+    console.log(`Sandbox created: ${sandbox.sandboxId}`);
 
     sandboxContext = {
       sandbox,
-      sandboxId: sandbox.id,
+      sandboxId: sandbox.sandboxId,
     };
   }, 30000);
 

@@ -17,6 +17,10 @@ import type { Sandbox } from "@vercel/sandbox";
 export interface SandboxContext {
   sandboxId: string;
   sandbox: Sandbox;
+  /** Optional proxy session ID for API calls from within the sandbox */
+  proxySessionId?: string;
+  /** Optional proxy base URL for API calls from within the sandbox */
+  proxyBaseUrl?: string;
 }
 
 // ============================================================================
@@ -106,6 +110,8 @@ export interface ExecuteParams {
   sessionId?: string;
   /** Optional model override (e.g., 'haiku' for tests) */
   model?: string;
+  /** Optional proxy session ID for sandbox API calls through our proxy */
+  proxySessionId?: string;
 }
 
 /**

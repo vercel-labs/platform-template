@@ -188,6 +188,7 @@ export function Chat({ className }: ChatProps) {
             case "data": {
               // Handle data parts - update store
               const dataType = `data-${streamChunk.dataType}`;
+              console.log(`[chat] Received data chunk: ${dataType}`, streamChunk.data);
               const store = useSandboxStore.getState();
               handleDataPart(store, dataType, streamChunk.data);
               break;

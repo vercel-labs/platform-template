@@ -30,6 +30,9 @@ interface PreviewProps {
 export function Preview({ className }: PreviewProps) {
   const { previewUrl, sandboxId, status } = useSandboxStore();
   const [key, setKey] = useState(0);
+  
+  // Debug log
+  console.log("[preview] Current state:", { previewUrl, sandboxId, status });
 
   const refresh = useCallback(() => {
     setKey((k) => k + 1);

@@ -27,19 +27,30 @@ import type {
 // ============================================================================
 
 const SANDBOX_INSTRUCTIONS = `
-IMPORTANT SANDBOX ENVIRONMENT NOTES:
-- You are running in a Vercel Sandbox environment at /vercel/sandbox
-- All file paths should be within /vercel/sandbox (this is your working directory)
-- For Vite projects, ALWAYS create vite.config.js with server.allowedHosts: true:
-  \`\`\`js
-  import { defineConfig } from 'vite'
-  export default defineConfig({
-    server: { host: '0.0.0.0', allowedHosts: true }
-  })
-  \`\`\`
-- When running dev servers (npm run dev), they run in the background automatically
-- Use timeout=60000 for npm install commands
-- After starting a dev server, use the LS tool or check port 3000/5173 for the preview
+SANDBOX ENVIRONMENT:
+- You are in a Vercel Sandbox at /vercel/sandbox
+- Next.js 15, React 19, Tailwind CSS, TypeScript are pre-installed
+- The dev server is ALREADY RUNNING on port 3000 - the preview updates automatically
+- shadcn/ui is configured - add components with: npx shadcn@latest add button
+
+PROJECT STRUCTURE:
+/vercel/sandbox/
+  src/app/page.tsx      ← EDIT THIS for your app's main content
+  src/app/layout.tsx    ← Root layout (html, body, providers)
+  src/app/globals.css   ← Global styles, Tailwind imports
+  src/lib/utils.ts      ← cn() utility for className merging
+  src/components/       ← Create this folder for your components
+
+WORKFLOW:
+1. Edit src/app/page.tsx - changes appear in preview immediately
+2. Add shadcn components: npx shadcn@latest add button card dialog
+3. New routes: create src/app/about/page.tsx for /about
+
+CRITICAL RULES:
+- NEVER run npm install, npm run dev, or create-next-app
+- NEVER create package.json - it exists
+- NEVER start the dev server - it's already running
+- Just edit files and the preview updates automatically
 `;
 
 // ============================================================================
@@ -325,6 +336,15 @@ function createSandboxTools(ctx: SandboxContext) {
         const command = args.command as string;
         const timeout = (args.timeout as number | undefined) ?? 30000;
 
+        // Build environment variables for the command
+        // Include proxy config so any code in the sandbox can call Anthropic API through our proxy
+        const env: Record<string, string> = {};
+        if (ctx.proxySessionId && ctx.proxyBaseUrl) {
+          env.ANTHROPIC_BASE_URL = ctx.proxyBaseUrl;
+          env.ANTHROPIC_API_KEY = ctx.proxySessionId;
+          env.ANTHROPIC_AUTH_TOKEN = ctx.proxySessionId;
+        }
+
         try {
           // Detect if this is a dev server command that should run in background
           const isDevServer =
@@ -335,12 +355,22 @@ function createSandboxTools(ctx: SandboxContext) {
             command.includes("vite") ||
             command.includes("next dev");
 
+          // Detect if this is an npm/pnpm install command
+          const isInstall =
+            command.includes("npm install") ||
+            command.includes("npm i") ||
+            command.includes("pnpm install") ||
+            command.includes("pnpm i") ||
+            command.includes("yarn install") ||
+            command.includes("yarn add");
+
           if (isDevServer) {
             // For dev servers, start and don't wait - let it run in background
             ctx.sandbox.runCommand({
               cmd: "sh",
               args: ["-c", command],
               cwd: "/vercel/sandbox",
+              env,
             });
             await new Promise((resolve) => setTimeout(resolve, 3000));
             return {
@@ -358,6 +388,7 @@ function createSandboxTools(ctx: SandboxContext) {
             cmd: "sh",
             args: ["-c", command],
             cwd: "/vercel/sandbox",
+            env,
           });
 
           // Wait for completion with timeout
@@ -378,13 +409,41 @@ function createSandboxTools(ctx: SandboxContext) {
             }),
           ])) as [string, string];
 
-          const output = [
+          let output = [
             stdout ? `stdout:\n${stdout}` : "",
             stderr ? `stderr:\n${stderr}` : "",
             `Exit code: ${result.exitCode}`,
           ]
             .filter(Boolean)
             .join("\n\n");
+
+          // Auto-start dev server after successful npm/pnpm install
+          if (isInstall && result.exitCode === 0) {
+            // Check if package.json has a dev script
+            try {
+              const pkgJson = await ctx.sandbox.readFileToBuffer({
+                path: "/vercel/sandbox/package.json",
+              });
+              if (pkgJson) {
+                const pkg = JSON.parse(pkgJson.toString());
+                if (pkg.scripts?.dev) {
+                  // Start dev server automatically
+                  ctx.sandbox.runCommand({
+                    cmd: "sh",
+                    args: ["-c", "npm run dev"],
+                    cwd: "/vercel/sandbox",
+                    env,
+                    detached: true,
+                  });
+                  // Wait for it to start
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                  output += "\n\n✓ Dev server started automatically on port 3000. Preview is ready!";
+                }
+              }
+            } catch {
+              // Ignore errors - dev server auto-start is best effort
+            }
+          }
 
           return {
             content: [{ type: "text" as const, text: output }],
