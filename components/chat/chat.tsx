@@ -16,9 +16,9 @@ import { cn } from "@/lib/utils";
 import { MessageResponse } from "@/components/ai-elements/message";
 
 const EXAMPLE_PROMPTS = [
-  "Create a simple React counter app",
-  "Build a todo list with local storage",
-  "Make a landing page with Tailwind CSS",
+  "Build a pomodoro timer with sound notifications",
+  "Create a mood tracker with emoji reactions and a weekly chart",
+  "Make a password generator with strength indicator",
 ];
 
 // Message part types - ordered as they arrive
@@ -322,7 +322,7 @@ function MessageView({ message }: { message: ChatMessage }) {
       </div>
 
       {/* Content - parts in order */}
-      <div className={cn("flex-1 space-y-2", isUser ? "text-right" : "text-left")}>
+      <div className={cn("min-w-0 flex-1 space-y-2", isUser ? "text-right" : "text-left")}>
         {message.parts.map((part, index) => (
           <PartView key={`${message.id}-${index}`} part={part} isUser={isUser} />
         ))}
@@ -347,7 +347,7 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
     
     // Assistant messages - render markdown with Streamdown
     return (
-      <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
+      <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none break-words">
         <MessageResponse>{part.content}</MessageResponse>
       </div>
     );
@@ -374,7 +374,7 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
           <summary className="cursor-pointer font-mono text-xs text-zinc-400">
             Input
           </summary>
-          <pre className="mt-1 overflow-auto rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-800">
+          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-800">
             {part.input}
           </pre>
         </details>
@@ -387,7 +387,7 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
           </summary>
           <pre
             className={cn(
-              "mt-1 max-h-40 overflow-auto rounded p-2 font-mono text-xs",
+              "mt-1 max-h-40 overflow-x-auto whitespace-pre-wrap break-all rounded p-2 font-mono text-xs",
               part.isError
                 ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
                 : "bg-zinc-100 dark:bg-zinc-800"

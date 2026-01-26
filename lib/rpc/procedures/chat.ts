@@ -82,11 +82,11 @@ export const sendMessage = os
       });
     }
 
-    // Generate proxy session ID (sync, instant)
+    // Generate proxy session ID and store in Redis
     const proxySessionId = generateProxySessionId();
     const oidcToken = process.env.VERCEL_OIDC_TOKEN;
     if (oidcToken) {
-      sessionTokens.set(proxySessionId, oidcToken);
+      await sessionTokens.set(proxySessionId, oidcToken);
     }
 
     // Determine the proxy base URL
@@ -104,12 +104,11 @@ export const sendMessage = os
       sandboxId: sandbox.sandboxId,
     };
 
-    // Start dev server and wait for it to be ready before sending preview URL
+    // Start dev server in background (don't wait for it yet)
+    // We'll send the preview URL after the agent finishes its first response
+    let devServerStarted = false;
     if (isNewSandbox && process.env.NEXTJS_SNAPSHOT_ID) {
-      const previewUrl = sandbox.domain(3000);
-      console.log(`[chat] Starting dev server, will wait for: ${previewUrl}`);
-
-      // Start dev server (fire and forget)
+      console.log(`[chat] Starting dev server in background...`);
       sandbox.runCommand({
         cmd: "npm",
         args: ["run", "dev"],
@@ -118,54 +117,7 @@ export const sendMessage = os
       }).catch((error) => {
         console.error("[chat] Failed to start dev server:", error);
       });
-
-      // Poll until server is ready (max 30 seconds)
-      const maxWaitMs = 30_000;
-      const pollIntervalMs = 500;
-      const startTime = Date.now();
-      let serverReady = false;
-
-      while (Date.now() - startTime < maxWaitMs) {
-        try {
-          const response = await fetch(previewUrl, {
-            method: "HEAD",
-            signal: AbortSignal.timeout(2000),
-          });
-          // Server is responding (200 or 404 means Next.js is running)
-          if (response.ok || response.status === 404) {
-            serverReady = true;
-            console.log(`[chat] Dev server ready in ${Date.now() - startTime}ms`);
-            break;
-          }
-        } catch {
-          // Server not ready yet, continue polling
-        }
-        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-      }
-
-      if (serverReady) {
-        yield {
-          type: "data" as const,
-          dataType: "preview-url" as const,
-          data: { url: previewUrl, port: 3000 },
-        };
-        console.log(`[chat] Preview URL sent: ${previewUrl}`);
-      } else {
-        console.error("[chat] Dev server did not become ready in time");
-      }
-    } else if (!isNewSandbox) {
-      // Existing sandbox - server should already be running
-      try {
-        const previewUrl = sandbox.domain(3000);
-        yield {
-          type: "data" as const,
-          dataType: "preview-url" as const,
-          data: { url: previewUrl, port: 3000 },
-        };
-        console.log(`[chat] Preview URL (existing sandbox): ${previewUrl}`);
-      } catch (error) {
-        console.error("[chat] Failed to get preview URL:", error);
-      }
+      devServerStarted = true;
     }
 
     // Write .env file (fire and forget)
@@ -191,5 +143,45 @@ ANTHROPIC_AUTH_TOKEN=${proxySessionId}
     // Stream each chunk from the agent
     for await (const chunk of agentOutput) {
       yield chunk;
+    }
+
+    // After agent response completes, send preview URL if server is ready
+    const previewUrl = sandbox.domain(3000);
+    
+    if (devServerStarted) {
+      // Poll until server is ready (max 10 seconds - should be ready by now)
+      console.log(`[chat] Agent finished, waiting for dev server: ${previewUrl}`);
+      const maxWaitMs = 10_000;
+      const pollIntervalMs = 250;
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitMs) {
+        try {
+          const response = await fetch(previewUrl, {
+            method: "HEAD",
+            signal: AbortSignal.timeout(2000),
+          });
+          if (response.ok || response.status === 404) {
+            console.log(`[chat] Dev server ready, sending preview URL`);
+            yield {
+              type: "data" as const,
+              dataType: "preview-url" as const,
+              data: { url: previewUrl, port: 3000 },
+            };
+            break;
+          }
+        } catch {
+          // Server not ready yet
+        }
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
+    } else {
+      // Existing sandbox or no snapshot - send preview URL immediately
+      console.log(`[chat] Sending preview URL for existing sandbox`);
+      yield {
+        type: "data" as const,
+        dataType: "preview-url" as const,
+        data: { url: previewUrl, port: 3000 },
+      };
     }
   });

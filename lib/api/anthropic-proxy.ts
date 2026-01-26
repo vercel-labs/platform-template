@@ -52,8 +52,8 @@ export function createProxyHandler(options: ProxyOptions = {}) {
       );
     }
 
-    // Look up real token for this session
-    const realToken = sessionTokens.get(sessionId);
+    // Look up real token for this session (from Redis)
+    const realToken = await sessionTokens.get(sessionId);
     if (!realToken) {
       return new Response(
         JSON.stringify({ error: "Invalid session ID" }),

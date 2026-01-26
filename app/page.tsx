@@ -16,7 +16,7 @@ export default function Page() {
       {/* Main Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Chat Sidebar */}
-        <div className="w-[32rem] border-r border-zinc-200 dark:border-zinc-800">
+        <div className="w-[48rem] shrink-0 border-r border-zinc-200 dark:border-zinc-800">
           <Chat className="h-full rounded-none border-0" />
         </div>
 

@@ -1,50 +1,141 @@
 /**
- * @fileoverview In-memory store for session ID → OIDC token mapping
+ * @fileoverview Redis store for session ID → OIDC token mapping
  *
  * This store maps session IDs (which are safe to expose to sandboxes) to
  * real OIDC tokens (which must be kept secret). The proxy uses this to
  * authenticate requests from sandboxes without exposing real credentials.
  *
- * Note: This is an in-memory store, so tokens are lost on server restart.
- * For production, consider using Redis or a similar persistent store.
+ * Uses Redis for persistence across server restarts and horizontal scaling.
+ * Session tokens expire after 12 hours.
  */
 
+const REDIS_URL = process.env.REDIS_URL || process.env.KV_URL;
+const KEY_PREFIX = "session:";
+const TTL_SECONDS = 12 * 60 * 60; // 12 hours
+
+// Use Upstash REST API since we're in Next.js Edge Runtime
+// Bun.redis doesn't work in Edge Runtime
 class SessionTokenStore {
-  private tokens = new Map<string, string>();
+  private baseUrl: string;
+  private token: string;
+
+  constructor() {
+    const restUrl = process.env.KV_REST_API_URL;
+    const restToken = process.env.KV_REST_API_TOKEN;
+
+    if (!restUrl || !restToken) {
+      console.warn(
+        "[session-tokens] KV_REST_API_URL or KV_REST_API_TOKEN not set, falling back to in-memory store"
+      );
+    }
+
+    this.baseUrl = restUrl || "";
+    this.token = restToken || "";
+  }
+
+  private get isConfigured(): boolean {
+    return Boolean(this.baseUrl && this.token);
+  }
+
+  // In-memory fallback for development without Redis
+  private fallbackStore = new Map<string, string>();
+
+  private async request(
+    command: string[]
+  ): Promise<{ result: string | number | null } | null> {
+    if (!this.isConfigured) return null;
+
+    try {
+      const response = await fetch(`${this.baseUrl}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(command),
+      });
+
+      if (!response.ok) {
+        console.error(
+          `[session-tokens] Redis error: ${response.status} ${response.statusText}`
+        );
+        return null;
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error("[session-tokens] Redis request failed:", error);
+      return null;
+    }
+  }
 
   /**
-   * Store a token for a session
+   * Store a token for a session with TTL
    */
-  set(sessionId: string, token: string): void {
-    this.tokens.set(sessionId, token);
+  async set(sessionId: string, token: string): Promise<void> {
+    const key = `${KEY_PREFIX}${sessionId}`;
+
+    if (this.isConfigured) {
+      await this.request(["SET", key, token, "EX", String(TTL_SECONDS)]);
+    } else {
+      this.fallbackStore.set(sessionId, token);
+    }
   }
 
   /**
    * Get the token for a session
    */
-  get(sessionId: string): string | undefined {
-    return this.tokens.get(sessionId);
+  async get(sessionId: string): Promise<string | undefined> {
+    const key = `${KEY_PREFIX}${sessionId}`;
+
+    if (this.isConfigured) {
+      const result = await this.request(["GET", key]);
+      return typeof result?.result === "string" ? result.result : undefined;
+    } else {
+      return this.fallbackStore.get(sessionId);
+    }
   }
 
   /**
    * Remove a session's token
    */
-  delete(sessionId: string): boolean {
-    return this.tokens.delete(sessionId);
+  async delete(sessionId: string): Promise<boolean> {
+    const key = `${KEY_PREFIX}${sessionId}`;
+
+    if (this.isConfigured) {
+      const result = await this.request(["DEL", key]);
+      return result?.result !== null;
+    } else {
+      return this.fallbackStore.delete(sessionId);
+    }
   }
 
   /**
    * Check if a session exists
    */
-  has(sessionId: string): boolean {
-    return this.tokens.has(sessionId);
+  async has(sessionId: string): Promise<boolean> {
+    const key = `${KEY_PREFIX}${sessionId}`;
+
+    if (this.isConfigured) {
+      const result = await this.request(["EXISTS", key]);
+      return result?.result === "1" || result?.result === 1;
+    } else {
+      return this.fallbackStore.has(sessionId);
+    }
   }
 
   /**
-   * Clear all tokens (useful for testing)
+   * Clear all session tokens (useful for testing)
    */
-  clear(): void {
-    this.tokens.clear();
+  async clear(): Promise<void> {
+    if (this.isConfigured) {
+      // Note: This only works in development. In production, use SCAN + DEL
+      console.warn(
+        "[session-tokens] clear() not fully implemented for Redis"
+      );
+    } else {
+      this.fallbackStore.clear();
+    }
   }
 }
 

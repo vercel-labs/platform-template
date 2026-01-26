@@ -66,21 +66,21 @@ describe("Sandbox Proxy Integration", () => {
     expect(content!.toString()).toContain(proxySessionId);
   });
 
-  test("session token store should work correctly", () => {
+  test("session token store should work correctly", async () => {
     const sessionId = "test-store-session";
     const token = "real-oidc-token";
 
     // Set and get
-    sessionTokens.set(sessionId, token);
-    expect(sessionTokens.get(sessionId)).toBe(token);
+    await sessionTokens.set(sessionId, token);
+    expect(await sessionTokens.get(sessionId)).toBe(token);
 
     // Has
-    expect(sessionTokens.has(sessionId)).toBe(true);
-    expect(sessionTokens.has("nonexistent")).toBe(false);
+    expect(await sessionTokens.has(sessionId)).toBe(true);
+    expect(await sessionTokens.has("nonexistent")).toBe(false);
 
     // Delete
-    sessionTokens.delete(sessionId);
-    expect(sessionTokens.get(sessionId)).toBeUndefined();
-    expect(sessionTokens.has(sessionId)).toBe(false);
+    await sessionTokens.delete(sessionId);
+    expect(await sessionTokens.get(sessionId)).toBeUndefined();
+    expect(await sessionTokens.has(sessionId)).toBe(false);
   });
 });

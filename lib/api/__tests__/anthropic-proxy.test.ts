@@ -15,9 +15,10 @@ const mockSessionStore = new Map<string, string>();
 
 vi.mock("../../store/session-tokens", () => ({
   sessionTokens: {
-    get: (sessionId: string) => mockSessionStore.get(sessionId),
-    set: (sessionId: string, token: string) => mockSessionStore.set(sessionId, token),
-    delete: (sessionId: string) => mockSessionStore.delete(sessionId),
+    get: async (sessionId: string) => mockSessionStore.get(sessionId),
+    set: async (sessionId: string, token: string) => mockSessionStore.set(sessionId, token),
+    delete: async (sessionId: string) => mockSessionStore.delete(sessionId),
+    has: async (sessionId: string) => mockSessionStore.has(sessionId),
   },
 }));
 

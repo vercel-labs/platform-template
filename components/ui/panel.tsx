@@ -45,7 +45,7 @@ export interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
 
 export function PanelContent({ className, children, ...props }: PanelContentProps) {
   return (
-    <div className={cn("flex-1 overflow-auto p-4", className)} {...props}>
+    <div className={cn("flex-1 overflow-y-auto overflow-x-hidden p-4", className)} {...props}>
       {children}
     </div>
   );
