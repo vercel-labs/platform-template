@@ -1,0 +1,49 @@
+/**
+ * Sign Out Route
+ *
+ * GET /api/auth/signout?next=/path
+ *
+ * Revokes the OAuth token with Vercel and clears the session cookie.
+ * Returns JSON with a redirect URL.
+ */
+
+import type { NextRequest } from "next/server";
+import {
+  VERCEL_OAUTH,
+  isRelativeUrl,
+  getSessionFromRequest,
+  saveSession,
+} from "@/lib/auth";
+
+export async function GET(req: NextRequest): Promise<Response> {
+  const session = await getSessionFromRequest(req);
+
+  // Revoke the token with Vercel
+  if (session) {
+    try {
+      await fetch(VERCEL_OAUTH.revoke, {
+        method: "POST",
+        body: new URLSearchParams({ token: session.tokens.accessToken }),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(
+            `${process.env.VERCEL_CLIENT_ID}:${process.env.VERCEL_CLIENT_SECRET}`
+          ).toString("base64")}`,
+        },
+      });
+    } catch (error) {
+      console.error("[auth] Failed to revoke token:", error);
+      // Continue with sign out even if revocation fails
+    }
+  }
+
+  const next = req.nextUrl.searchParams.get("next") ?? "/";
+  const redirectUrl = isRelativeUrl(next) ? next : "/";
+
+  const response = Response.json({ url: redirectUrl });
+
+  // Clear the session cookie
+  await saveSession(response, undefined);
+
+  return response;
+}

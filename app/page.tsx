@@ -1,6 +1,7 @@
 import { Chat } from "@/components/chat/chat";
 import { Preview } from "@/components/preview";
 import { WorkspacePanel } from "@/components/workspace-panel";
+import { AuthButton } from "@/components/auth";
 
 export default function Page() {
   return (
@@ -8,9 +9,12 @@ export default function Page() {
       {/* Header */}
       <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
         <h1 className="font-mono text-sm font-semibold">Platform Template</h1>
-        <span className="font-mono text-xs text-zinc-500">
-          AI Code Generation
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-xs text-zinc-500">
+            AI Code Generation
+          </span>
+          <AuthButton />
+        </div>
       </header>
 
       {/* Main Layout */}

@@ -1,0 +1,77 @@
+/**
+ * Vercel OAuth Callback Route
+ *
+ * GET /api/auth/callback/vercel?code=...&state=...
+ *
+ * Handles the OAuth callback, exchanges code for tokens,
+ * creates a session, and redirects to the original page.
+ */
+
+import { type NextRequest } from "next/server";
+import { OAuth2Client, type OAuth2Tokens } from "arctic";
+import { cookies } from "next/headers";
+import { VERCEL_OAUTH, createSession, saveSession } from "@/lib/auth";
+
+export async function GET(req: NextRequest): Promise<Response> {
+  const code = req.nextUrl.searchParams.get("code");
+  const state = req.nextUrl.searchParams.get("state");
+  const cookieStore = await cookies();
+
+  const storedState = cookieStore.get("vercel_oauth_state")?.value ?? null;
+  const storedVerifier =
+    cookieStore.get("vercel_oauth_code_verifier")?.value ?? null;
+  const storedRedirectTo =
+    cookieStore.get("vercel_oauth_redirect_to")?.value ?? "/";
+
+  // Validate OAuth state
+  if (
+    code === null ||
+    state === null ||
+    storedState !== state ||
+    storedVerifier === null
+  ) {
+    return new Response("Invalid OAuth state", { status: 400 });
+  }
+
+  const client = new OAuth2Client(
+    process.env.VERCEL_CLIENT_ID ?? "",
+    process.env.VERCEL_CLIENT_SECRET ?? "",
+    `${req.nextUrl.origin}/api/auth/callback/vercel`
+  );
+
+  let tokens: OAuth2Tokens;
+
+  try {
+    tokens = await client.validateAuthorizationCode(
+      VERCEL_OAUTH.token,
+      code,
+      storedVerifier
+    );
+  } catch (error) {
+    console.error("[auth] Failed to exchange code for tokens:", error);
+    return new Response("Failed to authenticate", { status: 400 });
+  }
+
+  // Create response with redirect
+  const response = new Response(null, {
+    status: 302,
+    headers: {
+      Location: storedRedirectTo,
+    },
+  });
+
+  // Create and save session
+  const session = await createSession({
+    accessToken: tokens.accessToken(),
+    expiresAt: tokens.accessTokenExpiresAt().getTime(),
+  });
+
+  await saveSession(response, session);
+
+  // Clean up OAuth cookies
+  cookieStore.delete("vercel_oauth_state");
+  cookieStore.delete("vercel_oauth_code_verifier");
+  cookieStore.delete("vercel_oauth_redirect_to");
+
+  return response;
+}
