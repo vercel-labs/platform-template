@@ -19,23 +19,26 @@ export interface SessionData {
   createdAt: number;
   expiresAt: number;
   sandboxId?: string;
+  /** User ID if session was created by an authenticated user */
+  userId?: string;
 }
 
 // Session TTL in seconds (1 hour)
 const SESSION_TTL = 60 * 60;
 
 /**
- * Create a new session with an OIDC token
+ * Create a new session
  */
 export async function createSession(
   sessionId: string,
-  sandboxId?: string
+  options?: { sandboxId?: string; userId?: string }
 ): Promise<SessionData> {
   const now = Date.now();
   const sessionData: SessionData = {
     createdAt: now,
     expiresAt: now + SESSION_TTL * 1000,
-    sandboxId,
+    sandboxId: options?.sandboxId,
+    userId: options?.userId,
   };
 
   await redis.set(`session:${sessionId}`, JSON.stringify(sessionData), {

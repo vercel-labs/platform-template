@@ -1,24 +1,29 @@
 /**
  * Session API Route
  *
- * Creates a new session with an OIDC token stored in Redis.
- * The session ID is returned to the sandbox which uses it in place of the OIDC token.
+ * Creates a new session stored in Redis.
+ * If the user is authenticated, their user ID is stored in the session
+ * so the proxy can use their AI gateway credits.
  */
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { nanoid } from "nanoid";
 import { createSession, updateSessionSandbox } from "@/lib/redis";
+import { getSessionFromRequest } from "@/lib/auth";
 
 export const maxDuration = 10;
 
 /**
  * POST /api/ai/session
  *
- * Creates a new session and stores the OIDC token in Redis.
- * Returns a session ID that can be used by the sandbox.
+ * Creates a new session. If the user is authenticated (has a valid auth cookie),
+ * their user ID is stored in the session for AI gateway billing.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Check if user is authenticated
+    const authSession = await getSessionFromRequest(request);
+    const userId = authSession?.user?.id;
 
     // Parse request body for optional sandbox ID
     let sandboxId: string | undefined;
@@ -32,12 +37,13 @@ export async function POST(request: Request) {
     // Generate a unique session ID
     const sessionId = nanoid(32);
 
-    // Store the session in Redis
-    await createSession(sessionId, sandboxId);
+    // Store the session in Redis (with user ID if authenticated)
+    await createSession(sessionId, { sandboxId, userId });
 
     return NextResponse.json({
       sessionId,
       expiresIn: 3600, // 1 hour
+      authenticated: !!userId,
     });
   } catch (error) {
     console.error("[session] Error creating session:", error);
