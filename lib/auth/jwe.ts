@@ -1,4 +1,8 @@
-import { EncryptJWT, jwtDecrypt, base64url } from "jose";
+import { EncryptJWT, jwtDecrypt } from "jose";
+
+function decodeSecret(secret: string): Uint8Array {
+  return Buffer.from(secret, "base64");
+}
 
 export async function encryptJWE<T extends object>(
   payload: T,
@@ -12,7 +16,7 @@ export async function encryptJWE<T extends object>(
   return new EncryptJWT(payload as Record<string, unknown>)
     .setExpirationTime(expirationTime)
     .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
-    .encrypt(base64url.decode(secret));
+    .encrypt(decodeSecret(secret));
 }
 
 export async function decryptJWE<T extends object>(
@@ -28,7 +32,7 @@ export async function decryptJWE<T extends object>(
   }
 
   try {
-    const { payload } = await jwtDecrypt(ciphertext, base64url.decode(secret));
+    const { payload } = await jwtDecrypt(ciphertext, decodeSecret(secret));
     const decoded = payload as T & { iat?: number; exp?: number };
 
     if (typeof decoded === "object" && decoded !== null) {
