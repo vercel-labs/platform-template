@@ -7,6 +7,7 @@
 
 import type { AgentProvider } from "./types";
 import { ClaudeAgentProvider } from "./claude-agent";
+import { CodexAgentProvider } from "./codex-agent";
 
 // ============================================================================
 // Registry
@@ -15,7 +16,8 @@ import { ClaudeAgentProvider } from "./claude-agent";
 // All agents implement the same interface
 const agents: AgentProvider[] = [
   new ClaudeAgentProvider(), // Default
-  // Future: CodexAgentProvider, OpenCodeAgentProvider
+  new CodexAgentProvider(),
+  // Future: OpenCodeAgentProvider
 ];
 
 /**

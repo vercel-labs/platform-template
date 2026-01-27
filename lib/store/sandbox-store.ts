@@ -35,6 +35,9 @@ export interface SandboxState {
   // Session (for agent conversation memory)
   sessionId: string | null;
 
+  // Agent selection
+  agentId: string;
+
   // Files
   files: string[];
 
@@ -50,6 +53,9 @@ export interface SandboxActions {
 
   // Session
   setSessionId: (sessionId: string) => void;
+
+  // Agent
+  setAgentId: (agentId: string) => void;
 
   // Files
   addFile: (path: string) => void;
@@ -75,6 +81,7 @@ const initialState: SandboxState = {
   previewUrl: null,
   status: null,
   sessionId: null,
+  agentId: "claude", // Default agent
   files: [],
   commands: [],
 };
@@ -100,6 +107,8 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   setStatus: (status) => set({ status }),
 
   setSessionId: (sessionId) => set({ sessionId }),
+
+  setAgentId: (agentId) => set({ agentId }),
 
   addFile: (path) =>
     set((state) => {

@@ -14,6 +14,7 @@ import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
 import type { StreamChunk } from "@/lib/agents/types";
 import { cn } from "@/lib/utils";
 import { MessageResponse } from "@/components/ai-elements/message";
+import { AgentSelector } from "@/components/agent-selector";
 
 const EXAMPLE_PROMPTS = [
   "Build a pomodoro timer with sound notifications",
@@ -40,7 +41,7 @@ export function Chat({ className }: ChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
-  const { sandboxId, sessionId, setSandbox, setSessionId } = useSandboxStore();
+  const { sandboxId, sessionId, agentId, setSandbox, setSessionId } = useSandboxStore();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -72,6 +73,7 @@ export function Chat({ className }: ChatProps) {
         // Pass sessionId to resume conversation if we have one
         const iterator = await rpc.chat.send({
           prompt: text,
+          agentId,
           sandboxId: sandboxId ?? undefined,
           sessionId: sessionId ?? undefined,
         });
@@ -222,7 +224,7 @@ export function Chat({ className }: ChatProps) {
         setStatus("ready");
       }
     },
-    [status, sandboxId, sessionId, setSandbox, setSessionId]
+    [status, sandboxId, sessionId, agentId, setSandbox, setSessionId]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -241,7 +243,10 @@ export function Chat({ className }: ChatProps) {
           <MessageCircle className="h-4 w-4" />
           Chat
         </div>
-        <div className="font-mono text-xs text-zinc-500">[{status}]</div>
+        <div className="flex items-center gap-3">
+          <AgentSelector disabled={isStreaming} />
+          <div className="font-mono text-xs text-zinc-500">[{status}]</div>
+        </div>
       </PanelHeader>
 
       {/* Messages or Empty State */}
