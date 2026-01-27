@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     const authSession = await getSessionFromRequest(request);
     const userId = authSession?.user?.id;
+    const accessToken = authSession?.tokens?.accessToken;
 
     let sandboxId: string | undefined;
     try {
@@ -20,11 +21,11 @@ export async function POST(request: NextRequest) {
 
     const sessionId = nanoid(32);
 
-    await createSession(sessionId, { sandboxId, userId });
+    await createSession(sessionId, { sandboxId, userId, accessToken });
 
     return NextResponse.json({
       sessionId,
-      expiresIn: 3600, // 1 hour
+      expiresIn: 3600,
       authenticated: !!userId,
     });
   } catch (error) {

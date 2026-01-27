@@ -2,7 +2,6 @@
 import { type NextRequest } from "next/server";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { redis, type SessionData } from "@/lib/redis";
-import { getSessionFromRequest } from "@/lib/auth";
 
 export const maxDuration = 300;
 
@@ -38,22 +37,7 @@ async function handleRequest(request: NextRequest) {
     );
   }
 
-  let gatewayToken: string;
-
-  if (session.userId) {
-    const authSession = await getSessionFromRequest(request);
-
-    if (authSession?.user?.id === session.userId && authSession.tokens.accessToken) {
-      gatewayToken = authSession.tokens.accessToken;
-    } else {
-      console.warn(
-        "[proxy] Session has userId but auth cookie mismatch, falling back to OIDC"
-      );
-      gatewayToken = await getVercelOidcToken();
-    }
-  } else {
-    gatewayToken = await getVercelOidcToken();
-  }
+  const gatewayToken = session.accessToken ?? await getVercelOidcToken();
 
   const url = new URL(request.url);
   const apiPath = url.pathname.replace(/^\/api\/ai\/proxy/, "");
