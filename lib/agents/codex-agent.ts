@@ -158,7 +158,6 @@ export class CodexAgentProvider implements AgentProvider {
 
       // Buffer for incomplete lines (JSONL can be split across chunks)
       let lineBuffer = "";
-      let threadId: string | undefined;
       let gotResult = false;
       const totalUsage = { inputTokens: 0, outputTokens: 0 };
 
@@ -178,23 +177,18 @@ export class CodexAgentProvider implements AgentProvider {
 
             try {
               const message = JSON.parse(line) as CodexMessage;
-
-              for (const chunk of this.convertToStreamChunks(message)) {
+              const chunks = this.convertToStreamChunks(message);
+              for (const chunk of chunks) {
                 yield chunk;
+              }
 
-                // Capture thread ID
-                if (message.type === "thread.started") {
-                  threadId = message.thread_id;
-                }
-
-                // Accumulate usage
-                if (message.type === "turn.completed" && message.usage) {
-                  totalUsage.inputTokens +=
-                    message.usage.input_tokens +
-                    (message.usage.cached_input_tokens ?? 0);
-                  totalUsage.outputTokens += message.usage.output_tokens;
-                  gotResult = true;
-                }
+              // Accumulate usage
+              if (message.type === "turn.completed" && message.usage) {
+                totalUsage.inputTokens +=
+                  message.usage.input_tokens +
+                  (message.usage.cached_input_tokens ?? 0);
+                totalUsage.outputTokens += message.usage.output_tokens;
+                gotResult = true;
               }
             } catch {
               // Skip non-JSON lines (might be debug output)
@@ -207,7 +201,8 @@ export class CodexAgentProvider implements AgentProvider {
       if (lineBuffer.trim()) {
         try {
           const message = JSON.parse(lineBuffer) as CodexMessage;
-          for (const chunk of this.convertToStreamChunks(message)) {
+          const chunks = this.convertToStreamChunks(message);
+          for (const chunk of chunks) {
             yield chunk;
           }
           if (message.type === "turn.completed" && message.usage) {
@@ -251,113 +246,112 @@ export class CodexAgentProvider implements AgentProvider {
   // Convert Codex CLI messages to StreamChunks
   // ============================================================================
 
-  private *convertToStreamChunks(message: CodexMessage): Generator<StreamChunk> {
+  private convertToStreamChunks(message: CodexMessage): StreamChunk[] {
+    const chunks: StreamChunk[] = [];
+
     switch (message.type) {
       case "thread.started":
-        yield {
+        chunks.push({
           type: "message-start",
           id: message.thread_id,
           role: "assistant",
           sessionId: message.thread_id,
-        };
-        yield {
+        });
+        chunks.push({
           type: "data",
           dataType: DATA_PART_TYPES.AGENT_STATUS,
           data: { status: "thinking", message: "Codex started" },
-        };
+        });
         break;
 
       case "turn.started":
-        yield {
+        chunks.push({
           type: "data",
           dataType: DATA_PART_TYPES.AGENT_STATUS,
           data: { status: "thinking", message: "Processing..." },
-        };
+        });
         break;
 
       case "item.started":
-        for (const chunk of this.convertItemToChunks(message.item, "started")) {
-          yield chunk;
-        }
+        chunks.push(...this.convertItemToChunks(message.item, "started"));
         break;
 
       case "item.completed":
-        for (const chunk of this.convertItemToChunks(
-          message.item,
-          "completed"
-        )) {
-          yield chunk;
-        }
+        chunks.push(...this.convertItemToChunks(message.item, "completed"));
         break;
 
       case "turn.completed":
-        yield {
+        chunks.push({
           type: "data",
           dataType: DATA_PART_TYPES.AGENT_STATUS,
           data: { status: "done", message: "Turn completed" },
-        };
+        });
         break;
 
       case "turn.failed":
-        yield {
+        chunks.push({
           type: "error",
           message: message.error || "Turn failed",
           code: "turn_failed",
-        };
+        });
         break;
 
       case "error":
-        yield {
+        chunks.push({
           type: "error",
           message: message.error,
           code: "codex_error",
-        };
+        });
         break;
     }
+
+    return chunks;
   }
 
   /**
    * Convert Codex item events to StreamChunks
    */
-  private *convertItemToChunks(
+  private convertItemToChunks(
     item: CodexItem,
     phase: "started" | "completed"
-  ): Generator<StreamChunk> {
+  ): StreamChunk[] {
+    const chunks: StreamChunk[] = [];
+
     switch (item.type) {
       case "agent_message":
         if (phase === "completed" && item.text) {
-          yield { type: "text-delta", text: item.text };
+          chunks.push({ type: "text-delta", text: item.text });
         }
         break;
 
       case "reasoning":
         if (phase === "completed" && item.text) {
-          yield { type: "reasoning-delta", text: item.text };
+          chunks.push({ type: "reasoning-delta", text: item.text });
         }
         break;
 
       case "command_execution":
         if (phase === "started") {
-          yield {
+          chunks.push({
             type: "tool-start",
             toolCallId: item.id,
             toolName: "Bash",
-          };
-          yield {
+          });
+          chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.AGENT_STATUS,
             data: { status: "tool-use", message: `Running: ${item.command}` },
-          };
+          });
         } else if (phase === "completed") {
-          yield {
+          chunks.push({
             type: "tool-result",
             toolCallId: item.id,
             output: item.output || `Exit code: ${item.exit_code ?? 0}`,
             isError: (item.exit_code ?? 0) !== 0,
-          };
+          });
           // Emit command output data
           if (item.output) {
-            yield {
+            chunks.push({
               type: "data",
               dataType: DATA_PART_TYPES.COMMAND_OUTPUT,
               data: {
@@ -366,82 +360,84 @@ export class CodexAgentProvider implements AgentProvider {
                 stream: "stdout",
                 exitCode: item.exit_code,
               },
-            };
+            });
           }
         }
         break;
 
       case "file_change":
         if (phase === "started") {
-          yield {
+          chunks.push({
             type: "tool-start",
             toolCallId: item.id,
             toolName: item.change_type === "create" ? "Write" : "Edit",
-          };
+          });
         } else if (phase === "completed") {
-          yield {
+          chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.FILE_WRITTEN,
             data: { path: item.path },
-          };
-          yield {
+          });
+          chunks.push({
             type: "tool-result",
             toolCallId: item.id,
             output: `File ${item.change_type || "modified"}: ${item.path}`,
-          };
+          });
         }
         break;
 
       case "web_search":
         if (phase === "started") {
-          yield {
+          chunks.push({
             type: "tool-start",
             toolCallId: item.id,
             toolName: "WebSearch",
-          };
-          yield {
+          });
+          chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.AGENT_STATUS,
             data: {
               status: "tool-use",
               message: `Searching: ${item.query || "..."}`,
             },
-          };
+          });
         } else if (phase === "completed") {
-          yield {
+          chunks.push({
             type: "tool-result",
             toolCallId: item.id,
             output: "Search completed",
-          };
+          });
         }
         break;
 
       case "mcp_tool_call":
         if (phase === "started") {
-          yield {
+          chunks.push({
             type: "tool-start",
             toolCallId: item.id,
             toolName: item.tool_name,
-          };
+          });
         } else if (phase === "completed") {
-          yield {
+          chunks.push({
             type: "tool-result",
             toolCallId: item.id,
             output: "Tool call completed",
-          };
+          });
         }
         break;
 
       case "plan_update":
         if (phase === "completed" && item.plan) {
-          yield {
+          chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.AGENT_STATUS,
             data: { status: "thinking", message: "Plan updated" },
-          };
+          });
         }
         break;
     }
+
+    return chunks;
   }
 }
 

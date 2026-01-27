@@ -162,8 +162,8 @@ export class ClaudeAgentProvider implements AgentProvider {
 
             try {
               const message = JSON.parse(line) as ClaudeMessage;
-
-              for (const chunk of this.convertToStreamChunks(message)) {
+              const chunks = this.convertToStreamChunks(message);
+              for (const chunk of chunks) {
                 yield chunk;
               }
 
@@ -181,7 +181,8 @@ export class ClaudeAgentProvider implements AgentProvider {
       if (lineBuffer.trim()) {
         try {
           const message = JSON.parse(lineBuffer) as ClaudeMessage;
-          for (const chunk of this.convertToStreamChunks(message)) {
+          const chunks = this.convertToStreamChunks(message);
+          for (const chunk of chunks) {
             yield chunk;
           }
           if (message.type === "result") {
@@ -216,44 +217,46 @@ export class ClaudeAgentProvider implements AgentProvider {
   // Convert Claude CLI messages to StreamChunks
   // ============================================================================
 
-  private *convertToStreamChunks(message: ClaudeMessage): Generator<StreamChunk> {
+  private convertToStreamChunks(message: ClaudeMessage): StreamChunk[] {
+    const chunks: StreamChunk[] = [];
+
     switch (message.type) {
       case "system":
         if (message.subtype === "init") {
-          yield {
+          chunks.push({
             type: "message-start",
             id: message.uuid,
             role: "assistant",
             sessionId: message.session_id,
-          };
-          yield {
+          });
+          chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.AGENT_STATUS,
             data: { status: "thinking", message: "Agent initialized" },
-          };
+          });
         }
         break;
 
       case "assistant":
         for (const block of message.message.content) {
           if (block.type === "text") {
-            yield { type: "text-delta", text: block.text };
+            chunks.push({ type: "text-delta", text: block.text });
           } else if (block.type === "tool_use") {
-            yield {
+            chunks.push({
               type: "tool-start",
               toolCallId: block.id,
               toolName: block.name,
-            };
+            });
 
             // Emit data parts based on tool type
             if (block.name === "Write" || block.name === "Edit") {
               const filePath = block.input.file_path as string | undefined;
               if (filePath) {
-                yield {
+                chunks.push({
                   type: "data",
                   dataType: DATA_PART_TYPES.FILE_WRITTEN,
                   data: { path: filePath },
-                };
+                });
               }
             }
           }
@@ -264,7 +267,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         // User messages contain tool results
         for (const block of message.message.content) {
           if (block.type === "tool_result") {
-            yield {
+            chunks.push({
               type: "tool-result",
               toolCallId: block.tool_use_id,
               output:
@@ -272,14 +275,14 @@ export class ClaudeAgentProvider implements AgentProvider {
                   ? block.content
                   : JSON.stringify(block.content),
               isError: block.is_error,
-            };
+            });
           }
         }
         break;
 
       case "result":
         if (message.subtype === "success") {
-          yield {
+          chunks.push({
             type: "message-end",
             usage: {
               inputTokens:
@@ -287,24 +290,26 @@ export class ClaudeAgentProvider implements AgentProvider {
                 (message.usage.cache_read_input_tokens ?? 0),
               outputTokens: message.usage.output_tokens,
             },
-          };
+          });
         } else {
-          yield {
+          chunks.push({
             type: "error",
             message:
               message.errors?.join(", ") || `Agent error: ${message.subtype}`,
             code: message.subtype,
-          };
-          yield {
+          });
+          chunks.push({
             type: "message-end",
             usage: {
               inputTokens: message.usage.input_tokens,
               outputTokens: message.usage.output_tokens,
             },
-          };
+          });
         }
         break;
     }
+
+    return chunks;
   }
 }
 
