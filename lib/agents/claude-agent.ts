@@ -4,7 +4,7 @@
  * Runs Claude Code CLI directly inside the Vercel Sandbox.
  * This approach:
  * 1. Uses the pre-installed `claude` CLI from the snapshot
- * 2. Passes API credentials via environment variables
+ * 2. Routes API requests through our proxy (which swaps session ID for OIDC token)
  * 3. Streams the NDJSON output in real-time using sandbox.logs()
  * 4. Lets Claude use its native tools (Read, Write, Edit, Bash, etc.)
  */
@@ -120,28 +120,16 @@ export class ClaudeAgentProvider implements AgentProvider {
    * Yields StreamChunk objects for streaming to the client.
    */
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
-    const { prompt, sandboxContext, sessionId } = params;
+    const { prompt, sandboxContext, sessionId, proxyConfig } = params;
     const { sandbox } = sandboxContext;
 
     // Build environment variables for the CLI
-    const env: Record<string, string> = {};
-    
-    if (process.env.VERCEL_OIDC_TOKEN) {
-      // Use Vercel AI Gateway
-      env.ANTHROPIC_BASE_URL = "https://ai-gateway.vercel.sh";
-      env.ANTHROPIC_AUTH_TOKEN = process.env.VERCEL_OIDC_TOKEN;
-      env.ANTHROPIC_API_KEY = ""; // Must be empty for gateway
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      // Use direct API key
-      env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-    } else {
-      yield {
-        type: "error",
-        message: "No API key configured. Set VERCEL_OIDC_TOKEN or ANTHROPIC_API_KEY.",
-        code: "auth",
-      };
-      return;
-    }
+    // Always route through the proxy - it swaps session ID for OIDC token
+    const env: Record<string, string> = {
+      ANTHROPIC_BASE_URL: proxyConfig.baseUrl,
+      ANTHROPIC_API_KEY: proxyConfig.sessionId,
+    };
+    console.log(`[claude-agent] Using proxy: ${proxyConfig.baseUrl}`);
 
     // Build the CLI command
     // Escape the prompt for shell (replace single quotes)

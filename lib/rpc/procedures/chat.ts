@@ -7,7 +7,6 @@
 import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
-import { getVercelOidcToken } from "@vercel/oidc";
 import { nanoid } from "nanoid";
 import { getAgent, isValidAgent, getDefaultAgent } from "@/lib/agents";
 import { createSession } from "@/lib/redis";
@@ -96,33 +95,15 @@ export const sendMessage = os
       };
     }
 
-    // Create a session for the proxy
-    // This stores the OIDC token in Redis and returns a session ID
-    // The sandbox uses the session ID in place of the OIDC token
-    let proxyConfig: ProxyConfig | undefined;
-    try {
-      let oidcToken: string | undefined;
-      try {
-        oidcToken = await getVercelOidcToken();
-      } catch {
-        oidcToken = process.env.VERCEL_OIDC_TOKEN;
-      }
-
-      if (oidcToken) {
-        const proxySessionId = nanoid(32);
-        await createSession(proxySessionId, oidcToken, sandbox.sandboxId);
-        proxyConfig = {
-          sessionId: proxySessionId,
-          baseUrl: PROXY_BASE_URL,
-        };
-        console.log(
-          `[chat] Created proxy session: ${proxySessionId.substring(0, 8)}...`
-        );
-      }
-    } catch (error) {
-      // If session creation fails, we'll fall back to direct OIDC
-      console.error("[chat] Failed to create proxy session:", error);
-    }
+    const proxySessionId = nanoid(32);
+    await createSession(proxySessionId, sandbox.sandboxId);
+    const proxyConfig: ProxyConfig = {
+      sessionId: proxySessionId,
+      baseUrl: PROXY_BASE_URL,
+    };
+    console.log(
+      `[chat] Created proxy session: ${proxySessionId.substring(0, 8)}...`
+    );
 
     // Start dev server in background (don't wait for it yet)
     // We'll send the preview URL after the agent finishes its first response

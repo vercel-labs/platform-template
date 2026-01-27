@@ -4,7 +4,7 @@
  * Runs OpenAI Codex CLI directly inside the Vercel Sandbox.
  * This approach:
  * 1. Uses the pre-installed `codex` CLI from the snapshot
- * 2. Passes API credentials via environment variables
+ * 2. Routes API requests through our proxy (which swaps session ID for OIDC token)
  * 3. Streams the JSONL output in real-time using sandbox.logs()
  * 4. Lets Codex use its native tools (shell, file edits, etc.)
  */
@@ -120,30 +120,15 @@ export class CodexAgentProvider implements AgentProvider {
    * Yields StreamChunk objects for streaming to the client.
    */
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
-    const { prompt, sandboxContext, sessionId } = params;
+    const { prompt, sandboxContext, sessionId, proxyConfig } = params;
     const { sandbox } = sandboxContext;
 
     // Build environment variables for the CLI
-    const env: Record<string, string> = {};
-    
-    // Determine if using AI Gateway or direct API key
-    const useAIGateway = !!process.env.VERCEL_OIDC_TOKEN;
-    
-    if (useAIGateway && process.env.VERCEL_OIDC_TOKEN) {
-      // Use Vercel AI Gateway with OIDC token
-      // Codex needs AI_GATEWAY_API_KEY env var for the custom provider
-      env.AI_GATEWAY_API_KEY = process.env.VERCEL_OIDC_TOKEN;
-    } else if (process.env.OPENAI_API_KEY) {
-      // Use direct OpenAI API key
-      env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    } else {
-      yield {
-        type: "error",
-        message: "No API key configured. Set VERCEL_OIDC_TOKEN or OPENAI_API_KEY.",
-        code: "auth",
-      };
-      return;
-    }
+    // Route through the proxy - it swaps session ID for OIDC token
+    const env: Record<string, string> = {
+      AI_GATEWAY_API_KEY: proxyConfig.sessionId,
+    };
+    console.log(`[codex-agent] Using proxy: ${proxyConfig.baseUrl}`);
 
     // Build the CLI command
     // Escape the prompt for shell (replace single quotes)
@@ -156,20 +141,14 @@ export class CodexAgentProvider implements AgentProvider {
       "--dangerously-bypass-approvals-and-sandbox",
       "--skip-git-repo-check",
       "-C", "/vercel/sandbox",
+      // Configure proxy as custom provider
+      "-c", 'model_providers.vercel.name="Vercel AI Gateway Proxy"',
+      "-c", `model_providers.vercel.base_url="${proxyConfig.baseUrl}/v1"`,
+      "-c", 'model_providers.vercel.env_key="AI_GATEWAY_API_KEY"',
+      "-c", 'model_providers.vercel.wire_api="chat"',
+      "-c", 'model_provider="vercel"',
+      "-m", "openai/gpt-5.2-codex",
     ];
-    
-    // Configure AI Gateway provider if using OIDC token
-    // This sets up a custom "vercel" provider with wire_api="chat"
-    if (useAIGateway) {
-      cliArgs.push(
-        "-c", 'model_providers.vercel.name="Vercel AI Gateway"',
-        "-c", 'model_providers.vercel.base_url="https://ai-gateway.vercel.sh/v1"',
-        "-c", 'model_providers.vercel.env_key="AI_GATEWAY_API_KEY"',
-        "-c", 'model_providers.vercel.wire_api="chat"',
-        "-c", 'model_provider="vercel"',
-        "-m", "openai/gpt-5.2-codex",
-      );
-    }
     
     // Resume session if provided
     if (sessionId) {

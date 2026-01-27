@@ -117,8 +117,8 @@ export interface ExecuteParams {
   sessionId?: string;
   /** Optional model override (e.g., 'haiku' for tests) */
   model?: string;
-  /** Optional proxy configuration for sandbox requests */
-  proxyConfig?: ProxyConfig;
+  /** Proxy configuration for routing requests through our server */
+  proxyConfig: ProxyConfig;
 }
 
 /**
