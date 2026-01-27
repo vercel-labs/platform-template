@@ -9,42 +9,9 @@
  * 4. Lets Codex use its native tools (shell, file edits, etc.)
  */
 
-import type {
-  AgentProvider,
-  ExecuteParams,
-  StreamChunk,
-} from "./types";
-
-// ============================================================================
-// System Prompt - Prepended to user prompts for sandbox context
-// ============================================================================
-
-const SANDBOX_INSTRUCTIONS = `
-SANDBOX ENVIRONMENT:
-- You are in a Vercel Sandbox at /vercel/sandbox
-- Next.js (latest), React 19, Tailwind CSS, TypeScript are pre-installed
-- The dev server is ALREADY RUNNING on port 3000 - the preview updates automatically
-- shadcn/ui is configured - add components with: npx shadcn@latest add button
-
-PROJECT STRUCTURE:
-/vercel/sandbox/
-  src/app/page.tsx      <- EDIT THIS for your app's main content
-  src/app/layout.tsx    <- Root layout (html, body, providers)
-  src/app/globals.css   <- Global styles, Tailwind imports
-  src/lib/utils.ts      <- cn() utility for className merging
-  src/components/       <- Create this folder for your components
-
-WORKFLOW:
-1. Edit src/app/page.tsx - changes appear in preview immediately
-2. Add shadcn components: npx shadcn@latest add button card dialog
-3. New routes: create src/app/about/page.tsx for /about
-
-CRITICAL RULES:
-- NEVER run npm install, npm run dev, or create-next-app
-- NEVER create package.json - it exists
-- NEVER start the dev server - it's already running
-- Just edit files and the preview updates automatically
-`;
+import type { AgentProvider, ExecuteParams, StreamChunk } from "./types";
+import { SANDBOX_INSTRUCTIONS, SANDBOX_BASE_PATH } from "./constants";
+import { DATA_PART_TYPES } from "@/lib/types";
 
 // ============================================================================
 // Types for Codex CLI JSON output (--json flag)
@@ -90,8 +57,21 @@ interface CodexError {
 
 type CodexItem =
   | { id: string; type: "agent_message"; text?: string; status?: string }
-  | { id: string; type: "command_execution"; command: string; status?: string; exit_code?: number; output?: string }
-  | { id: string; type: "file_change"; path: string; status?: string; change_type?: string }
+  | {
+      id: string;
+      type: "command_execution";
+      command: string;
+      status?: string;
+      exit_code?: number;
+      output?: string;
+    }
+  | {
+      id: string;
+      type: "file_change";
+      path: string;
+      status?: string;
+      change_type?: string;
+    }
   | { id: string; type: "reasoning"; text?: string }
   | { id: string; type: "mcp_tool_call"; tool_name: string; status?: string }
   | { id: string; type: "web_search"; query?: string; status?: string }
@@ -128,47 +108,50 @@ export class CodexAgentProvider implements AgentProvider {
     const env: Record<string, string> = {
       AI_GATEWAY_API_KEY: proxyConfig.sessionId,
     };
-    console.log(`[codex-agent] Using proxy: ${proxyConfig.baseUrl}`);
 
     // Build the CLI command
     // Escape the prompt for shell (replace single quotes)
     const fullPrompt = `${SANDBOX_INSTRUCTIONS}\n\nUSER REQUEST:\n${prompt}`;
     const escapedPrompt = fullPrompt.replace(/'/g, "'\\''");
-    
+
     const cliArgs = [
       "exec",
       "--json",
       "--dangerously-bypass-approvals-and-sandbox",
       "--skip-git-repo-check",
-      "-C", "/vercel/sandbox",
+      "-C",
+      SANDBOX_BASE_PATH,
       // Configure proxy as custom provider
-      "-c", 'model_providers.vercel.name="Vercel AI Gateway Proxy"',
-      "-c", `model_providers.vercel.base_url="${proxyConfig.baseUrl}/v1"`,
-      "-c", 'model_providers.vercel.env_key="AI_GATEWAY_API_KEY"',
-      "-c", 'model_providers.vercel.wire_api="chat"',
-      "-c", 'model_provider="vercel"',
-      "-m", "openai/gpt-5.2-codex",
+      "-c",
+      'model_providers.vercel.name="Vercel AI Gateway Proxy"',
+      "-c",
+      `model_providers.vercel.base_url="${proxyConfig.baseUrl}/v1"`,
+      "-c",
+      'model_providers.vercel.env_key="AI_GATEWAY_API_KEY"',
+      "-c",
+      'model_providers.vercel.wire_api="chat"',
+      "-c",
+      'model_provider="vercel"',
+      "-m",
+      "openai/gpt-5.2-codex",
     ];
-    
+
     // Resume session if provided
     if (sessionId) {
       cliArgs.push("resume", sessionId);
     }
-    
+
     // Add the prompt
     cliArgs.push(`'${escapedPrompt}'`);
 
     const command = `source ~/.bashrc 2>/dev/null; codex ${cliArgs.join(" ")}`;
-
-    console.log(`[codex-agent] Running: codex exec --json ...`);
-    console.log(`[codex-agent] Prompt: ${prompt.substring(0, 100)}...`);
 
     try {
       // Start the command (detached so we can stream logs)
       const cmd = await sandbox.runCommand({
         cmd: "sh",
         args: ["-c", command],
-        cwd: "/vercel/sandbox",
+        cwd: SANDBOX_BASE_PATH,
         env,
         detached: true,
       });
@@ -177,48 +160,46 @@ export class CodexAgentProvider implements AgentProvider {
       let lineBuffer = "";
       let threadId: string | undefined;
       let gotResult = false;
-      let totalUsage = { inputTokens: 0, outputTokens: 0 };
+      const totalUsage = { inputTokens: 0, outputTokens: 0 };
 
       // Stream logs in real-time
       for await (const log of cmd.logs()) {
         if (log.stream === "stdout") {
           // Append to buffer and process complete lines
           lineBuffer += log.data;
-          
+
           // Process all complete lines
           const lines = lineBuffer.split("\n");
           // Keep the last incomplete line in the buffer
           lineBuffer = lines.pop() || "";
-          
+
           for (const line of lines) {
             if (!line.trim()) continue;
-            
+
             try {
               const message = JSON.parse(line) as CodexMessage;
-              
-              for (const chunk of this.convertToStreamChunks(message, threadId)) {
+
+              for (const chunk of this.convertToStreamChunks(message)) {
                 yield chunk;
-                
+
                 // Capture thread ID
                 if (message.type === "thread.started") {
                   threadId = message.thread_id;
                 }
-                
+
                 // Accumulate usage
                 if (message.type === "turn.completed" && message.usage) {
-                  totalUsage.inputTokens += message.usage.input_tokens + (message.usage.cached_input_tokens ?? 0);
+                  totalUsage.inputTokens +=
+                    message.usage.input_tokens +
+                    (message.usage.cached_input_tokens ?? 0);
                   totalUsage.outputTokens += message.usage.output_tokens;
                   gotResult = true;
                 }
               }
-            } catch (parseError) {
+            } catch {
               // Skip non-JSON lines (might be debug output)
-              console.log(`[codex-agent] Non-JSON line: ${line.substring(0, 100)}`);
             }
           }
-        } else if (log.stream === "stderr") {
-          // Codex streams progress to stderr, log it
-          console.log(`[codex-agent] stderr: ${log.data}`);
         }
       }
 
@@ -226,22 +207,24 @@ export class CodexAgentProvider implements AgentProvider {
       if (lineBuffer.trim()) {
         try {
           const message = JSON.parse(lineBuffer) as CodexMessage;
-          for (const chunk of this.convertToStreamChunks(message, threadId)) {
+          for (const chunk of this.convertToStreamChunks(message)) {
             yield chunk;
           }
           if (message.type === "turn.completed" && message.usage) {
-            totalUsage.inputTokens += message.usage.input_tokens + (message.usage.cached_input_tokens ?? 0);
+            totalUsage.inputTokens +=
+              message.usage.input_tokens +
+              (message.usage.cached_input_tokens ?? 0);
             totalUsage.outputTokens += message.usage.output_tokens;
             gotResult = true;
           }
         } catch {
-          console.log(`[codex-agent] Final buffer not JSON: ${lineBuffer.substring(0, 100)}`);
+          // Final buffer not JSON, ignore
         }
       }
 
       // Wait for command to finish and check exit code
       const finished = await cmd.wait();
-      
+
       // Emit final message-end with accumulated usage
       if (gotResult) {
         yield {
@@ -255,7 +238,6 @@ export class CodexAgentProvider implements AgentProvider {
           code: "cli_error",
         };
       }
-
     } catch (error) {
       yield {
         type: "error",
@@ -269,7 +251,7 @@ export class CodexAgentProvider implements AgentProvider {
   // Convert Codex CLI messages to StreamChunks
   // ============================================================================
 
-  private *convertToStreamChunks(message: CodexMessage, threadId?: string): Generator<StreamChunk> {
+  private *convertToStreamChunks(message: CodexMessage): Generator<StreamChunk> {
     switch (message.type) {
       case "thread.started":
         yield {
@@ -280,7 +262,7 @@ export class CodexAgentProvider implements AgentProvider {
         };
         yield {
           type: "data",
-          dataType: "agent-status",
+          dataType: DATA_PART_TYPES.AGENT_STATUS,
           data: { status: "thinking", message: "Codex started" },
         };
         break;
@@ -288,7 +270,7 @@ export class CodexAgentProvider implements AgentProvider {
       case "turn.started":
         yield {
           type: "data",
-          dataType: "agent-status",
+          dataType: DATA_PART_TYPES.AGENT_STATUS,
           data: { status: "thinking", message: "Processing..." },
         };
         break;
@@ -300,7 +282,10 @@ export class CodexAgentProvider implements AgentProvider {
         break;
 
       case "item.completed":
-        for (const chunk of this.convertItemToChunks(message.item, "completed")) {
+        for (const chunk of this.convertItemToChunks(
+          message.item,
+          "completed"
+        )) {
           yield chunk;
         }
         break;
@@ -308,7 +293,7 @@ export class CodexAgentProvider implements AgentProvider {
       case "turn.completed":
         yield {
           type: "data",
-          dataType: "agent-status",
+          dataType: DATA_PART_TYPES.AGENT_STATUS,
           data: { status: "done", message: "Turn completed" },
         };
         break;
@@ -360,7 +345,7 @@ export class CodexAgentProvider implements AgentProvider {
           };
           yield {
             type: "data",
-            dataType: "agent-status",
+            dataType: DATA_PART_TYPES.AGENT_STATUS,
             data: { status: "tool-use", message: `Running: ${item.command}` },
           };
         } else if (phase === "completed") {
@@ -374,7 +359,7 @@ export class CodexAgentProvider implements AgentProvider {
           if (item.output) {
             yield {
               type: "data",
-              dataType: "command-output",
+              dataType: DATA_PART_TYPES.COMMAND_OUTPUT,
               data: {
                 command: item.command,
                 output: item.output,
@@ -396,7 +381,7 @@ export class CodexAgentProvider implements AgentProvider {
         } else if (phase === "completed") {
           yield {
             type: "data",
-            dataType: "file-written",
+            dataType: DATA_PART_TYPES.FILE_WRITTEN,
             data: { path: item.path },
           };
           yield {
@@ -416,8 +401,11 @@ export class CodexAgentProvider implements AgentProvider {
           };
           yield {
             type: "data",
-            dataType: "agent-status",
-            data: { status: "tool-use", message: `Searching: ${item.query || "..."}` },
+            dataType: DATA_PART_TYPES.AGENT_STATUS,
+            data: {
+              status: "tool-use",
+              message: `Searching: ${item.query || "..."}`,
+            },
           };
         } else if (phase === "completed") {
           yield {
@@ -448,7 +436,7 @@ export class CodexAgentProvider implements AgentProvider {
         if (phase === "completed" && item.plan) {
           yield {
             type: "data",
-            dataType: "agent-status",
+            dataType: DATA_PART_TYPES.AGENT_STATUS,
             data: { status: "thinking", message: "Plan updated" },
           };
         }

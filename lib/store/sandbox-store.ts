@@ -1,11 +1,20 @@
 /**
  * Sandbox Store
- * 
+ *
  * Client-side state for sandbox, files, and command output.
  * Updated via data parts from the agent stream.
  */
 
 import { create } from "zustand";
+import {
+  UI_DATA_PART_TYPES,
+  parseDataPart,
+  DATA_PART_TYPES,
+  type SandboxStatusData,
+  type FileWrittenData,
+  type PreviewUrlData,
+  type CommandOutputData,
+} from "@/lib/types";
 
 // ============================================================================
 // Types
@@ -162,86 +171,14 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 }));
 
 // ============================================================================
-// Data Part Types (matching agent StreamChunk data parts)
-// ============================================================================
-
-export interface SandboxStatusData {
-  sandboxId?: string;
-  status: "creating" | "warming" | "ready" | "error";
-  error?: string;
-}
-
-export interface FileWrittenData {
-  path: string;
-}
-
-export interface PreviewUrlData {
-  url: string;
-  port: number;
-}
-
-export interface CommandOutputData {
-  command: string;
-  output: string;
-  stream: "stdout" | "stderr";
-  exitCode?: number;
-}
-
-export type DataPartMap = {
-  "data-sandbox-status": SandboxStatusData;
-  "data-file-written": FileWrittenData;
-  "data-preview-url": PreviewUrlData;
-  "data-command-output": CommandOutputData;
-};
-
-// ============================================================================
 // Data Part Handler
 // ============================================================================
-
-function isSandboxStatusData(data: unknown): data is SandboxStatusData {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "status" in data &&
-    typeof (data as SandboxStatusData).status === "string"
-  );
-}
-
-function isFileWrittenData(data: unknown): data is FileWrittenData {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "path" in data &&
-    typeof (data as FileWrittenData).path === "string"
-  );
-}
-
-function isPreviewUrlData(data: unknown): data is PreviewUrlData {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "url" in data &&
-    typeof (data as PreviewUrlData).url === "string"
-  );
-}
-
-function isCommandOutputData(data: unknown): data is CommandOutputData {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "command" in data &&
-    "output" in data &&
-    "stream" in data &&
-    typeof (data as CommandOutputData).command === "string" &&
-    typeof (data as CommandOutputData).output === "string" &&
-    ((data as CommandOutputData).stream === "stdout" ||
-      (data as CommandOutputData).stream === "stderr")
-  );
-}
 
 /**
  * Maps incoming data parts from the agent stream to store updates.
  * Call this for each data-* part received.
+ *
+ * Uses zod schemas for runtime validation of incoming data.
  */
 export function handleDataPart(
   store: SandboxStore,
@@ -249,42 +186,50 @@ export function handleDataPart(
   data: unknown
 ): void {
   switch (type) {
-    case "data-sandbox-status": {
-      if (!isSandboxStatusData(data)) return;
-      if (data.sandboxId) {
-        store.setSandbox(data.sandboxId, data.status);
+    case UI_DATA_PART_TYPES.SANDBOX_STATUS: {
+      const parsed = parseDataPart(DATA_PART_TYPES.SANDBOX_STATUS, data);
+      if (!parsed) return;
+      const sandboxData = parsed as SandboxStatusData;
+      if (sandboxData.sandboxId) {
+        store.setSandbox(sandboxData.sandboxId, sandboxData.status);
       } else {
-        store.setStatus(data.status);
+        store.setStatus(sandboxData.status);
       }
       break;
     }
 
-    case "data-file-written": {
-      if (!isFileWrittenData(data)) return;
-      store.addFile(data.path);
+    case UI_DATA_PART_TYPES.FILE_WRITTEN: {
+      const parsed = parseDataPart(DATA_PART_TYPES.FILE_WRITTEN, data);
+      if (!parsed) return;
+      const fileData = parsed as FileWrittenData;
+      store.addFile(fileData.path);
       break;
     }
 
-    case "data-preview-url": {
-      if (!isPreviewUrlData(data)) return;
-      store.setPreviewUrl(data.url);
+    case UI_DATA_PART_TYPES.PREVIEW_URL: {
+      const parsed = parseDataPart(DATA_PART_TYPES.PREVIEW_URL, data);
+      if (!parsed) return;
+      const previewData = parsed as PreviewUrlData;
+      store.setPreviewUrl(previewData.url);
       break;
     }
 
-    case "data-command-output": {
-      if (!isCommandOutputData(data)) return;
+    case UI_DATA_PART_TYPES.COMMAND_OUTPUT: {
+      const parsed = parseDataPart(DATA_PART_TYPES.COMMAND_OUTPUT, data);
+      if (!parsed) return;
+      const cmdData = parsed as CommandOutputData;
       // Use command string as ID
-      const cmdId = data.command;
+      const cmdId = cmdData.command;
 
       // Ensure command exists
       if (!store.commands.some((c) => c.cmdId === cmdId)) {
-        store.addCommand({ cmdId, command: data.command });
+        store.addCommand({ cmdId, command: cmdData.command });
       }
 
-      store.addCommandLog(cmdId, { stream: data.stream, data: data.output });
+      store.addCommandLog(cmdId, { stream: cmdData.stream, data: cmdData.output });
 
-      if (data.exitCode !== undefined) {
-        store.setCommandExitCode(cmdId, data.exitCode);
+      if (cmdData.exitCode !== undefined) {
+        store.setCommandExitCode(cmdId, cmdData.exitCode);
       }
       break;
     }

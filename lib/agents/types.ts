@@ -6,6 +6,10 @@
  */
 
 import type { Sandbox } from "@vercel/sandbox";
+import type { DataPartType, DataPartPayload } from "@/lib/types";
+
+// Re-export shared types for convenience
+export type { DataPartType, DataPartPayload } from "@/lib/types";
 
 // ============================================================================
 // Sandbox Context
@@ -22,42 +26,6 @@ export interface SandboxContext {
 // ============================================================================
 // StreamChunk - The unified output format
 // ============================================================================
-
-/**
- * Custom data parts for streaming agent/sandbox status.
- * These get converted to UIMessage data parts on the client.
- */
-export type DataPartType =
-  | "agent-status"
-  | "sandbox-status"
-  | "file-written"
-  | "command-output"
-  | "preview-url";
-
-export type DataPartPayload = {
-  "agent-status": {
-    status: "thinking" | "tool-use" | "done" | "error";
-    message?: string;
-  };
-  "sandbox-status": {
-    sandboxId?: string;
-    status: "creating" | "ready" | "error";
-    error?: string;
-  };
-  "file-written": {
-    path: string;
-  };
-  "command-output": {
-    command: string;
-    output: string;
-    stream: "stdout" | "stderr";
-    exitCode?: number;
-  };
-  "preview-url": {
-    url: string;
-    port: number;
-  };
-};
 
 /**
  * StreamChunk is the unified streaming format that all agent providers yield.

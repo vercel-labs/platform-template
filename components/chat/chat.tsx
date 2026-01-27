@@ -11,7 +11,9 @@ import { useState, useCallback } from "react";
 import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
 import { Panel, PanelHeader, PanelContent } from "@/components/ui/panel";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
+import { rpc } from "@/lib/rpc/client";
 import type { StreamChunk } from "@/lib/agents/types";
+import { UI_DATA_PART_TYPES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { AgentSelector } from "@/components/agent-selector";
@@ -25,7 +27,15 @@ const EXAMPLE_PROMPTS = [
 // Message part types - ordered as they arrive
 type MessagePart =
   | { type: "text"; content: string }
-  | { type: "tool"; id: string; name: string; input: string; output?: string; isError?: boolean; state: "streaming" | "done" };
+  | {
+      type: "tool";
+      id: string;
+      name: string;
+      input: string;
+      output?: string;
+      isError?: boolean;
+      state: "streaming" | "done";
+    };
 
 interface ChatMessage {
   id: string;
@@ -41,7 +51,14 @@ export function Chat({ className }: ChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
-  const { sandboxId, sessionId, agentId, status: sandboxStatus, setSandbox, setSessionId } = useSandboxStore();
+  const {
+    sandboxId,
+    sessionId,
+    agentId,
+    status: sandboxStatus,
+    setSandbox,
+    setSessionId,
+  } = useSandboxStore();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -59,16 +76,12 @@ export function Chat({ className }: ChatProps) {
 
       // Create assistant message placeholder
       const assistantId = crypto.randomUUID();
-      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", parts: [] }]);
-
-      // Track current text part index for appending
-      let currentTextPartIndex: number | null = null;
-      // Track tool parts by ID
-      const toolPartIndices = new Map<string, number>();
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", parts: [] },
+      ]);
 
       try {
-        const { rpc } = await import("@/lib/rpc/client");
-
         // Stream from oRPC
         // Pass sessionId to resume conversation if we have one
         const iterator = await rpc.chat.send({
@@ -102,10 +115,10 @@ export function Chat({ className }: ChatProps) {
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
-                  
+
                   const parts = [...m.parts];
                   const lastPart = parts[parts.length - 1];
-                  
+
                   // If the last part is text, append to it
                   if (lastPart && lastPart.type === "text") {
                     parts[parts.length - 1] = {
@@ -116,7 +129,7 @@ export function Chat({ className }: ChatProps) {
                     // Otherwise, create a new text part
                     parts.push({ type: "text", content: streamChunk.text });
                   }
-                  
+
                   return { ...m, parts };
                 })
               );
@@ -126,10 +139,8 @@ export function Chat({ className }: ChatProps) {
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
-                  
+
                   const parts = [...m.parts];
-                  const newIndex = parts.length;
-                  toolPartIndices.set(streamChunk.toolCallId, newIndex);
                   parts.push({
                     type: "tool",
                     id: streamChunk.toolCallId,
@@ -137,7 +148,7 @@ export function Chat({ className }: ChatProps) {
                     input: "",
                     state: "streaming",
                   });
-                  
+
                   return { ...m, parts };
                 })
               );
@@ -147,17 +158,23 @@ export function Chat({ className }: ChatProps) {
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
-                  
+
                   const parts = [...m.parts];
                   // Find the tool part by ID
                   const toolIdx = parts.findIndex(
                     (p) => p.type === "tool" && p.id === streamChunk.toolCallId
                   );
                   if (toolIdx !== -1) {
-                    const tool = parts[toolIdx] as Extract<MessagePart, { type: "tool" }>;
-                    parts[toolIdx] = { ...tool, input: tool.input + streamChunk.input };
+                    const tool = parts[toolIdx] as Extract<
+                      MessagePart,
+                      { type: "tool" }
+                    >;
+                    parts[toolIdx] = {
+                      ...tool,
+                      input: tool.input + streamChunk.input,
+                    };
                   }
-                  
+
                   return { ...m, parts };
                 })
               );
@@ -167,13 +184,16 @@ export function Chat({ className }: ChatProps) {
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
-                  
+
                   const parts = [...m.parts];
                   const toolIdx = parts.findIndex(
                     (p) => p.type === "tool" && p.id === streamChunk.toolCallId
                   );
                   if (toolIdx !== -1) {
-                    const tool = parts[toolIdx] as Extract<MessagePart, { type: "tool" }>;
+                    const tool = parts[toolIdx] as Extract<
+                      MessagePart,
+                      { type: "tool" }
+                    >;
                     parts[toolIdx] = {
                       ...tool,
                       output: streamChunk.output,
@@ -181,16 +201,15 @@ export function Chat({ className }: ChatProps) {
                       state: "done",
                     };
                   }
-                  
+
                   return { ...m, parts };
                 })
               );
               break;
 
             case "data": {
-              // Handle data parts - update store
-              const dataType = `data-${streamChunk.dataType}`;
-              console.log(`[chat] Received data chunk: ${dataType}`, streamChunk.data);
+              // Handle data parts - update store using store actions directly
+              const dataType = `data-${streamChunk.dataType}` as (typeof UI_DATA_PART_TYPES)[keyof typeof UI_DATA_PART_TYPES];
               const store = useSandboxStore.getState();
               handleDataPart(store, dataType, streamChunk.data);
               break;
@@ -201,7 +220,10 @@ export function Chat({ className }: ChatProps) {
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
                   const parts = [...m.parts];
-                  parts.push({ type: "text", content: `\n\nError: ${streamChunk.message}` });
+                  parts.push({
+                    type: "text",
+                    content: `\n\nError: ${streamChunk.message}`,
+                  });
                   return { ...m, parts };
                 })
               );
@@ -328,7 +350,9 @@ function MessageView({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
 
   return (
-    <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
+    <div
+      className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}
+    >
       {/* Avatar */}
       <div
         className={cn(
@@ -342,9 +366,18 @@ function MessageView({ message }: { message: ChatMessage }) {
       </div>
 
       {/* Content - parts in order */}
-      <div className={cn("min-w-0 flex-1 space-y-2", isUser ? "text-right" : "text-left")}>
+      <div
+        className={cn(
+          "min-w-0 flex-1 space-y-2",
+          isUser ? "text-right" : "text-left"
+        )}
+      >
         {message.parts.map((part, index) => (
-          <PartView key={`${message.id}-${index}`} part={part} isUser={isUser} />
+          <PartView
+            key={`${message.id}-${index}`}
+            part={part}
+            isUser={isUser}
+          />
         ))}
       </div>
     </div>
@@ -355,7 +388,7 @@ function MessageView({ message }: { message: ChatMessage }) {
 function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
   if (part.type === "text") {
     if (!part.content) return null;
-    
+
     if (isUser) {
       // User messages - simple text without markdown
       return (
@@ -364,7 +397,7 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
         </div>
       );
     }
-    
+
     // Assistant messages - render markdown with Streamdown
     return (
       <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none break-words">

@@ -14,7 +14,7 @@ import {
   type ReactNode,
 } from "react";
 import { Chat } from "@ai-sdk/react";
-import type { ChatMessage, DataPart, ChatDataPart } from "@/lib/types";
+import type { ChatMessage, ChatDataPart } from "@/lib/types";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
 
 // ============================================================================

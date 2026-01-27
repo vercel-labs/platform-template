@@ -1,33 +1,23 @@
 /**
  * Agent Stream Utilities
- * 
+ *
  * Converts agent SDK output to AI SDK UIMessageChunk format.
  * This allows us to use createUIMessageStreamResponse and AI Elements components.
  */
 
 import type { UIMessageChunk } from "ai";
 import type { StreamChunk } from "./types";
-
-/**
- * Our custom data part types for the UI.
- */
-export type AgentDataTypes = {
-  "agent-status": { status: "thinking" | "tool-use" | "done" | "error"; message?: string };
-  "sandbox-status": { sandboxId?: string; status: "creating" | "ready" | "error"; error?: string };
-  "file-written": { path: string };
-  "command-output": { command: string; output: string; exitCode?: number };
-  "preview-url": { url: string; port: number };
-};
+import type { DataPartPayload } from "@/lib/types";
 
 /**
  * Convert our StreamChunk to AI SDK's UIMessageChunk format.
- * 
+ *
  * This is the bridge between agent harnesses and AI SDK's streaming system.
  */
 export function toUIMessageChunk(
   chunk: StreamChunk,
   partId: string
-): UIMessageChunk<unknown, AgentDataTypes> | null {
+): UIMessageChunk<unknown, DataPartPayload> | null {
   switch (chunk.type) {
     case "text-delta":
       return {
@@ -77,7 +67,7 @@ export function toUIMessageChunk(
       return {
         type: `data-${chunk.dataType}`,
         data: chunk.data,
-      } as UIMessageChunk<unknown, AgentDataTypes>;
+      } as UIMessageChunk<unknown, DataPartPayload>;
 
     case "error":
       return {
@@ -98,7 +88,7 @@ export function toUIMessageChunk(
 
 /**
  * Create a ReadableStream of UIMessageChunks from an agent's StreamChunk output.
- * 
+ *
  * Usage:
  * ```ts
  * const agent = getAgent("claude-agent");
@@ -109,7 +99,7 @@ export function toUIMessageChunk(
 export function createAgentStream(
   chunks: AsyncIterable<StreamChunk>,
   generatePartId: () => string = () => crypto.randomUUID()
-): ReadableStream<UIMessageChunk<unknown, AgentDataTypes>> {
+): ReadableStream<UIMessageChunk<unknown, DataPartPayload>> {
   let currentTextPartId = generatePartId();
   let currentReasoningPartId = generatePartId();
   let sentTextStart = false;

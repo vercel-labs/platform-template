@@ -8,8 +8,9 @@ import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { getAgent, isValidAgent, getDefaultAgent } from "@/lib/agents";
+import { getAgent, isValidAgent, getDefaultAgent, SANDBOX_DEV_PORT, SANDBOX_BASE_PATH } from "@/lib/agents";
 import { createSession } from "@/lib/redis";
+import { DATA_PART_TYPES } from "@/lib/types";
 import type { SandboxContext, ProxyConfig } from "@/lib/agents/types";
 
 // The deployed URL for the proxy - sandboxes need to call this URL
@@ -45,7 +46,6 @@ export const sendMessage = os
 
     try {
       if (sandboxId) {
-        console.log(`[chat] Getting existing sandbox: ${sandboxId}`);
         sandbox = await Sandbox.get({ sandboxId });
       } else {
         isNewSandbox = true;
@@ -54,27 +54,22 @@ export const sendMessage = os
         if (snapshotId) {
           // Create from snapshot - instant Next.js + Tailwind + dev server
           // Use 2 vCPUs (4GB RAM) for faster dev server startup
-          console.log(`[chat] Creating sandbox from snapshot: ${snapshotId}`);
           sandbox = await Sandbox.create({
             source: { type: "snapshot", snapshotId },
-            ports: [3000],
+            ports: [SANDBOX_DEV_PORT],
             timeout: 600_000,
             resources: { vcpus: 2 },
           });
-          console.log(`[chat] Sandbox created from snapshot: ${sandbox.sandboxId}`);
         } else {
           // No snapshot - create empty sandbox (agent will set up project)
-          console.log("[chat] Creating new empty sandbox...");
           sandbox = await Sandbox.create({
-            ports: [3000],
+            ports: [SANDBOX_DEV_PORT],
             timeout: 600_000,
           });
-          console.log(`[chat] Empty sandbox created: ${sandbox.sandboxId}`);
         }
       }
       sandboxContext = { sandboxId: sandbox.sandboxId, sandbox };
     } catch (error) {
-      console.error("[chat] Sandbox error:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR", {
         message: `Sandbox error: ${error instanceof Error ? error.message : String(error)}`,
       });
@@ -90,7 +85,7 @@ export const sendMessage = os
     if (isNewSandbox) {
       yield {
         type: "data" as const,
-        dataType: "sandbox-status" as const,
+        dataType: DATA_PART_TYPES.SANDBOX_STATUS,
         data: { sandboxId: sandbox.sandboxId, status: "warming" },
       };
     }
@@ -101,24 +96,20 @@ export const sendMessage = os
       sessionId: proxySessionId,
       baseUrl: PROXY_BASE_URL,
     };
-    console.log(
-      `[chat] Created proxy session: ${proxySessionId.substring(0, 8)}...`
-    );
 
     // Start dev server in background (don't wait for it yet)
     // We'll send the preview URL after the agent finishes its first response
     let devServerStarted = false;
     if (isNewSandbox && process.env.NEXTJS_SNAPSHOT_ID) {
-      console.log(`[chat] Starting dev server in background...`);
       sandbox
         .runCommand({
           cmd: "npm",
           args: ["run", "dev"],
-          cwd: "/vercel/sandbox",
+          cwd: SANDBOX_BASE_PATH,
           detached: true,
         })
-        .catch((error) => {
-          console.error("[chat] Failed to start dev server:", error);
+        .catch(() => {
+          // Failed to start dev server - ignore for now
         });
       devServerStarted = true;
     }
@@ -141,7 +132,7 @@ export const sendMessage = os
         firstChunkReceived = true;
         yield {
           type: "data" as const,
-          dataType: "sandbox-status" as const,
+          dataType: DATA_PART_TYPES.SANDBOX_STATUS,
           data: { sandboxId: sandbox.sandboxId, status: "ready" },
         };
       }
@@ -149,11 +140,10 @@ export const sendMessage = os
     }
 
     // After agent response completes, send preview URL if server is ready
-    const previewUrl = sandbox.domain(3000);
+    const previewUrl = sandbox.domain(SANDBOX_DEV_PORT);
 
     if (devServerStarted) {
       // Poll until server is ready (max 10 seconds - should be ready by now)
-      console.log(`[chat] Agent finished, waiting for dev server: ${previewUrl}`);
       const maxWaitMs = 10_000;
       const pollIntervalMs = 250;
       const startTime = Date.now();
@@ -165,11 +155,10 @@ export const sendMessage = os
             signal: AbortSignal.timeout(2000),
           });
           if (response.ok || response.status === 404) {
-            console.log(`[chat] Dev server ready, sending preview URL`);
             yield {
               type: "data" as const,
-              dataType: "preview-url" as const,
-              data: { url: previewUrl, port: 3000 },
+              dataType: DATA_PART_TYPES.PREVIEW_URL,
+              data: { url: previewUrl, port: SANDBOX_DEV_PORT },
             };
             break;
           }
@@ -180,11 +169,10 @@ export const sendMessage = os
       }
     } else {
       // Existing sandbox or no snapshot - send preview URL immediately
-      console.log(`[chat] Sending preview URL for existing sandbox`);
       yield {
         type: "data" as const,
-        dataType: "preview-url" as const,
-        data: { url: previewUrl, port: 3000 },
+        dataType: DATA_PART_TYPES.PREVIEW_URL,
+        data: { url: previewUrl, port: SANDBOX_DEV_PORT },
       };
     }
   });

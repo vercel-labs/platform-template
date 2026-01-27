@@ -7,6 +7,7 @@
 import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
+import { SANDBOX_BASE_PATH, SANDBOX_DEV_PORT } from "@/lib/agents";
 
 /**
  * Read a file from the sandbox
@@ -23,9 +24,9 @@ export const readFile = os
     const { sandboxId, path } = input;
 
     // Security: ensure path is within sandbox
-    if (!path.startsWith("/vercel/sandbox")) {
+    if (!path.startsWith(SANDBOX_BASE_PATH)) {
       throw new ORPCError("BAD_REQUEST", {
-        message: "Path must be within /vercel/sandbox",
+        message: `Path must be within ${SANDBOX_BASE_PATH}`,
       });
     }
 
@@ -62,7 +63,7 @@ export const listFiles = os
   .input(
     z.object({
       sandboxId: z.string(),
-      path: z.string().optional().default("/vercel/sandbox"),
+      path: z.string().optional().default(SANDBOX_BASE_PATH),
     })
   )
   .output(z.object({ files: z.array(z.string()) }))
@@ -78,10 +79,7 @@ export const listFiles = os
       });
 
       const stdout = await result.stdout();
-      const files = stdout
-        .split("\n")
-        .filter(Boolean)
-        .filter((f) => !f.includes("node_modules"));
+      const files = stdout.split("\n").filter(Boolean);
 
       return { files };
     } catch (error) {
@@ -118,7 +116,7 @@ export const getOrCreateSandbox = os
 
       // Create new sandbox
       const sandbox = await Sandbox.create({
-        ports: [3000, 5173],
+        ports: [SANDBOX_DEV_PORT, 5173],
         timeout: 600_000, // 10 minutes
       });
 

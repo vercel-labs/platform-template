@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { FolderTree, TerminalIcon, FileIcon } from "lucide-react";
+import { FolderTree, TerminalIcon } from "lucide-react";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -25,6 +25,7 @@ import {
   TerminalStatus,
 } from "@/components/ai-elements/terminal";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { rpc } from "@/lib/rpc/client";
 import { cn } from "@/lib/utils";
 
 interface WorkspacePanelProps {
@@ -146,37 +147,26 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
   }, [commands]);
 
   // File loading
-  const loadFileAsync = useCallback(
-    async (path: string) => {
+  const loadFile = useCallback(
+    (path: string) => {
       if (!sandboxId) return;
 
       setSelectedPath(path);
       setLoading(true);
       setFileContent(null);
 
-      try {
-        const { rpc } = await import("@/lib/rpc/client");
-        const result = await rpc.sandbox.readFile({ sandboxId, path });
-        setFileContent(result.content);
-      } catch (err) {
-        setFileContent(`Error loading file: ${err}`);
-      } finally {
-        setLoading(false);
-      }
+      rpc.sandbox
+        .readFile({ sandboxId, path })
+        .then((result) => setFileContent(result.content))
+        .catch((err) => setFileContent(`Error loading file: ${err}`))
+        .finally(() => setLoading(false));
     },
     [sandboxId]
   );
 
-  const loadFile = useCallback(
-    (path: string) => {
-      void loadFileAsync(path);
-    },
-    [loadFileAsync]
-  );
-
   return (
     <Panel className={cn("flex flex-col", className)}>
-      <Tabs defaultValue="files" className="flex-1 flex flex-col min-h-0">
+      <Tabs defaultValue="files" className="flex min-h-0 flex-1 flex-col">
         <PanelHeader className="pb-0">
           <TabsList>
             <TabsTrigger value="files" className="gap-1.5">
@@ -197,8 +187,8 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
         </PanelHeader>
 
         {/* Files Tab */}
-        <TabsContent value="files" className="flex-1 min-h-0 flex">
-          <div className="flex flex-1 min-h-0">
+        <TabsContent value="files" className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1">
             {/* File Tree */}
             <div className="w-1/2 overflow-auto border-r border-zinc-200 dark:border-zinc-800">
               {files.length === 0 ? (
@@ -211,7 +201,7 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
                   selectedPath={selectedPath}
                   // @ts-expect-error - ai-elements FileTree onSelect type conflicts with HTMLAttributes
                   onSelect={loadFile}
-                  className="border-0 rounded-none bg-transparent"
+                  className="rounded-none border-0 bg-transparent"
                 >
                   <TreeNodes nodes={tree} />
                 </FileTree>
@@ -224,7 +214,7 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
                 <p className="font-mono text-xs text-zinc-500">Loading...</p>
               ) : selectedPath ? (
                 <div>
-                  <p className="mb-2 font-mono text-xs text-zinc-500 truncate">
+                  <p className="mb-2 truncate font-mono text-xs text-zinc-500">
                     {selectedPath.replace(/^\/vercel\/sandbox\/?/, "")}
                   </p>
                   <pre className="overflow-auto rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-900">
@@ -241,12 +231,12 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
         </TabsContent>
 
         {/* Commands Tab */}
-        <TabsContent value="commands" className="flex-1 min-h-0">
+        <TabsContent value="commands" className="min-h-0 flex-1">
           <AITerminal
             output={terminalOutput}
             isStreaming={isStreaming}
             autoScroll={true}
-            className="h-full border-0 rounded-none"
+            className="h-full rounded-none border-0"
           >
             <TerminalHeader>
               <TerminalTitle />
@@ -257,7 +247,7 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
                 </TerminalActions>
               </div>
             </TerminalHeader>
-            <TerminalContent className="flex-1 max-h-none" />
+            <TerminalContent className="max-h-none flex-1" />
           </AITerminal>
         </TabsContent>
       </Tabs>
