@@ -129,7 +129,7 @@ export class CodexAgentProvider implements AgentProvider {
     // Determine if using AI Gateway or direct API key
     const useAIGateway = !!process.env.VERCEL_OIDC_TOKEN;
     
-    if (useAIGateway) {
+    if (useAIGateway && process.env.VERCEL_OIDC_TOKEN) {
       // Use Vercel AI Gateway with OIDC token
       // Codex needs AI_GATEWAY_API_KEY env var for the custom provider
       env.AI_GATEWAY_API_KEY = process.env.VERCEL_OIDC_TOKEN;

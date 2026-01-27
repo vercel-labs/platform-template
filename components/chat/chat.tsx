@@ -243,10 +243,7 @@ export function Chat({ className }: ChatProps) {
           <MessageCircle className="h-4 w-4" />
           Chat
         </div>
-        <div className="flex items-center gap-3">
-          <AgentSelector disabled={isStreaming} />
-          <div className="font-mono text-xs text-zinc-500">[{status}]</div>
-        </div>
+        <div className="font-mono text-xs text-zinc-500">[{status}]</div>
       </PanelHeader>
 
       {/* Messages or Empty State */}
@@ -290,6 +287,7 @@ export function Chat({ className }: ChatProps) {
             rows={1}
             className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
           />
+          <AgentSelector disabled={isStreaming} />
           <button
             type="button"
             onClick={() => sendMessage(input)}

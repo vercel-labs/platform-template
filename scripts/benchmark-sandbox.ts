@@ -6,10 +6,10 @@
 
 import { Sandbox } from "@vercel/sandbox";
 
-const SNAPSHOT_ID = process.env.NEXTJS_SNAPSHOT_ID;
+const SNAPSHOT_ID = process.env.NEXTJS_SNAPSHOT_ID!;
 const VCPUS = parseInt(process.env.VCPUS || "2", 10);
 
-if (!SNAPSHOT_ID) {
+if (!process.env.NEXTJS_SNAPSHOT_ID) {
   console.error("NEXTJS_SNAPSHOT_ID env var is required");
   process.exit(1);
 }
