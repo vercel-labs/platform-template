@@ -30,7 +30,7 @@ export interface SandboxState {
   // Sandbox
   sandboxId: string | null;
   previewUrl: string | null;
-  status: "creating" | "ready" | "error" | null;
+  status: "creating" | "warming" | "ready" | "error" | null;
 
   // Session (for agent conversation memory)
   sessionId: string | null;
@@ -167,7 +167,7 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 
 export interface SandboxStatusData {
   sandboxId?: string;
-  status: "creating" | "ready" | "error";
+  status: "creating" | "warming" | "ready" | "error";
   error?: string;
 }
 

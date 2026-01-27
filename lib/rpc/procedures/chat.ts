@@ -7,8 +7,17 @@
 import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
+import { getVercelOidcToken } from "@vercel/oidc";
+import { nanoid } from "nanoid";
 import { getAgent, isValidAgent, getDefaultAgent } from "@/lib/agents";
-import type { SandboxContext } from "@/lib/agents/types";
+import { createSession } from "@/lib/redis";
+import type { SandboxContext, ProxyConfig } from "@/lib/agents/types";
+
+// The deployed URL for the proxy - sandboxes need to call this URL
+// localhost won't work since sandboxes are on a different network
+const PROXY_BASE_URL =
+  process.env.PROXY_BASE_URL ||
+  "https://platform-template.labs.vercel.dev/api/ai/proxy";
 
 /**
  * Send a chat message and stream the response
@@ -78,32 +87,83 @@ export const sendMessage = os
       sandboxId: sandbox.sandboxId,
     };
 
+    // For new sandboxes, send "warming" status - the first I/O takes ~11s
+    if (isNewSandbox) {
+      yield {
+        type: "data" as const,
+        dataType: "sandbox-status" as const,
+        data: { sandboxId: sandbox.sandboxId, status: "warming" },
+      };
+    }
+
+    // Create a session for the proxy
+    // This stores the OIDC token in Redis and returns a session ID
+    // The sandbox uses the session ID in place of the OIDC token
+    let proxyConfig: ProxyConfig | undefined;
+    try {
+      let oidcToken: string | undefined;
+      try {
+        oidcToken = await getVercelOidcToken();
+      } catch {
+        oidcToken = process.env.VERCEL_OIDC_TOKEN;
+      }
+
+      if (oidcToken) {
+        const proxySessionId = nanoid(32);
+        await createSession(proxySessionId, oidcToken, sandbox.sandboxId);
+        proxyConfig = {
+          sessionId: proxySessionId,
+          baseUrl: PROXY_BASE_URL,
+        };
+        console.log(
+          `[chat] Created proxy session: ${proxySessionId.substring(0, 8)}...`
+        );
+      }
+    } catch (error) {
+      // If session creation fails, we'll fall back to direct OIDC
+      console.error("[chat] Failed to create proxy session:", error);
+    }
+
     // Start dev server in background (don't wait for it yet)
     // We'll send the preview URL after the agent finishes its first response
     let devServerStarted = false;
     if (isNewSandbox && process.env.NEXTJS_SNAPSHOT_ID) {
       console.log(`[chat] Starting dev server in background...`);
-      sandbox.runCommand({
-        cmd: "npm",
-        args: ["run", "dev"],
-        cwd: "/vercel/sandbox",
-        detached: true,
-      }).catch((error) => {
-        console.error("[chat] Failed to start dev server:", error);
-      });
+      sandbox
+        .runCommand({
+          cmd: "npm",
+          args: ["run", "dev"],
+          cwd: "/vercel/sandbox",
+          detached: true,
+        })
+        .catch((error) => {
+          console.error("[chat] Failed to start dev server:", error);
+        });
       devServerStarted = true;
     }
 
     // Execute agent and stream chunks
     // Pass sessionId if provided to resume conversation
+    // Pass proxyConfig so the sandbox routes requests through our proxy
     const agentOutput = agent.execute({
       prompt,
       sandboxContext,
       sessionId,
+      proxyConfig,
     });
 
     // Stream each chunk from the agent
+    let firstChunkReceived = false;
     for await (const chunk of agentOutput) {
+      // Once we get the first chunk, sandbox is warm - update status
+      if (!firstChunkReceived && isNewSandbox) {
+        firstChunkReceived = true;
+        yield {
+          type: "data" as const,
+          dataType: "sandbox-status" as const,
+          data: { sandboxId: sandbox.sandboxId, status: "ready" },
+        };
+      }
       yield chunk;
     }
 

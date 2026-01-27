@@ -93,6 +93,17 @@ export type StreamChunk =
 // ============================================================================
 
 /**
+ * Configuration for the AI proxy endpoint.
+ * Used when running in a sandbox to route requests through our server.
+ */
+export interface ProxyConfig {
+  /** The session ID that maps to the real OIDC token in Redis */
+  sessionId: string;
+  /** The proxy base URL (e.g., https://platform-template.labs.vercel.dev/api/ai/proxy) */
+  baseUrl: string;
+}
+
+/**
  * Parameters passed to the agent's execute method.
  */
 export interface ExecuteParams {
@@ -106,6 +117,8 @@ export interface ExecuteParams {
   sessionId?: string;
   /** Optional model override (e.g., 'haiku' for tests) */
   model?: string;
+  /** Optional proxy configuration for sandbox requests */
+  proxyConfig?: ProxyConfig;
 }
 
 /**

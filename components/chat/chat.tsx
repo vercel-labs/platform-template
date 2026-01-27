@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { MessageCircle, Send, Loader2, User, Bot } from "lucide-react";
+import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
 import { Panel, PanelHeader, PanelContent } from "@/components/ui/panel";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
 import type { StreamChunk } from "@/lib/agents/types";
@@ -41,7 +41,7 @@ export function Chat({ className }: ChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
-  const { sandboxId, sessionId, agentId, setSandbox, setSessionId } = useSandboxStore();
+  const { sandboxId, sessionId, agentId, status: sandboxStatus, setSandbox, setSessionId } = useSandboxStore();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -272,6 +272,23 @@ export function Chat({ className }: ChatProps) {
           {messages.map((message) => (
             <MessageView key={message.id} message={message} />
           ))}
+          {/* Sandbox warming indicator */}
+          {sandboxStatus === "warming" && (
+            <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900">
+                <Server className="h-4 w-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="flex-1">
+                <p className="font-mono text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Setting up sandbox...
+                </p>
+                <p className="font-mono text-xs text-yellow-600 dark:text-yellow-400">
+                  Preparing your development environment
+                </p>
+              </div>
+              <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
+            </div>
+          )}
         </PanelContent>
       )}
 
