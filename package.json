@@ -39,6 +39,8 @@
     "@streamdown/code": "^1.0.1",
     "@streamdown/math": "^1.0.1",
     "@streamdown/mermaid": "^1.0.1",
+    "@upstash/redis": "^1.36.1",
+    "@vercel/oidc": "^3.1.0",
     "@vercel/sandbox": "^1.2.1",
     "@xyflow/react": "^12.10.0",
     "ai": "^6.0.48",
