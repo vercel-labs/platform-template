@@ -74,7 +74,7 @@ export const sendMessage = os
     }
 
     const proxySessionId = nanoid(32);
-    await createSession(proxySessionId, sandbox.sandboxId);
+    await createSession(proxySessionId, { sandboxId: sandbox.sandboxId });
     const proxyConfig: ProxyConfig = {
       sessionId: proxySessionId,
       baseUrl: PROXY_BASE_URL,

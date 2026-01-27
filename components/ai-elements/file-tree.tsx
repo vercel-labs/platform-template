@@ -32,7 +32,7 @@ const FileTreeContext = createContext<FileTreeContextType>({
   togglePath: () => undefined,
 });
 
-export type FileTreeProps = HTMLAttributes<HTMLDivElement> & {
+export type FileTreeProps = Omit<HTMLAttributes<HTMLDivElement>, "onSelect"> & {
   expanded?: Set<string>;
   defaultExpanded?: Set<string>;
   selectedPath?: string;

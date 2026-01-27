@@ -37,16 +37,20 @@ export type StreamChunk =
 
 export interface ProxyConfig {
   baseUrl: string;
+  sessionId: string;
 }
 
 export interface ExecuteParams {
+  prompt: string;
   sandboxContext: SandboxContext;
   sessionId?: string;
   proxyConfig: ProxyConfig;
 }
 
 export interface AgentProvider {
+  id: string;
   name: string;
+  description: string;
 
   execute(params: ExecuteParams): AsyncIterable<StreamChunk>;
 }

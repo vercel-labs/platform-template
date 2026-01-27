@@ -1,4 +1,3 @@
-
 import { Redis } from "@upstash/redis";
 
 export const redis = new Redis({
@@ -10,6 +9,11 @@ export interface SessionData {
   createdAt: number;
   expiresAt: number;
   sandboxId?: string;
+  userId?: string;
+}
+
+const SESSION_TTL = 60 * 60;
+
 export async function createSession(
   sessionId: string,
   options?: { sandboxId?: string; userId?: string }

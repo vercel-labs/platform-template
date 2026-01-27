@@ -28,7 +28,11 @@ export async function fetchUser(
 ): Promise<VercelUserData | undefined> {
   try {
     const client = createClient(accessToken);
-    const { user } = await client.user.getAuthUser();
+    const response = await client.user.getAuthUser();
+
+    if (!response) return undefined;
+
+    const { user } = response;
 
     if ("id" in user) {
       return {
@@ -52,28 +56,20 @@ export async function fetchTeams(
 ): Promise<VercelTeamData[] | undefined> {
   try {
     const client = createClient(accessToken);
-    const { teams } = await client.teams.getTeams({});
+    const response = await client.teams.getTeams({});
 
-    return teams.map((team) => {
-      if ("membership" in team) {
-        return {
-          id: team.id,
-          slug: team.slug,
-          name: team.name ?? null,
-          membership: {
-            role: team.membership.role,
-          },
-        };
-      }
-      return {
-        id: team.id,
-        slug: team.slug,
-        name: team.name ?? null,
-        membership: {
-          role: "MEMBER",
-        },
-      };
-    });
+    if (!response) return undefined;
+
+    const { teams } = response;
+
+    return teams.map((team) => ({
+      id: team.id,
+      slug: team.slug,
+      name: team.name ?? null,
+      membership: {
+        role: "membership" in team ? team.membership.role : "MEMBER",
+      },
+    }));
   } catch (error) {
     console.error("[auth] Failed to fetch teams:", error);
     return undefined;
