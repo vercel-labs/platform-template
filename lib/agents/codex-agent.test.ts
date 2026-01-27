@@ -1,10 +1,3 @@
-/**
- * Codex Agent Test
- *
- * Basic test to verify the Codex agent works through the proxy.
- *
- * Run with: pnpm vitest run lib/agents/codex-agent.test.ts
- */
 
 import { test, expect, describe, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
@@ -53,7 +46,6 @@ describe("Codex Agent", () => {
 
     provider = new CodexAgentProvider();
 
-    // Create session via deployed endpoint
     const response = await fetch(SESSION_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -72,7 +64,6 @@ describe("Codex Agent", () => {
       baseUrl: PROXY_BASE_URL,
     };
 
-    // Create sandbox from snapshot
     console.log("Creating sandbox from snapshot...");
     sandbox = await Sandbox.create({
       source: { type: "snapshot", snapshotId },
@@ -106,13 +97,11 @@ describe("Codex Agent", () => {
         })
       );
 
-      // Check for errors first
       const errors = findChunks(chunks, "error");
       if (errors.length > 0) {
         console.error("Errors:", errors);
       }
 
-      // Should have received text
       const textDeltas = findChunks(chunks, "text-delta");
       expect(textDeltas.length).toBeGreaterThan(0);
 

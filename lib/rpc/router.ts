@@ -1,8 +1,3 @@
-/**
- * oRPC Router
- *
- * Defines all RPC procedures for the platform.
- */
 
 import * as sandbox from "./procedures/sandbox";
 import * as chat from "./procedures/chat";

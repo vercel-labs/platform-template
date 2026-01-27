@@ -1,11 +1,3 @@
-/**
- * Vercel OAuth Sign-In Route
- *
- * POST /api/auth/signin/vercel?next=/path
- *
- * Initiates the OAuth flow by generating state and PKCE verifier,
- * storing them in cookies, and returning the authorization URL.
- */
 
 import { type NextRequest } from "next/server";
 import { cookies } from "next/headers";
@@ -43,7 +35,6 @@ export async function POST(req: NextRequest): Promise<Response> {
   const next = req.nextUrl.searchParams.get("next") ?? "/";
   const redirectTo = isRelativeUrl(next) ? next : "/";
 
-  // Store OAuth state in temporary cookies
   for (const [key, value] of [
     ["vercel_oauth_redirect_to", redirectTo],
     ["vercel_oauth_state", state],

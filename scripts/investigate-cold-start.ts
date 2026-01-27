@@ -1,14 +1,3 @@
-/**
- * Investigate: What exactly is the cold start doing?
- * 
- * Tests to understand the 11-second penalty:
- * 1. Is it network latency to the sandbox?
- * 2. Is it command spawning?
- * 3. Is it filesystem mounting?
- * 4. Can we overlap it with something useful?
- * 
- * Run with: npx tsx scripts/investigate-cold-start.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -19,7 +8,6 @@ async function main() {
   console.log("COLD START INVESTIGATION");
   console.log("=".repeat(70));
 
-  // Test 1: Multiple commands in parallel on cold sandbox
   console.log("\n1️⃣  Test: Multiple parallel commands on cold sandbox");
   console.log("-".repeat(50));
   
@@ -31,7 +19,6 @@ async function main() {
   });
   console.log(`   Sandbox created: ${sandbox.sandboxId}`);
 
-  // Fire 3 commands in parallel
   console.log("   Firing 3 commands in parallel...");
   const start1 = Date.now();
   const [r1, r2, r3] = await Promise.all([
@@ -42,14 +29,12 @@ async function main() {
   console.log(`   All 3 completed in: ${Date.now() - start1}ms`);
   console.log(`   (If ~11s, they're serialized. If ~33s, truly parallel but each cold)`);
 
-  // Now a 4th command (should be fast)
   const start2 = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["4"], cwd: "/vercel/sandbox" });
   console.log(`   4th command: ${Date.now() - start2}ms`);
   
   await sandbox.stop();
 
-  // Test 2: File operations vs command execution
   console.log("\n2️⃣  Test: File operations vs command execution on cold sandbox");
   console.log("-".repeat(50));
   
@@ -61,24 +46,20 @@ async function main() {
   });
   console.log(`   Sandbox created: ${sandbox.sandboxId}`);
 
-  // Try file read first (no command)
   let start = Date.now();
   const content = await sandbox.readFileToBuffer({ path: "/vercel/sandbox/package.json" });
   console.log(`   File read (no command): ${Date.now() - start}ms`);
 
-  // Now try command
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
   console.log(`   First command after file read: ${Date.now() - start}ms`);
 
-  // Another command
   start = Date.now();
   await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
   console.log(`   Second command: ${Date.now() - start}ms`);
   
   await sandbox.stop();
 
-  // Test 3: File operations only (no commands at all)
   console.log("\n3️⃣  Test: Only file operations, no commands");
   console.log("-".repeat(50));
   
@@ -108,14 +89,12 @@ async function main() {
   await sandbox.readFileToBuffer({ path: "/vercel/sandbox/test.txt" });
   console.log(`   Read 3: ${Date.now() - start}ms`);
 
-  // NOW try a command
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["first command"], cwd: "/vercel/sandbox" });
   console.log(`   First command (after file ops): ${Date.now() - start}ms`);
   
   await sandbox.stop();
 
-  // Test 4: Detached command as warmup
   console.log("\n4️⃣  Test: Detached command + file ops + await command");
   console.log("-".repeat(50));
   
@@ -127,33 +106,27 @@ async function main() {
   });
   console.log(`   Sandbox created: ${sandbox.sandboxId}`);
 
-  // Start a warmup command detached
   start = Date.now();
   const warmupPromise = sandbox.runCommand({ 
     cmd: "sleep", 
     args: ["0.1"], 
     cwd: "/vercel/sandbox",
-    // NOT detached - we want to await it
   });
   console.log(`   Warmup command started`);
 
-  // While warmup is running, do file operations
   const fileStart = Date.now();
   await sandbox.readFileToBuffer({ path: "/vercel/sandbox/package.json" });
   console.log(`   File read during warmup: ${Date.now() - fileStart}ms`);
 
-  // Wait for warmup
   await warmupPromise;
   console.log(`   Warmup complete: ${Date.now() - start}ms total`);
 
-  // Now try command
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["after warmup"], cwd: "/vercel/sandbox" });
   console.log(`   Command after warmup: ${Date.now() - start}ms`);
   
   await sandbox.stop();
 
-  // Summary
   console.log("\n" + "=".repeat(70));
   console.log("FINDINGS");
   console.log("=".repeat(70));

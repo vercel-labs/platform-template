@@ -1,16 +1,3 @@
-/**
- * Create snapshot WITH .next cache but WITHOUT AI agents
- * 
- * This creates a snapshot with:
- * - Next.js + React 19 + TypeScript
- * - Tailwind CSS
- * - node_modules pre-installed
- * - .next/dev/cache/turbopack pre-built
- * 
- * NO AI agents
- * 
- * Run with: npx tsx scripts/create-cached-snapshot.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 import { writeFileSync } from "fs";
@@ -28,7 +15,6 @@ async function main() {
   console.log(`📦 Sandbox created: ${sandbox.sandboxId}\n`);
 
   try {
-    // Step 1: Create Next.js app
     console.log("1️⃣  Running create-next-app...");
     
     const createApp = await sandbox.runCommand({
@@ -54,7 +40,6 @@ async function main() {
       throw new Error(`create-next-app failed: ${await createApp.stderr()}`);
     }
     
-    // Move files
     await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "cp -r /tmp/app/. /vercel/sandbox/"],
@@ -62,7 +47,6 @@ async function main() {
     });
     console.log("   ✅ Next.js app created\n");
 
-    // Step 2: Update next.config.ts
     console.log("2️⃣  Configuring Next.js with Turbopack cache...");
     const nextConfig = `import type { NextConfig } from "next";
 
@@ -79,7 +63,6 @@ export default nextConfig;
     ]);
     console.log("   ✅ next.config.ts updated\n");
 
-    // Step 3: Minimal starter page
     console.log("3️⃣  Setting up minimal starter page...");
     const minimalPage = `export default function Home() {
   return (
@@ -95,7 +78,6 @@ export default nextConfig;
     ]);
     console.log("   ✅ Starter page created\n");
 
-    // Step 4: Start dev server to build cache
     console.log("4️⃣  Building Turbopack cache...");
     
     sandbox.runCommand({
@@ -105,7 +87,6 @@ export default nextConfig;
       detached: true,
     }).catch(() => {});
     
-    // Wait for compilation
     console.log("   Waiting for compilation...");
     for (let i = 0; i < 60; i++) {
       const curl = await sandbox.runCommand({
@@ -120,7 +101,6 @@ export default nextConfig;
       await new Promise(r => setTimeout(r, 1000));
     }
     
-    // Flush cache
     console.log("   Waiting for cache flush (5s)...");
     await new Promise(r => setTimeout(r, 5000));
     
@@ -130,7 +110,6 @@ export default nextConfig;
       sudo: true,
     });
 
-    // Check sizes
     console.log("\n📊 Size check:");
     const du1 = await sandbox.runCommand({
       cmd: "du",
@@ -146,7 +125,6 @@ export default nextConfig;
     });
     console.log("   .next: " + (await du2.stdout()).trim());
 
-    // Create snapshot
     console.log("\n5️⃣  Creating snapshot...");
     const snapshot = await sandbox.snapshot();
 

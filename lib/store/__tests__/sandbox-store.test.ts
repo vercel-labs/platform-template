@@ -3,7 +3,6 @@ import { useSandboxStore, handleDataPart } from "../sandbox-store";
 
 describe("SandboxStore", () => {
   beforeEach(() => {
-    // Reset store before each test
     useSandboxStore.getState().reset();
   });
 
@@ -230,10 +229,8 @@ describe("handleDataPart", () => {
 
   test("ignores unknown data part types", () => {
     const store = useSandboxStore.getState();
-    // Should not throw
     handleDataPart(store, "data-unknown-type", { foo: "bar" });
 
-    // State unchanged
     expect(useSandboxStore.getState().sandboxId).toBeNull();
   });
 
@@ -250,14 +247,12 @@ describe("handleDataPart", () => {
   test("accumulates command output over time", () => {
     const store = useSandboxStore.getState();
 
-    // First output creates command
     handleDataPart(store, "data-command-output", {
       command: "npm run build",
       output: "Building...",
       stream: "stdout",
     });
 
-    // Subsequent outputs append to same command
     handleDataPart(store, "data-command-output", {
       command: "npm run build",
       output: "Compiling TypeScript...",
@@ -286,18 +281,15 @@ describe("integration: simulated agent stream", () => {
   test("processes a typical agent session", () => {
     const store = useSandboxStore.getState();
 
-    // Sandbox created
     handleDataPart(store, "data-sandbox-status", {
       sandboxId: "sbx-test-123",
       status: "ready",
     });
 
-    // Agent writes files
     handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/package.json" });
     handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/src/index.ts" });
     handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/src/App.tsx" });
 
-    // Agent runs npm install
     handleDataPart(store, "data-command-output", {
       command: "npm install",
       output: "added 150 packages in 5s",
@@ -305,20 +297,17 @@ describe("integration: simulated agent stream", () => {
       exitCode: 0,
     });
 
-    // Agent runs dev server
     handleDataPart(store, "data-command-output", {
       command: "npm run dev",
       output: "Server running on port 3000",
       stream: "stdout",
     });
 
-    // Preview URL available
     handleDataPart(store, "data-preview-url", {
       url: "https://sbx-test-123-3000.vercel.run",
       port: 3000,
     });
 
-    // Verify final state
     const state = useSandboxStore.getState();
     expect(state.sandboxId).toBe("sbx-test-123");
     expect(state.status).toBe("ready");

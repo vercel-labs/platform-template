@@ -1,8 +1,3 @@
-/**
- * Benchmark Sandbox Dev Server Startup
- * 
- * Tests how long it takes for the dev server to respond after sandbox creation.
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -25,11 +20,9 @@ async function waitForServer(url: string, maxWaitMs: number = 60_000): Promise<n
         signal: AbortSignal.timeout(2000),
       });
       if (response.ok || response.status === 404) {
-        // Server is responding (404 is fine, means Next.js is running)
         return Date.now() - startTime;
       }
     } catch {
-      // Server not ready yet
     }
     await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
@@ -44,7 +37,6 @@ async function main() {
   const timings: Record<string, number> = {};
   let totalStart = Date.now();
   
-  // Create sandbox
   console.log("Creating sandbox from snapshot...");
   let start = Date.now();
   const sandbox = await Sandbox.create({
@@ -56,11 +48,9 @@ async function main() {
   timings["sandbox-create"] = Date.now() - start;
   console.log(`✅ Sandbox created: ${sandbox.sandboxId} (${timings["sandbox-create"]}ms)`);
   
-  // Get preview URL
   const previewUrl = sandbox.domain(3000);
   console.log(`🌐 Preview URL: ${previewUrl}`);
   
-  // Start dev server (fire-and-forget, don't await)
   console.log("\nStarting dev server (fire-and-forget)...");
   start = Date.now();
   sandbox.runCommand({
@@ -72,7 +62,6 @@ async function main() {
   timings["dev-start-cmd"] = Date.now() - start;
   console.log(`✅ Dev command kicked off (${timings["dev-start-cmd"]}ms)`);
   
-  // Wait for server to respond
   console.log("\nWaiting for server to respond...");
   start = Date.now();
   try {
@@ -86,7 +75,6 @@ async function main() {
   
   timings["total"] = Date.now() - totalStart;
   
-  // Summary
   console.log("\n" + "=".repeat(50));
   console.log("BENCHMARK RESULTS");
   console.log("=".repeat(50));
@@ -100,7 +88,6 @@ async function main() {
   console.log(`TOTAL:          ${timings["total"]}ms`);
   console.log("=".repeat(50));
   
-  // Cleanup
   console.log("\nStopping sandbox...");
   await sandbox.stop();
   console.log("Done!");

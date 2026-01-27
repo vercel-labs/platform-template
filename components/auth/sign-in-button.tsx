@@ -1,8 +1,3 @@
-/**
- * Sign In Button
- *
- * Button that initiates Vercel OAuth sign-in.
- */
 
 "use client";
 

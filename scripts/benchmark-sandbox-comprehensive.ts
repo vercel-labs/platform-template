@@ -1,21 +1,3 @@
-/**
- * Comprehensive Sandbox Benchmark Suite
- * 
- * Tests various aspects of Vercel Sandbox performance:
- * 1. Snapshot vs cold boot startup times
- * 2. Different vCPU configurations
- * 3. Dev server startup times
- * 4. Sandbox reuse (get existing vs create new)
- * 5. Command execution latency
- * 
- * Run with: 
- *   pnpm tsx scripts/benchmark-sandbox-comprehensive.ts
- * 
- * Options (via env vars):
- *   NEXTJS_SNAPSHOT_ID - Required snapshot ID
- *   RUNS - Number of runs per test (default: 3)
- *   SKIP_COLD_BOOT - Skip cold boot test (slow)
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -70,7 +52,6 @@ async function waitForServer(url: string, maxWaitMs: number = 60_000): Promise<n
         return Date.now() - startTime;
       }
     } catch {
-      // Server not ready yet
     }
     await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
@@ -78,9 +59,6 @@ async function waitForServer(url: string, maxWaitMs: number = 60_000): Promise<n
   return -1; // Timeout
 }
 
-// ============================================================================
-// Test 1: Sandbox Creation from Snapshot (different vCPU configs)
-// ============================================================================
 async function testSnapshotCreation(vcpus: number): Promise<{ createTime: number; sandbox: Sandbox }> {
   const start = Date.now();
   const sandbox = await Sandbox.create({
@@ -93,9 +71,6 @@ async function testSnapshotCreation(vcpus: number): Promise<{ createTime: number
   return { createTime, sandbox };
 }
 
-// ============================================================================
-// Test 2: Cold Boot (no snapshot) - Very slow, skip by default
-// ============================================================================
 async function testColdBoot(vcpus: number): Promise<{ createTime: number; sandbox: Sandbox }> {
   const start = Date.now();
   const sandbox = await Sandbox.create({
@@ -107,22 +82,15 @@ async function testColdBoot(vcpus: number): Promise<{ createTime: number; sandbo
   return { createTime, sandbox };
 }
 
-// ============================================================================
-// Test 3: Get Existing Sandbox
-// ============================================================================
 async function testGetExisting(sandboxId: string): Promise<number> {
   const start = Date.now();
   await Sandbox.get({ sandboxId });
   return Date.now() - start;
 }
 
-// ============================================================================
-// Test 4: Dev Server Startup
-// ============================================================================
 async function testDevServerStartup(sandbox: Sandbox): Promise<{ cmdTime: number; readyTime: number }> {
   const previewUrl = sandbox.domain(3000);
   
-  // Time to kick off command
   const cmdStart = Date.now();
   sandbox.runCommand({
     cmd: "npm",
@@ -132,22 +100,16 @@ async function testDevServerStartup(sandbox: Sandbox): Promise<{ cmdTime: number
   }).catch(() => {});
   const cmdTime = Date.now() - cmdStart;
   
-  // Time until server responds
   const readyTime = await waitForServer(previewUrl, 60_000);
   
   return { cmdTime, readyTime };
 }
 
-// ============================================================================
-// Test 5: Command Execution Latency
-// ============================================================================
 async function testCommandLatency(sandbox: Sandbox): Promise<{ simple: number; complex: number }> {
-  // Simple command
   const simpleStart = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
   const simple = Date.now() - simpleStart;
   
-  // More complex command (list files)
   const complexStart = Date.now();
   await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
   const complex = Date.now() - complexStart;
@@ -155,23 +117,17 @@ async function testCommandLatency(sandbox: Sandbox): Promise<{ simple: number; c
   return { simple, complex };
 }
 
-// ============================================================================
-// Test 6: File Operations
-// ============================================================================
 async function testFileOperations(sandbox: Sandbox): Promise<{ read: number; write: number; list: number }> {
-  // Read file
   const readStart = Date.now();
   await sandbox.readFileToBuffer({ path: "/vercel/sandbox/package.json" });
   const read = Date.now() - readStart;
   
-  // Write file
   const writeStart = Date.now();
   await sandbox.writeFiles([
     { path: "/vercel/sandbox/test-file.txt", content: Buffer.from("hello world " + Date.now()) }
   ]);
   const write = Date.now() - writeStart;
   
-  // List files (using ls command since listFiles may not be available)
   const listStart = Date.now();
   await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
   const list = Date.now() - listStart;
@@ -179,9 +135,6 @@ async function testFileOperations(sandbox: Sandbox): Promise<{ read: number; wri
   return { read, write, list };
 }
 
-// ============================================================================
-// Main Benchmark Runner
-// ============================================================================
 async function runBenchmarks(): Promise<TestResults> {
   const results: TestResults = {
     timestamp: new Date().toISOString(),
@@ -202,13 +155,9 @@ async function runBenchmarks(): Promise<TestResults> {
     process.exit(1);
   }
 
-  // Track sandboxes for cleanup
   const sandboxes: Sandbox[] = [];
   
   try {
-    // ========================================================================
-    // Test 1: Snapshot Creation with Different vCPU Configs
-    // ========================================================================
     console.log("\n📦 TEST 1: Sandbox Creation from Snapshot");
     console.log("-".repeat(50));
     
@@ -222,7 +171,6 @@ async function runBenchmarks(): Promise<TestResults> {
         times.push(createTime);
         console.log(`${createTime}ms`);
         
-        // Keep first sandbox for other tests
         if (vcpus === 2 && i === 0) {
           sandboxes.push(sandbox);
         } else {
@@ -233,9 +181,6 @@ async function runBenchmarks(): Promise<TestResults> {
       results.results[`snapshot-create-${vcpus}vcpu`] = stats(`Snapshot Create (${vcpus} vCPU)`, times);
     }
 
-    // ========================================================================
-    // Test 2: Cold Boot (no snapshot) - Very slow!
-    // ========================================================================
     if (!SKIP_COLD_BOOT) {
       console.log("\n\n🥶 TEST 2: Cold Boot (No Snapshot) - This is SLOW!");
       console.log("-".repeat(50));
@@ -249,9 +194,6 @@ async function runBenchmarks(): Promise<TestResults> {
       results.results["cold-boot-2vcpu"] = stats("Cold Boot (2 vCPU)", [createTime]);
     }
 
-    // ========================================================================
-    // Test 3: Get Existing Sandbox
-    // ========================================================================
     console.log("\n\n🔄 TEST 3: Get Existing Sandbox");
     console.log("-".repeat(50));
     
@@ -269,9 +211,6 @@ async function runBenchmarks(): Promise<TestResults> {
       results.results["get-existing"] = stats("Get Existing Sandbox", times);
     }
 
-    // ========================================================================
-    // Test 4: Dev Server Startup
-    // ========================================================================
     console.log("\n\n🚀 TEST 4: Dev Server Startup");
     console.log("-".repeat(50));
     
@@ -281,12 +220,10 @@ async function runBenchmarks(): Promise<TestResults> {
     for (let i = 0; i < RUNS; i++) {
       console.log(`\n  Run ${i + 1}/${RUNS}:`);
       
-      // Create fresh sandbox for each run
       process.stdout.write("    Creating sandbox... ");
       const { createTime, sandbox } = await testSnapshotCreation(2);
       console.log(`${createTime}ms`);
       
-      // Start dev server
       process.stdout.write("    Starting dev server... ");
       const { cmdTime, readyTime } = await testDevServerStartup(sandbox);
       cmdTimes.push(cmdTime);
@@ -299,13 +236,9 @@ async function runBenchmarks(): Promise<TestResults> {
     results.results["dev-server-cmd"] = stats("Dev Server Command", cmdTimes);
     results.results["dev-server-ready"] = stats("Dev Server Ready", readyTimes);
 
-    // ========================================================================
-    // Test 5: Command Execution Latency
-    // ========================================================================
     console.log("\n\n⚡ TEST 5: Command Execution Latency");
     console.log("-".repeat(50));
     
-    // Create a sandbox for command tests
     const { sandbox: cmdSandbox } = await testSnapshotCreation(2);
     sandboxes.push(cmdSandbox);
     
@@ -323,9 +256,6 @@ async function runBenchmarks(): Promise<TestResults> {
     results.results["cmd-simple"] = stats("Simple Command (echo)", simpleTimes);
     results.results["cmd-complex"] = stats("Complex Command (ls)", complexTimes);
 
-    // ========================================================================
-    // Test 6: File Operations
-    // ========================================================================
     console.log("\n\n📁 TEST 6: File Operations");
     console.log("-".repeat(50));
     
@@ -346,9 +276,6 @@ async function runBenchmarks(): Promise<TestResults> {
     results.results["file-write"] = stats("File Write", writeTimes);
     results.results["file-list"] = stats("File List", listTimes);
 
-    // ========================================================================
-    // Test 7: End-to-End (Create + Dev Server Ready)
-    // ========================================================================
     console.log("\n\n🏁 TEST 7: End-to-End (Create → Dev Server Ready)");
     console.log("-".repeat(50));
     
@@ -359,12 +286,10 @@ async function runBenchmarks(): Promise<TestResults> {
       
       const totalStart = Date.now();
       
-      // Create sandbox
       process.stdout.write("    Creating sandbox... ");
       const { createTime, sandbox } = await testSnapshotCreation(2);
       console.log(`${createTime}ms`);
       
-      // Start dev server
       process.stdout.write("    Starting dev server... ");
       const { readyTime } = await testDevServerStartup(sandbox);
       console.log(`${readyTime}ms`);
@@ -379,13 +304,11 @@ async function runBenchmarks(): Promise<TestResults> {
     results.results["e2e-total"] = stats("End-to-End Total", e2eTimes);
 
   } finally {
-    // Cleanup
     console.log("\n\n🧹 Cleaning up sandboxes...");
     for (const sandbox of sandboxes) {
       try {
         await sandbox.stop();
       } catch {
-        // Ignore cleanup errors
       }
     }
   }
@@ -393,9 +316,6 @@ async function runBenchmarks(): Promise<TestResults> {
   return results;
 }
 
-// ============================================================================
-// Print Summary
-// ============================================================================
 function printSummary(results: TestResults) {
   console.log("\n" + "=".repeat(70));
   console.log("BENCHMARK SUMMARY");
@@ -429,7 +349,6 @@ function printSummary(results: TestResults) {
   
   console.log("=".repeat(70));
   
-  // Key insights
   console.log("\n📊 KEY INSIGHTS:");
   console.log("-".repeat(70));
   
@@ -451,7 +370,6 @@ function printSummary(results: TestResults) {
     console.log(`• Dev server startup: ~${devReady.avg}ms after sandbox creation`);
   }
   
-  // vCPU comparison
   const vcpu2 = results.results["snapshot-create-2vcpu"];
   const vcpu4 = results.results["snapshot-create-4vcpu"];
   
@@ -464,14 +382,10 @@ function printSummary(results: TestResults) {
   console.log("\n" + "=".repeat(70));
 }
 
-// ============================================================================
-// Run
-// ============================================================================
 async function main() {
   const results = await runBenchmarks();
   printSummary(results);
   
-  // Save results to file
   const resultsPath = "scripts/benchmark-results.json";
   const fs = await import("fs");
   fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2));

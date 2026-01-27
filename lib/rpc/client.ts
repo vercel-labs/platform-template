@@ -1,8 +1,3 @@
-/**
- * oRPC Client
- *
- * Type-safe RPC client for browser use.
- */
 
 import type { RouterClient } from "@orpc/server";
 import { createORPCClient } from "@orpc/client";

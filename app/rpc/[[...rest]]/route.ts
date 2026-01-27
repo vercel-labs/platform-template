@@ -1,8 +1,3 @@
-/**
- * oRPC Route Handler
- *
- * Handles all RPC requests at /rpc/*
- */
 
 import { RPCHandler } from "@orpc/server/fetch";
 import { onError } from "@orpc/server";

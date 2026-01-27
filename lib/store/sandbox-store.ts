@@ -1,9 +1,3 @@
-/**
- * Sandbox Store
- *
- * Client-side state for sandbox, files, and command output.
- * Updated via data parts from the agent stream.
- */
 
 import { create } from "zustand";
 import {
@@ -16,9 +10,6 @@ import {
   type CommandOutputData,
 } from "@/lib/types";
 
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface CommandLog {
   timestamp: number;
@@ -36,54 +27,40 @@ export interface Command {
 }
 
 export interface SandboxState {
-  // Sandbox
   sandboxId: string | null;
   previewUrl: string | null;
   status: "creating" | "warming" | "ready" | "error" | null;
 
-  // Session (for agent conversation memory)
   sessionId: string | null;
 
-  // Agent selection
   agentId: string;
 
-  // Files
   files: string[];
 
-  // Commands
   commands: Command[];
 }
 
 export interface SandboxActions {
-  // Sandbox
   setSandbox: (sandboxId: string, status?: SandboxState["status"]) => void;
   setPreviewUrl: (url: string) => void;
   setStatus: (status: SandboxState["status"]) => void;
 
-  // Session
   setSessionId: (sessionId: string) => void;
 
-  // Agent
   setAgentId: (agentId: string) => void;
 
-  // Files
   addFile: (path: string) => void;
   addFiles: (paths: string[]) => void;
 
-  // Commands
   addCommand: (cmd: Omit<Command, "logs" | "startedAt">) => void;
   addCommandLog: (cmdId: string, log: Omit<CommandLog, "timestamp">) => void;
   setCommandExitCode: (cmdId: string, exitCode: number) => void;
 
-  // Reset
   reset: () => void;
 }
 
 export type SandboxStore = SandboxState & SandboxActions;
 
-// ============================================================================
-// Initial State
-// ============================================================================
 
 const initialState: SandboxState = {
   sandboxId: null,
@@ -95,16 +72,12 @@ const initialState: SandboxState = {
   commands: [],
 };
 
-// ============================================================================
-// Store
-// ============================================================================
 
 export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   ...initialState,
 
   setSandbox: (sandboxId, status = "ready") =>
     set((state) => {
-      // Only reset files/commands/preview if it's a different sandbox
       if (state.sandboxId === sandboxId) {
         return { sandboxId, status };
       }
@@ -134,7 +107,6 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 
   addCommand: (cmd) =>
     set((state) => {
-      // Don't add duplicate commands
       if (state.commands.some((c) => c.cmdId === cmd.cmdId)) return state;
       return {
         commands: [
@@ -170,16 +142,7 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   reset: () => set(initialState),
 }));
 
-// ============================================================================
-// Data Part Handler
-// ============================================================================
 
-/**
- * Maps incoming data parts from the agent stream to store updates.
- * Call this for each data-* part received.
- *
- * Uses zod schemas for runtime validation of incoming data.
- */
 export function handleDataPart(
   store: SandboxStore,
   type: string,
@@ -218,10 +181,8 @@ export function handleDataPart(
       const parsed = parseDataPart(DATA_PART_TYPES.COMMAND_OUTPUT, data);
       if (!parsed) return;
       const cmdData = parsed as CommandOutputData;
-      // Use command string as ID
       const cmdId = cmdData.command;
 
-      // Ensure command exists
       if (!store.commands.some((c) => c.cmdId === cmdId)) {
         store.addCommand({ cmdId, command: cmdData.command });
       }
@@ -235,7 +196,6 @@ export function handleDataPart(
     }
 
     default:
-      // Unknown data part type, ignore
       break;
   }
 }

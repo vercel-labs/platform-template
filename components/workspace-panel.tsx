@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Workspace Panel Component
- *
- * Tabbed panel containing Files and Commands views.
- */
 
 import { useState, useCallback, useMemo } from "react";
 import { FolderTree, TerminalIcon } from "lucide-react";
@@ -32,9 +27,6 @@ interface WorkspacePanelProps {
   className?: string;
 }
 
-// ============================================================================
-// File Tree Types and Helpers
-// ============================================================================
 
 interface TreeNode {
   name: string;
@@ -110,9 +102,6 @@ function TreeNodes({ nodes }: { nodes: TreeNode[] }) {
   );
 }
 
-// ============================================================================
-// Main Component
-// ============================================================================
 
 export function WorkspacePanel({ className }: WorkspacePanelProps) {
   const { files, commands, sandboxId } = useSandboxStore();
@@ -120,7 +109,6 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // File tree
   const tree = useMemo(() => buildTree(files), [files]);
   const defaultExpanded = useMemo(() => {
     const expanded = new Set<string>();
@@ -132,7 +120,6 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
     return expanded;
   }, [tree]);
 
-  // Terminal output
   const isStreaming = commands.some((cmd) => cmd.exitCode === undefined);
   const terminalOutput = useMemo(() => {
     return commands
@@ -146,7 +133,6 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
       .join("\n");
   }, [commands]);
 
-  // File loading
   const loadFile = useCallback(
     (path: string) => {
       if (!sandboxId) return;
@@ -199,7 +185,6 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
                 <FileTree
                   defaultExpanded={defaultExpanded}
                   selectedPath={selectedPath}
-                  // @ts-expect-error - ai-elements FileTree onSelect type conflicts with HTMLAttributes
                   onSelect={loadFile}
                   className="rounded-none border-0 bg-transparent"
                 >

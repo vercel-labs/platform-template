@@ -1,21 +1,8 @@
-/**
- * Claude Agent Provider
- *
- * Runs Claude Code CLI directly inside the Vercel Sandbox.
- * This approach:
- * 1. Uses the pre-installed `claude` CLI from the snapshot
- * 2. Routes API requests through our proxy (which swaps session ID for OIDC token)
- * 3. Streams the NDJSON output in real-time using sandbox.logs()
- * 4. Lets Claude use its native tools (Read, Write, Edit, Bash, etc.)
- */
 
 import type { AgentProvider, ExecuteParams, StreamChunk } from "./types";
 import { SANDBOX_INSTRUCTIONS, SANDBOX_BASE_PATH } from "./constants";
 import { DATA_PART_TYPES } from "@/lib/types";
 
-// ============================================================================
-// Types for Claude Code stream-json output
-// ============================================================================
 
 interface ClaudeSystemMessage {
   type: "system";
@@ -83,32 +70,21 @@ type ClaudeMessage =
   | ClaudeUserMessage
   | ClaudeResultMessage;
 
-// ============================================================================
-// Claude Agent Provider
-// ============================================================================
 
 export class ClaudeAgentProvider implements AgentProvider {
   id = "claude";
   name = "Claude Code";
   description = "Claude Code running natively in the sandbox";
 
-  /**
-   * Execute a prompt by running the Claude CLI inside the sandbox.
-   * Yields StreamChunk objects for streaming to the client.
-   */
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
     const { prompt, sandboxContext, sessionId, proxyConfig } = params;
     const { sandbox } = sandboxContext;
 
-    // Build environment variables for the CLI
-    // Always route through the proxy - it swaps session ID for OIDC token
     const env: Record<string, string> = {
       ANTHROPIC_BASE_URL: proxyConfig.baseUrl,
       ANTHROPIC_API_KEY: proxyConfig.sessionId,
     };
 
-    // Build the CLI command
-    // Escape the prompt for shell (replace single quotes)
     const escapedPrompt = prompt.replace(/'/g, "'\\''");
     const escapedInstructions = SANDBOX_INSTRUCTIONS.replace(/'/g, "'\\''");
 
@@ -122,18 +98,15 @@ export class ClaudeAgentProvider implements AgentProvider {
       `'${escapedInstructions}'`,
     ];
 
-    // Resume session if provided
     if (sessionId) {
       cliArgs.push("--resume", sessionId);
     }
 
-    // Add the prompt
     cliArgs.push(`'${escapedPrompt}'`);
 
     const command = `source ~/.bashrc 2>/dev/null; claude ${cliArgs.join(" ")}`;
 
     try {
-      // Start the command (detached so we can stream logs)
       const cmd = await sandbox.runCommand({
         cmd: "sh",
         args: ["-c", command],
@@ -142,19 +115,14 @@ export class ClaudeAgentProvider implements AgentProvider {
         detached: true,
       });
 
-      // Buffer for incomplete lines (NDJSON can be split across chunks)
       let lineBuffer = "";
       let gotResult = false;
 
-      // Stream logs in real-time
       for await (const log of cmd.logs()) {
         if (log.stream === "stdout") {
-          // Append to buffer and process complete lines
           lineBuffer += log.data;
 
-          // Process all complete lines
           const lines = lineBuffer.split("\n");
-          // Keep the last incomplete line in the buffer
           lineBuffer = lines.pop() || "";
 
           for (const line of lines) {
@@ -171,13 +139,11 @@ export class ClaudeAgentProvider implements AgentProvider {
                 gotResult = true;
               }
             } catch {
-              // Skip non-JSON lines (might be debug output)
             }
           }
         }
       }
 
-      // Process any remaining content in buffer
       if (lineBuffer.trim()) {
         try {
           const message = JSON.parse(lineBuffer) as ClaudeMessage;
@@ -189,14 +155,11 @@ export class ClaudeAgentProvider implements AgentProvider {
             gotResult = true;
           }
         } catch {
-          // Final buffer not JSON, ignore
         }
       }
 
-      // Wait for command to finish and check exit code
       const finished = await cmd.wait();
 
-      // If exit code is non-zero and we didn't get a result message, emit error
       if (finished.exitCode !== 0 && !gotResult) {
         yield {
           type: "error",
@@ -213,9 +176,6 @@ export class ClaudeAgentProvider implements AgentProvider {
     }
   }
 
-  // ============================================================================
-  // Convert Claude CLI messages to StreamChunks
-  // ============================================================================
 
   private convertToStreamChunks(message: ClaudeMessage): StreamChunk[] {
     const chunks: StreamChunk[] = [];
@@ -248,7 +208,6 @@ export class ClaudeAgentProvider implements AgentProvider {
               toolName: block.name,
             });
 
-            // Emit data parts based on tool type
             if (block.name === "Write" || block.name === "Edit") {
               const filePath = block.input.file_path as string | undefined;
               if (filePath) {
@@ -264,7 +223,6 @@ export class ClaudeAgentProvider implements AgentProvider {
         break;
 
       case "user":
-        // User messages contain tool results
         for (const block of message.message.content) {
           if (block.type === "tool_result") {
             chunks.push({
@@ -313,8 +271,5 @@ export class ClaudeAgentProvider implements AgentProvider {
   }
 }
 
-// ============================================================================
-// Export singleton instance
-// ============================================================================
 
 export const claudeAgent = new ClaudeAgentProvider();

@@ -1,11 +1,3 @@
-/**
- * Vercel OAuth Callback Route
- *
- * GET /api/auth/callback/vercel?code=...&state=...
- *
- * Handles the OAuth callback, exchanges code for tokens,
- * creates a session, and redirects to the original page.
- */
 
 import { type NextRequest } from "next/server";
 import { OAuth2Client, type OAuth2Tokens } from "arctic";
@@ -23,7 +15,6 @@ export async function GET(req: NextRequest): Promise<Response> {
   const storedRedirectTo =
     cookieStore.get("vercel_oauth_redirect_to")?.value ?? "/";
 
-  // Validate OAuth state
   if (
     code === null ||
     state === null ||
@@ -52,7 +43,6 @@ export async function GET(req: NextRequest): Promise<Response> {
     return new Response("Failed to authenticate", { status: 400 });
   }
 
-  // Create response with redirect
   const response = new Response(null, {
     status: 302,
     headers: {
@@ -60,7 +50,6 @@ export async function GET(req: NextRequest): Promise<Response> {
     },
   });
 
-  // Create and save session
   const session = await createSession({
     accessToken: tokens.accessToken(),
     expiresAt: tokens.accessTokenExpiresAt().getTime(),
@@ -68,7 +57,6 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   await saveSession(response, session);
 
-  // Clean up OAuth cookies
   cookieStore.delete("vercel_oauth_state");
   cookieStore.delete("vercel_oauth_code_verifier");
   cookieStore.delete("vercel_oauth_redirect_to");

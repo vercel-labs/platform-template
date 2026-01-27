@@ -1,13 +1,3 @@
-/**
- * Benchmark Sandbox Pool Strategy
- * 
- * Tests pre-warming sandboxes and keeping them ready:
- * 1. Pre-create and warm a sandbox
- * 2. When user arrives, give them the warm sandbox
- * 3. Create a new one in background for next user
- * 
- * Run with: npx tsx scripts/benchmark-sandbox-pool.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -29,16 +19,13 @@ async function createAndWarmSandbox(): Promise<WarmSandbox> {
     resources: { vcpus: 2 },
   });
   
-  // Warm it up with a simple command
   await sandbox.runCommand({ cmd: "true", cwd: "/vercel/sandbox" });
   
-  // Also start dev server so it's ready
   sandbox.runCommand({
     cmd: "npm", args: ["run", "dev"],
     cwd: "/vercel/sandbox", detached: true,
   }).catch(() => {});
   
-  // Wait for dev server
   const url = sandbox.domain(3000);
   for (let i = 0; i < 60; i++) {
     try {
@@ -58,17 +45,14 @@ async function simulateUserSession(warmSandbox: WarmSandbox): Promise<void> {
   
   const sessionStart = Date.now();
   
-  // Get the existing warm sandbox
   const getStart = Date.now();
   const sandbox = await Sandbox.get({ sandboxId: warmSandbox.sandboxId });
   console.log(`   Get sandbox: ${Date.now() - getStart}ms`);
   
-  // First command (should be fast - sandbox is warm)
   let start = Date.now();
   await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
   console.log(`   First command: ${Date.now() - start}ms`);
   
-  // Simulate agent work
   start = Date.now();
   await sandbox.runCommand({ cmd: "ls", args: ["-la", "src"], cwd: "/vercel/sandbox" });
   console.log(`   ls src: ${Date.now() - start}ms`);
@@ -83,7 +67,6 @@ async function simulateUserSession(warmSandbox: WarmSandbox): Promise<void> {
   await sandbox.runCommand({ cmd: "cat", args: ["src/app/test.tsx"], cwd: "/vercel/sandbox" });
   console.log(`   Read file: ${Date.now() - start}ms`);
   
-  // Check dev server
   const url = sandbox.domain(3000);
   start = Date.now();
   const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(5000) });
@@ -99,7 +82,6 @@ async function main() {
   console.log(`\nSnapshot: ${SNAPSHOT_ID}`);
   console.log("\nSimulating: Pre-warm sandbox → User arrives → Instant response\n");
 
-  // Step 1: Pre-warm a sandbox (this would happen in background)
   console.log("🔥 PRE-WARMING SANDBOX (background task)");
   console.log("-".repeat(50));
   const warmStart = Date.now();
@@ -107,14 +89,12 @@ async function main() {
   console.log(`   Sandbox warmed and ready: ${warmSandbox.warmTime}ms`);
   console.log(`   Sandbox ID: ${warmSandbox.sandboxId}`);
 
-  // Step 2: Simulate user arriving and using the warm sandbox
   console.log("\n" + "=".repeat(70));
   console.log("USER SESSION (using pre-warmed sandbox)");
   console.log("=".repeat(70));
   
   await simulateUserSession(warmSandbox);
 
-  // Step 3: Show comparison with cold start
   console.log("\n" + "=".repeat(70));
   console.log("COMPARISON: COLD START (new sandbox)");
   console.log("=".repeat(70));
@@ -140,11 +120,9 @@ async function main() {
   
   await coldSandbox.stop();
 
-  // Cleanup
   console.log("\n🧹 Cleaning up...");
   await warmSandbox.sandbox.stop();
 
-  // Summary
   console.log("\n" + "=".repeat(70));
   console.log("SUMMARY");
   console.log("=".repeat(70));

@@ -1,11 +1,3 @@
-/**
- * Sign Out Route
- *
- * GET /api/auth/signout?next=/path
- *
- * Revokes the OAuth token with Vercel and clears the session cookie.
- * Returns JSON with a redirect URL.
- */
 
 import type { NextRequest } from "next/server";
 import {
@@ -18,7 +10,6 @@ import {
 export async function GET(req: NextRequest): Promise<Response> {
   const session = await getSessionFromRequest(req);
 
-  // Revoke the token with Vercel
   if (session) {
     try {
       await fetch(VERCEL_OAUTH.revoke, {
@@ -33,7 +24,6 @@ export async function GET(req: NextRequest): Promise<Response> {
       });
     } catch (error) {
       console.error("[auth] Failed to revoke token:", error);
-      // Continue with sign out even if revocation fails
     }
   }
 
@@ -42,7 +32,6 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   const response = Response.json({ url: redirectUrl });
 
-  // Clear the session cookie
   await saveSession(response, undefined);
 
   return response;

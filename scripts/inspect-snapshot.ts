@@ -1,9 +1,3 @@
-/**
- * Inspect what's in the current snapshot
- * 
- * Run with:
- *   npx tsx scripts/inspect-snapshot.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -28,7 +22,6 @@ async function main() {
   console.log(`Sandbox created: ${sandbox.sandboxId}\n`);
 
   try {
-    // Check disk usage
     console.log("📊 DISK USAGE:");
     console.log("-".repeat(50));
     const du = await sandbox.runCommand({
@@ -38,7 +31,6 @@ async function main() {
     });
     console.log(await du.stdout());
 
-    // Check /vercel/sandbox contents
     console.log("\n📁 /vercel/sandbox CONTENTS:");
     console.log("-".repeat(50));
     const lsSandbox = await sandbox.runCommand({
@@ -48,7 +40,6 @@ async function main() {
     });
     console.log(await lsSandbox.stdout());
 
-    // Check .next folder size
     console.log("\n📦 .next FOLDER:");
     console.log("-".repeat(50));
     const duNext = await sandbox.runCommand({
@@ -65,7 +56,6 @@ async function main() {
     });
     console.log(await lsNext.stdout());
 
-    // Check Turbopack cache
     console.log("\n⚡ TURBOPACK CACHE:");
     console.log("-".repeat(50));
     const duTurbo = await sandbox.runCommand({
@@ -75,7 +65,6 @@ async function main() {
     });
     console.log(await duTurbo.stdout());
 
-    // Check node_modules size
     console.log("\n📦 node_modules:");
     console.log("-".repeat(50));
     const duNodeModules = await sandbox.runCommand({
@@ -85,11 +74,9 @@ async function main() {
     });
     console.log(await duNodeModules.stdout());
 
-    // Check installed CLIs
     console.log("\n🤖 INSTALLED CLI TOOLS:");
     console.log("-".repeat(50));
 
-    // Claude
     const claude = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "which claude 2>/dev/null && claude --version 2>/dev/null | head -1 || echo 'Claude not found'"],
@@ -97,7 +84,6 @@ async function main() {
     });
     console.log("Claude:", (await claude.stdout()).trim());
 
-    // OpenCode
     const opencode = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "which opencode 2>/dev/null && opencode --version 2>/dev/null | head -1 || echo 'OpenCode not found'"],
@@ -105,7 +91,6 @@ async function main() {
     });
     console.log("OpenCode:", (await opencode.stdout()).trim());
 
-    // Codex
     const codex = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "which codex 2>/dev/null && codex --version 2>/dev/null | head -1 || echo 'Codex not found'"],
@@ -113,7 +98,6 @@ async function main() {
     });
     console.log("Codex:", (await codex.stdout()).trim());
 
-    // Check ~/.local size (where Claude/OpenCode are installed)
     console.log("\n📂 ~/.local (CLI installs):");
     console.log("-".repeat(50));
     const duLocal = await sandbox.runCommand({
@@ -123,7 +107,6 @@ async function main() {
     });
     console.log(await duLocal.stdout());
 
-    // Check global npm packages
     console.log("\n📦 Global npm packages:");
     console.log("-".repeat(50));
     const npmGlobal = await sandbox.runCommand({
@@ -133,7 +116,6 @@ async function main() {
     });
     console.log(await npmGlobal.stdout());
 
-    // Check global npm folder size
     const duNpmGlobal = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "du -sh $(npm root -g) 2>/dev/null || echo 'Cannot determine'"],
@@ -141,7 +123,6 @@ async function main() {
     });
     console.log("Global npm size:", (await duNpmGlobal.stdout()).trim());
 
-    // Total breakdown
     console.log("\n" + "=".repeat(70));
     console.log("SIZE BREAKDOWN:");
     console.log("=".repeat(70));

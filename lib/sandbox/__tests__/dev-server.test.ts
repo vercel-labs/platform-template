@@ -1,6 +1,3 @@
-/**
- * @fileoverview Tests for dev server auto-start functionality
- */
 
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
@@ -20,7 +17,6 @@ describe("Dev Server Auto-Start", () => {
   }, 10000);
 
   test("should detect Next.js project from package.json", async () => {
-    // Write a package.json with Next.js
     const packageJson = JSON.stringify({
       name: "test-app",
       scripts: { dev: "next dev" },
@@ -31,7 +27,6 @@ describe("Dev Server Auto-Start", () => {
       { path: "/vercel/sandbox/package.json", content: Buffer.from(packageJson) },
     ]);
 
-    // Read it back
     const content = await sandbox.readFileToBuffer({
       path: "/vercel/sandbox/package.json",
     });
@@ -43,19 +38,16 @@ describe("Dev Server Auto-Start", () => {
   });
 
   test("should check if node_modules exists", async () => {
-    // Initially no node_modules
     const checkResult = await sandbox.runCommand({
       cmd: "test",
       args: ["-d", "/vercel/sandbox/node_modules"],
       cwd: "/vercel/sandbox",
     });
 
-    // Should not exist yet (exit code 1)
     expect(checkResult.exitCode).toBe(1);
   });
 
   test("should install dependencies and start dev server", async () => {
-    // Create a minimal Next.js project
     await sandbox.mkDir("/vercel/sandbox/app");
 
     const packageJson = JSON.stringify({
@@ -73,7 +65,6 @@ describe("Dev Server Auto-Start", () => {
       { path: "/vercel/sandbox/app/layout.tsx", content: Buffer.from(layoutContent) },
     ]);
 
-    // Run npm install
     console.log("Installing dependencies...");
     const installResult = await sandbox.runCommand({
       cmd: "npm",
@@ -86,7 +77,6 @@ describe("Dev Server Auto-Start", () => {
 
     expect(installResult.exitCode).toBe(0);
 
-    // node_modules should exist now
     const checkResult = await sandbox.runCommand({
       cmd: "test",
       args: ["-d", "/vercel/sandbox/node_modules"],
@@ -94,7 +84,6 @@ describe("Dev Server Auto-Start", () => {
     });
     expect(checkResult.exitCode).toBe(0);
 
-    // Start dev server
     console.log("Starting dev server...");
     await sandbox.runCommand({
       cmd: "npm",
@@ -103,10 +92,8 @@ describe("Dev Server Auto-Start", () => {
       detached: true,
     });
 
-    // Wait for server to start
     await new Promise((r) => setTimeout(r, 5000));
 
-    // Check if server is responding
     const curlResult = await sandbox.runCommand({
       cmd: "curl",
       args: ["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:3000"],
@@ -116,7 +103,6 @@ describe("Dev Server Auto-Start", () => {
     const statusCode = await curlResult.stdout();
     console.log("Server status code:", statusCode);
 
-    // Should get 200 or at least some response
     expect(["200", "500", "404"]).toContain(statusCode.trim());
   }, 120000);
 });

@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Chat Context
- *
- * Provides a shared Chat instance and handles data part updates to the sandbox store.
- */
 
 import {
   createContext,
@@ -17,9 +12,6 @@ import { Chat } from "@ai-sdk/react";
 import type { ChatMessage, ChatDataPart } from "@/lib/types";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
 
-// ============================================================================
-// Context
-// ============================================================================
 
 interface ChatContextValue {
   chat: Chat<ChatMessage>;
@@ -27,13 +19,9 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-// ============================================================================
-// Provider
-// ============================================================================
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const store = useSandboxStore();
-  // Use a ref to avoid stale closures
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -41,7 +29,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     () =>
       new Chat<ChatMessage>({
         onData: (data: ChatDataPart) => {
-          // Route data parts to the sandbox store
           handleDataPart(storeRef.current, data.type, data.data);
         },
         onError: (error) => {
@@ -56,9 +43,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// ============================================================================
-// Hook
-// ============================================================================
 
 export function useSharedChat() {
   const context = useContext(ChatContext);

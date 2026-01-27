@@ -1,16 +1,6 @@
-/**
- * Benchmark Different Resource Configurations
- * 
- * Tests how vCPU/RAM affects:
- * 1. First command cold start
- * 2. Dev server startup time
- * 
- * Run with: npx tsx scripts/benchmark-resources.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
-// Use minimal snapshot for cleaner comparison
 const SNAPSHOT_ID = "snap_X1Uz65k4dG7MTcGld4ZQdcMHpqeW";
 
 interface Result {
@@ -37,19 +27,16 @@ async function benchmarkResources(vcpus: number): Promise<Result> {
   console.log(`   Create: ${createTime}ms`);
 
   try {
-    // First command (cold start)
     let start = Date.now();
     await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
     const firstCommandTime = Date.now() - start;
     console.log(`   First command: ${firstCommandTime}ms`);
 
-    // Second command (warm)
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     const secondCommandTime = Date.now() - start;
     console.log(`   Second command: ${secondCommandTime}ms`);
 
-    // Dev server startup
     start = Date.now();
     sandbox.runCommand({
       cmd: "npm", args: ["run", "dev"],
@@ -86,7 +73,6 @@ async function main() {
   const results: Result[] = [];
   const vcpuConfigs = [2, 4, 8];
 
-  // Run each config twice
   for (const vcpus of vcpuConfigs) {
     for (let run = 0; run < 2; run++) {
       try {
@@ -98,7 +84,6 @@ async function main() {
     }
   }
 
-  // Summary
   console.log("\n" + "=".repeat(70));
   console.log("RESULTS");
   console.log("=".repeat(70));
@@ -123,7 +108,6 @@ async function main() {
     );
   }
 
-  // Averages
   console.log("\n" + "=".repeat(70));
   console.log("AVERAGES BY vCPU");
   console.log("=".repeat(70));

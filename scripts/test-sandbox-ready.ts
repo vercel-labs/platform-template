@@ -1,8 +1,3 @@
-/**
- * Test: Can we tell when sandbox is truly ready?
- * 
- * Run with: npx tsx scripts/test-sandbox-ready.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -13,7 +8,6 @@ async function main() {
   console.log("SANDBOX READY STATE INVESTIGATION");
   console.log("=".repeat(70));
 
-  // Test: Poll Sandbox.get during first operation
   console.log("\n1️⃣  Creating sandbox and polling status during first operation...");
   
   const createStart = Date.now();
@@ -43,11 +37,9 @@ async function main() {
   clearInterval(pollInterval);
   console.log(`   Operation done: ${Date.now() - opStart}ms`);
 
-  // Final check
   const refreshedFinal = await Sandbox.get({ sandboxId: sandbox.sandboxId });
   console.log(`   Final status: ${refreshedFinal.status}`);
 
-  // Second command
   const cmd2Start = Date.now();
   await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
   console.log(`   Second command: ${Date.now() - cmd2Start}ms`);

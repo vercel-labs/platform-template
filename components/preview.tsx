@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Preview Component
- *
- * Displays the sandbox preview using ai-elements WebPreview.
- */
 
 import {
   ExternalLinkIcon,
@@ -31,7 +26,6 @@ export function Preview({ className }: PreviewProps) {
   const { previewUrl, sandboxId, status } = useSandboxStore();
   const [key, setKey] = useState(0);
   
-  // Debug log
   console.log("[preview] Current state:", { previewUrl, sandboxId, status });
 
   const refresh = useCallback(() => {

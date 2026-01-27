@@ -1,10 +1,3 @@
-/**
- * Session API Route
- *
- * Creates a new session stored in Redis.
- * If the user is authenticated, their user ID is stored in the session
- * so the proxy can use their AI gateway credits.
- */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { nanoid } from "nanoid";
@@ -13,31 +6,20 @@ import { getSessionFromRequest } from "@/lib/auth";
 
 export const maxDuration = 10;
 
-/**
- * POST /api/ai/session
- *
- * Creates a new session. If the user is authenticated (has a valid auth cookie),
- * their user ID is stored in the session for AI gateway billing.
- */
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is authenticated
     const authSession = await getSessionFromRequest(request);
     const userId = authSession?.user?.id;
 
-    // Parse request body for optional sandbox ID
     let sandboxId: string | undefined;
     try {
       const body = await request.json();
       sandboxId = body.sandboxId;
     } catch {
-      // No body or invalid JSON - that's fine
     }
 
-    // Generate a unique session ID
     const sessionId = nanoid(32);
 
-    // Store the session in Redis (with user ID if authenticated)
     await createSession(sessionId, { sandboxId, userId });
 
     return NextResponse.json({
@@ -54,11 +36,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * PATCH /api/ai/session
- *
- * Updates an existing session with a sandbox ID.
- */
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();

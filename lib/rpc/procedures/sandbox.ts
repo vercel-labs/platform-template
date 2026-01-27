@@ -1,17 +1,9 @@
-/**
- * Sandbox Procedures
- *
- * oRPC procedures for sandbox operations.
- */
 
 import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
 import { SANDBOX_BASE_PATH, SANDBOX_DEV_PORT } from "@/lib/agents";
 
-/**
- * Read a file from the sandbox
- */
 export const readFile = os
   .input(
     z.object({
@@ -23,7 +15,6 @@ export const readFile = os
   .handler(async ({ input }) => {
     const { sandboxId, path } = input;
 
-    // Security: ensure path is within sandbox
     if (!path.startsWith(SANDBOX_BASE_PATH)) {
       throw new ORPCError("BAD_REQUEST", {
         message: `Path must be within ${SANDBOX_BASE_PATH}`,
@@ -33,7 +24,6 @@ export const readFile = os
     try {
       const sandbox = await Sandbox.get({ sandboxId });
 
-      // Read file content
       const stream = await sandbox.readFile({ path });
       if (!stream) {
         throw new ORPCError("NOT_FOUND", {
@@ -56,9 +46,6 @@ export const readFile = os
     }
   });
 
-/**
- * List files in the sandbox
- */
 export const listFiles = os
   .input(
     z.object({
@@ -89,9 +76,6 @@ export const listFiles = os
     }
   });
 
-/**
- * Get or create a sandbox
- */
 export const getOrCreateSandbox = os
   .input(
     z.object({
@@ -109,12 +93,10 @@ export const getOrCreateSandbox = os
 
     try {
       if (sandboxId) {
-        // Try to get existing sandbox
         const sandbox = await Sandbox.get({ sandboxId });
         return { sandboxId: sandbox.sandboxId, isNew: false };
       }
 
-      // Create new sandbox
       const sandbox = await Sandbox.create({
         ports: [SANDBOX_DEV_PORT, 5173],
         timeout: 600_000, // 10 minutes

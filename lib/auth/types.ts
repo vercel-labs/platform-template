@@ -1,14 +1,3 @@
-/**
- * Auth Types
- *
- * Type definitions for Vercel OAuth authentication.
- * This module is designed to be easily customizable for different OAuth providers.
- */
-
-// ============================================================================
-// Session Types
-// ============================================================================
-
 export interface Session {
   created: number;
   tokens: Tokens;
@@ -32,10 +21,6 @@ export interface User {
 }
 
 export type BillingPlan = "hobby" | "pro" | "enterprise";
-
-// ============================================================================
-// API Response Types
-// ============================================================================
 
 export interface SessionUserInfo {
   user: User | undefined;

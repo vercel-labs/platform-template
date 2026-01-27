@@ -1,15 +1,3 @@
-/**
- * Create a MINIMAL snapshot for testing
- * 
- * This creates a snapshot with ONLY:
- * - Next.js + React 19 + TypeScript
- * - Tailwind CSS
- * - node_modules pre-installed
- * 
- * NO AI agents, NO .next cache
- * 
- * Run with: npx tsx scripts/create-minimal-snapshot.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 import { writeFileSync } from "fs";
@@ -27,7 +15,6 @@ async function main() {
   console.log(`📦 Sandbox created: ${sandbox.sandboxId}\n`);
 
   try {
-    // Step 1: Create Next.js app
     console.log("1️⃣  Running create-next-app...");
     
     const createApp = await sandbox.runCommand({
@@ -53,7 +40,6 @@ async function main() {
       throw new Error(`create-next-app failed: ${await createApp.stderr()}`);
     }
     
-    // Move files
     await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "cp -r /tmp/app/. /vercel/sandbox/"],
@@ -61,7 +47,6 @@ async function main() {
     });
     console.log("   ✅ Next.js app created\n");
 
-    // Step 2: Update next.config.ts
     console.log("2️⃣  Configuring Next.js...");
     const nextConfig = `import type { NextConfig } from "next";
 
@@ -78,7 +63,6 @@ export default nextConfig;
     ]);
     console.log("   ✅ next.config.ts updated\n");
 
-    // Step 3: Minimal starter page
     console.log("3️⃣  Setting up minimal starter page...");
     const minimalPage = `export default function Home() {
   return (
@@ -94,7 +78,6 @@ export default nextConfig;
     ]);
     console.log("   ✅ Starter page created\n");
 
-    // Check size before snapshot
     console.log("📊 Size check:");
     const du = await sandbox.runCommand({
       cmd: "du",
@@ -103,7 +86,6 @@ export default nextConfig;
     });
     console.log("   " + (await du.stdout()).trim());
 
-    // Create snapshot
     console.log("\n4️⃣  Creating snapshot...");
     const snapshot = await sandbox.snapshot();
 

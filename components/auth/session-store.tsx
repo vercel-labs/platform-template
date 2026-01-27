@@ -1,9 +1,3 @@
-/**
- * Session Store
- *
- * Zustand store for client-side session state.
- * Use the <SessionProvider> component to automatically sync with server.
- */
 
 "use client";
 
@@ -34,19 +28,12 @@ export const useSession = create<SessionState>((set) => ({
   },
 }));
 
-/**
- * Session Provider Component
- *
- * Add this to your layout to automatically fetch and sync session state.
- * Renders nothing but manages session state in the background.
- */
 export function SessionProvider() {
   const refresh = useSession((s) => s.refresh);
 
   useEffect(() => {
     refresh();
 
-    // Refresh session when tab becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         refresh();

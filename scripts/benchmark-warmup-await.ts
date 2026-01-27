@@ -1,9 +1,3 @@
-/**
- * Test Warmup with Awaiting vs Not Awaiting
- * 
- * Run with:
- *   npx tsx scripts/benchmark-warmup-await.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -20,9 +14,6 @@ async function main() {
   console.log("=".repeat(70));
   console.log(`Snapshot: ${SNAPSHOT_ID}\n`);
 
-  // ========================================================================
-  // Test 1: Await warmup command first
-  // ========================================================================
   console.log("\n⏳ TEST 1: AWAIT Warmup Command Before Real Commands");
   console.log("-".repeat(50));
   
@@ -35,13 +26,11 @@ async function main() {
   });
   console.log(`  Sandbox created: ${Date.now() - totalStart}ms`);
   
-  // Await a warmup command
   let start = Date.now();
   console.log("  Awaiting warmup command (true)...");
   await sandbox.runCommand({ cmd: "true", cwd: "/vercel/sandbox" });
   console.log(`  Warmup complete: ${Date.now() - start}ms`);
   
-  // Now run real commands
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
   console.log(`  echo hello: ${Date.now() - start}ms`);
@@ -57,9 +46,6 @@ async function main() {
   console.log(`  Total time: ${Date.now() - totalStart}ms`);
   await sandbox.stop();
 
-  // ========================================================================
-  // Test 2: Await dev server start first
-  // ========================================================================
   console.log("\n\n🚀 TEST 2: Start Dev Server (detached) + Wait for Startup, THEN Commands");
   console.log("-".repeat(50));
   
@@ -72,7 +58,6 @@ async function main() {
   });
   console.log(`  Sandbox created: ${Date.now() - totalStart}ms`);
   
-  // Start dev server (detached)
   sandbox.runCommand({
     cmd: "npm",
     args: ["run", "dev"],
@@ -81,7 +66,6 @@ async function main() {
   }).catch(() => {});
   console.log(`  Dev server kicked off: ${Date.now() - totalStart}ms`);
   
-  // Wait for dev server to be ready (this implicitly waits for sandbox warmup)
   const url = sandbox.domain(3000);
   console.log(`  Waiting for dev server at ${url}...`);
   start = Date.now();
@@ -96,7 +80,6 @@ async function main() {
     await new Promise(r => setTimeout(r, 250));
   }
   
-  // Now run commands
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
   console.log(`  echo hello: ${Date.now() - start}ms`);
@@ -112,9 +95,6 @@ async function main() {
   console.log(`  Total time: ${Date.now() - totalStart}ms`);
   await sandbox.stop();
 
-  // ========================================================================
-  // Test 3: Background warmup while "processing"
-  // ========================================================================
   console.log("\n\n⚡ TEST 3: Background Warmup During 'Think Time'");
   console.log("-".repeat(50));
   console.log("  Simulating: Create sandbox → AI thinks → First command");
@@ -128,7 +108,6 @@ async function main() {
   });
   console.log(`  Sandbox created: ${Date.now() - totalStart}ms`);
   
-  // Start dev server immediately (this is the warmup)
   const devServerPromise = sandbox.runCommand({
     cmd: "npm",
     args: ["run", "dev"],
@@ -137,12 +116,10 @@ async function main() {
   }).catch(() => {});
   console.log(`  Dev server started (detached): ${Date.now() - totalStart}ms`);
   
-  // Simulate AI "thinking" for 2 seconds before issuing first command
   console.log("  Simulating AI thinking for 2 seconds...");
   await new Promise(r => setTimeout(r, 2000));
   console.log(`  AI done thinking: ${Date.now() - totalStart}ms`);
   
-  // Now try running commands
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
   console.log(`  echo hello: ${Date.now() - start}ms`);
@@ -154,9 +131,6 @@ async function main() {
   console.log(`  Total time: ${Date.now() - totalStart}ms`);
   await sandbox.stop();
 
-  // ========================================================================
-  // Test 4: Longer warmup wait
-  // ========================================================================
   console.log("\n\n⏰ TEST 4: Wait 25 seconds after sandbox creation (no commands)");
   console.log("-".repeat(50));
   
@@ -172,7 +146,6 @@ async function main() {
   await new Promise(r => setTimeout(r, 25000));
   console.log(`  Wait complete: ${Date.now() - totalStart}ms`);
   
-  // Now try commands
   start = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
   console.log(`  echo hello: ${Date.now() - start}ms`);
@@ -184,9 +157,6 @@ async function main() {
   console.log(`  Total time: ${Date.now() - totalStart}ms`);
   await sandbox.stop();
 
-  // ========================================================================
-  // Summary
-  // ========================================================================
   console.log("\n" + "=".repeat(70));
   console.log("FINDINGS");
   console.log("=".repeat(70));

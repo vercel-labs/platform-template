@@ -1,13 +1,3 @@
-/**
- * Benchmark Different Snapshot Configurations
- * 
- * Creates and tests multiple snapshot variants to find the optimal config:
- * 1. Minimal: Next.js + node_modules only
- * 2. Cached: + .next/turbopack cache
- * 3. Full: + AI agents (Claude, Codex)
- * 
- * Run with: npx tsx scripts/benchmark-snapshot-configs.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -34,7 +24,6 @@ async function createMinimalSnapshot(): Promise<string> {
   });
 
   try {
-    // Create Next.js app
     await sandbox.runCommand({
       cmd: "npx",
       args: ["-y", "create-next-app@latest", "/tmp/app", "--yes", "--typescript", "--tailwind", "--eslint", "--app", "--src-dir", "--turbopack", "--no-import-alias"],
@@ -48,7 +37,6 @@ async function createMinimalSnapshot(): Promise<string> {
       cwd: "/vercel/sandbox",
     });
 
-    // Get size
     const du = await sandbox.runCommand({ cmd: "du", args: ["-sh", "/vercel/sandbox"], cwd: "/" });
     const size = (await du.stdout()).split("\t")[0];
     
@@ -74,7 +62,6 @@ async function createCachedSnapshot(): Promise<string> {
   });
 
   try {
-    // Create Next.js app
     await sandbox.runCommand({
       cmd: "npx",
       args: ["-y", "create-next-app@latest", "/tmp/app", "--yes", "--typescript", "--tailwind", "--eslint", "--app", "--src-dir", "--turbopack", "--no-import-alias"],
@@ -88,13 +75,11 @@ async function createCachedSnapshot(): Promise<string> {
       cwd: "/vercel/sandbox",
     });
 
-    // Enable turbopack cache
     const nextConfig = `import type { NextConfig } from "next";
 const nextConfig: NextConfig = { experimental: { turbopackFileSystemCacheForDev: true } };
 export default nextConfig;`;
     await sandbox.writeFiles([{ path: "/vercel/sandbox/next.config.ts", content: Buffer.from(nextConfig) }]);
 
-    // Build cache
     sandbox.runCommand({ cmd: "npm", args: ["run", "dev"], cwd: "/vercel/sandbox", detached: true }).catch(() => {});
     
     for (let i = 0; i < 60; i++) {
@@ -134,7 +119,6 @@ async function createFullSnapshot(): Promise<string> {
   });
 
   try {
-    // Create Next.js app
     await sandbox.runCommand({
       cmd: "npx",
       args: ["-y", "create-next-app@latest", "/tmp/app", "--yes", "--typescript", "--tailwind", "--eslint", "--app", "--src-dir", "--turbopack", "--no-import-alias"],
@@ -148,13 +132,11 @@ async function createFullSnapshot(): Promise<string> {
       cwd: "/vercel/sandbox",
     });
 
-    // Enable turbopack cache
     const nextConfig = `import type { NextConfig } from "next";
 const nextConfig: NextConfig = { experimental: { turbopackFileSystemCacheForDev: true } };
 export default nextConfig;`;
     await sandbox.writeFiles([{ path: "/vercel/sandbox/next.config.ts", content: Buffer.from(nextConfig) }]);
 
-    // Install Claude
     console.log("   Installing Claude...");
     await sandbox.runCommand({
       cmd: "sh",
@@ -162,7 +144,6 @@ export default nextConfig;`;
       cwd: "/vercel/sandbox",
     });
 
-    // Install Codex
     console.log("   Installing Codex...");
     await sandbox.runCommand({
       cmd: "npm",
@@ -170,7 +151,6 @@ export default nextConfig;`;
       cwd: "/vercel/sandbox",
     });
 
-    // Build cache
     console.log("   Building Turbopack cache...");
     sandbox.runCommand({ cmd: "npm", args: ["run", "dev"], cwd: "/vercel/sandbox", detached: true }).catch(() => {});
     
@@ -203,7 +183,6 @@ export default nextConfig;`;
 async function benchmarkSnapshot(config: SnapshotConfig): Promise<void> {
   console.log(`\n⏱️  Benchmarking: ${config.name} (${config.snapshotId})`);
   
-  // Test 1: Create time
   let start = Date.now();
   const sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: config.snapshotId! },
@@ -215,19 +194,16 @@ async function benchmarkSnapshot(config: SnapshotConfig): Promise<void> {
   console.log(`   Create time: ${config.createTime}ms`);
 
   try {
-    // Test 2: First command (cold start)
     start = Date.now();
     await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
     config.firstCommandTime = Date.now() - start;
     console.log(`   First command: ${config.firstCommandTime}ms`);
 
-    // Test 3: Second command (warm)
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     config.secondCommandTime = Date.now() - start;
     console.log(`   Second command: ${config.secondCommandTime}ms`);
 
-    // Test 4: Dev server startup
     start = Date.now();
     sandbox.runCommand({ cmd: "npm", args: ["run", "dev"], cwd: "/vercel/sandbox", detached: true }).catch(() => {});
     
@@ -255,7 +231,6 @@ async function main() {
   console.log("=".repeat(70));
   console.log("\nThis will create 3 different snapshots and compare their performance.\n");
 
-  // Create all snapshots
   await createMinimalSnapshot();
   await createCachedSnapshot();
   await createFullSnapshot();
@@ -264,12 +239,10 @@ async function main() {
   console.log("BENCHMARKING SNAPSHOTS");
   console.log("=".repeat(70));
 
-  // Benchmark each
   for (const config of results) {
     await benchmarkSnapshot(config);
   }
 
-  // Print results
   console.log("\n" + "=".repeat(70));
   console.log("RESULTS SUMMARY");
   console.log("=".repeat(70));

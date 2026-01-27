@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * Chat Component
- *
- * Main chat interface with oRPC streaming.
- * Uses a custom approach since we're streaming from agent harnesses, not direct AI models.
- */
 
 import { useState, useCallback } from "react";
 import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
@@ -24,7 +18,6 @@ const EXAMPLE_PROMPTS = [
   "Make a password generator with strength indicator",
 ];
 
-// Message part types - ordered as they arrive
 type MessagePart =
   | { type: "text"; content: string }
   | {
@@ -64,7 +57,6 @@ export function Chat({ className }: ChatProps) {
     async (text: string) => {
       if (!text.trim() || status === "streaming") return;
 
-      // Add user message
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -74,7 +66,6 @@ export function Chat({ className }: ChatProps) {
       setInput("");
       setStatus("streaming");
 
-      // Create assistant message placeholder
       const assistantId = crypto.randomUUID();
       setMessages((prev) => [
         ...prev,
@@ -82,8 +73,6 @@ export function Chat({ className }: ChatProps) {
       ]);
 
       try {
-        // Stream from oRPC
-        // Pass sessionId to resume conversation if we have one
         const iterator = await rpc.chat.send({
           prompt: text,
           agentId,
@@ -91,21 +80,16 @@ export function Chat({ className }: ChatProps) {
           sessionId: sessionId ?? undefined,
         });
 
-        // Process each chunk
         for await (const chunk of iterator) {
-          // Handle sandbox ID
           if (chunk.type === "sandbox-id") {
             setSandbox(chunk.sandboxId, "ready");
             continue;
           }
 
-          // Type assertion for StreamChunk
           const streamChunk = chunk as StreamChunk;
 
-          // Handle different chunk types
           switch (streamChunk.type) {
             case "message-start":
-              // Capture session ID for conversation memory
               if (streamChunk.sessionId) {
                 setSessionId(streamChunk.sessionId);
               }
@@ -119,14 +103,12 @@ export function Chat({ className }: ChatProps) {
                   const parts = [...m.parts];
                   const lastPart = parts[parts.length - 1];
 
-                  // If the last part is text, append to it
                   if (lastPart && lastPart.type === "text") {
                     parts[parts.length - 1] = {
                       ...lastPart,
                       content: lastPart.content + streamChunk.text,
                     };
                   } else {
-                    // Otherwise, create a new text part
                     parts.push({ type: "text", content: streamChunk.text });
                   }
 
@@ -160,7 +142,6 @@ export function Chat({ className }: ChatProps) {
                   if (m.id !== assistantId) return m;
 
                   const parts = [...m.parts];
-                  // Find the tool part by ID
                   const toolIdx = parts.findIndex(
                     (p) => p.type === "tool" && p.id === streamChunk.toolCallId
                   );
@@ -208,7 +189,6 @@ export function Chat({ className }: ChatProps) {
               break;
 
             case "data": {
-              // Handle data parts - update store using store actions directly
               const dataType = `data-${streamChunk.dataType}` as (typeof UI_DATA_PART_TYPES)[keyof typeof UI_DATA_PART_TYPES];
               const store = useSandboxStore.getState();
               handleDataPart(store, dataType, streamChunk.data);
@@ -345,7 +325,6 @@ export function Chat({ className }: ChatProps) {
   );
 }
 
-// Message view component
 function MessageView({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
 
@@ -384,13 +363,11 @@ function MessageView({ message }: { message: ChatMessage }) {
   );
 }
 
-// Part view component
 function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
   if (part.type === "text") {
     if (!part.content) return null;
 
     if (isUser) {
-      // User messages - simple text without markdown
       return (
         <div className="inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
           <p className="whitespace-pre-wrap">{part.content}</p>
@@ -398,7 +375,6 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
       );
     }
 
-    // Assistant messages - render markdown with Streamdown
     return (
       <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none break-words">
         <MessageResponse>{part.content}</MessageResponse>
@@ -406,7 +382,6 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
     );
   }
 
-  // Tool part
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-2 flex items-center gap-2">

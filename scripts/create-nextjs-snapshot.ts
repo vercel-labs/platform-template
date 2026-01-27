@@ -1,19 +1,3 @@
-/**
- * Script to create a Next.js sandbox snapshot with AI coding agents
- *
- * Run with: pnpm tsx scripts/create-nextjs-snapshot.ts
- *
- * This creates a snapshot with:
- * - Next.js (latest) + React 19 + TypeScript
- * - Tailwind CSS configured
- * - shadcn/ui initialized (add components with: npx shadcn@latest add <name>)
- * - All dependencies pre-installed (no npm install needed)
- * - Claude Code CLI (claude) - Anthropic's coding agent
- * - OpenCode CLI (opencode) - Open source coding agent  
- * - Codex CLI (codex) - OpenAI's coding agent
- *
- * Note: Snapshots expire after 7 days, so you'll need to recreate periodically.
- */
 
 import { Sandbox } from "@vercel/sandbox";
 import { writeFileSync, appendFileSync, existsSync, readFileSync } from "fs";
@@ -31,11 +15,8 @@ async function main() {
   console.log(`📦 Sandbox created: ${sandbox.sandboxId}\n`);
 
   try {
-    // Step 1: Create Next.js app
-    // Create in a temp directory then move to /vercel/sandbox
     console.log("1️⃣  Running create-next-app...");
     
-    // First, create the app in /tmp
     const createApp = await sandbox.runCommand({
       cmd: "npx",
       args: [
@@ -64,7 +45,6 @@ async function main() {
       throw new Error(`create-next-app failed with exit code ${createApp.exitCode}`);
     }
     
-    // Move files from /tmp/app to /vercel/sandbox
     console.log("   Moving files to /vercel/sandbox...");
     const moveFiles = await sandbox.runCommand({
       cmd: "sh",
@@ -77,7 +57,6 @@ async function main() {
       throw new Error(`Failed to move files: ${stderr}`);
     }
     
-    // Verify files were created
     const verifyLs = await sandbox.runCommand({
       cmd: "ls",
       args: ["-la"],
@@ -86,14 +65,12 @@ async function main() {
     console.log("   Files after setup:");
     console.log(await verifyLs.stdout());
     
-    // Check if package.json exists
     const pkgCheck = await sandbox.readFileToBuffer({ path: "/vercel/sandbox/package.json" });
     if (!pkgCheck) {
       throw new Error("package.json not found!");
     }
     console.log("   ✅ Next.js app created\n");
 
-    // Step 2: Initialize shadcn/ui
     console.log("2️⃣  Initializing shadcn/ui...");
     const shadcnInit = await sandbox.runCommand({
       cmd: "npx",
@@ -107,7 +84,6 @@ async function main() {
       console.log("   ✅ shadcn/ui initialized\n");
     }
 
-    // Step 3: Update next.config.ts to enable Turbopack filesystem cache
     console.log("3️⃣  Configuring Next.js with Turbopack filesystem cache...");
     const nextConfig = `import type { NextConfig } from "next";
 
@@ -124,7 +100,6 @@ export default nextConfig;
     ]);
     console.log("   ✅ next.config.ts updated\n");
 
-    // Step 4: Clean up the default page to be minimal
     console.log("4️⃣  Setting up minimal starter page...");
     const minimalPage = `export default function Home() {
   return (
@@ -140,10 +115,8 @@ export default nextConfig;
     ]);
     console.log("   ✅ Starter page created\n");
 
-    // Step 4b: Install AI coding agents
     console.log("4️⃣b Installing AI coding agents...\n");
 
-    // Install Claude Code
     console.log("   📦 Installing Claude Code...");
     const claudeInstall = await sandbox.runCommand({
       cmd: "sh",
@@ -157,7 +130,6 @@ export default nextConfig;
       console.log("   ⚠️  Claude Code install had issues:", await claudeInstall.stderr());
     }
 
-    // Verify Claude installation
     const claudeVersion = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "source ~/.bashrc 2>/dev/null; claude --version"],
@@ -165,7 +137,6 @@ export default nextConfig;
     });
     console.log(`   Claude version: ${(await claudeVersion.stdout()).trim()}`);
 
-    // Install OpenCode
     console.log("\n   📦 Installing OpenCode...");
     const opencodeInstall = await sandbox.runCommand({
       cmd: "sh",
@@ -178,7 +149,6 @@ export default nextConfig;
       console.log("   ⚠️  OpenCode install had issues:", await opencodeInstall.stderr());
     }
 
-    // Verify OpenCode installation
     const opencodeVersion = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "source ~/.bashrc 2>/dev/null; opencode --version 2>/dev/null || echo 'version check skipped'"],
@@ -186,7 +156,6 @@ export default nextConfig;
     });
     console.log(`   OpenCode version: ${(await opencodeVersion.stdout()).trim()}`);
 
-    // Install Codex (via npm global)
     console.log("\n   📦 Installing Codex...");
     const codexInstall = await sandbox.runCommand({
       cmd: "npm",
@@ -199,7 +168,6 @@ export default nextConfig;
       console.log("   ⚠️  Codex install had issues:", await codexInstall.stderr());
     }
 
-    // Verify Codex installation
     const codexVersion = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "codex --version 2>/dev/null || echo 'version check skipped'"],
@@ -209,10 +177,8 @@ export default nextConfig;
 
     console.log("\n   ✅ AI coding agents installed\n");
 
-    // Step 5: Start dev server and wait for it to compile (builds .next cache)
     console.log("5️⃣  Starting dev server to build Turbopack cache...\n");
     
-    // Start dev server in background
     sandbox.runCommand({
       cmd: "npm",
       args: ["run", "dev"],
@@ -220,7 +186,6 @@ export default nextConfig;
       detached: true,
     }).catch(() => {});
     
-    // Wait for server to be ready (compiles the app)
     console.log("   Waiting for compilation...");
     for (let i = 0; i < 60; i++) {
       const curl = await sandbox.runCommand({
@@ -239,11 +204,9 @@ export default nextConfig;
       await new Promise(r => setTimeout(r, 1000));
     }
     
-    // Wait for Turbopack to flush its cache to disk
     console.log("   Waiting for Turbopack cache to flush (5s)...");
     await new Promise(r => setTimeout(r, 5000));
     
-    // Sync filesystem to ensure all data is written to disk
     console.log("   Syncing filesystem...");
     await sandbox.runCommand({
       cmd: "sync",
@@ -251,7 +214,6 @@ export default nextConfig;
       sudo: true,
     });
     
-    // Check Turbopack cache size
     const cacheSize = await sandbox.runCommand({
       cmd: "du",
       args: ["-sh", ".next/dev/cache/turbopack"],
@@ -260,7 +222,6 @@ export default nextConfig;
     const cacheSizeStr = (await cacheSize.stdout()).trim();
     console.log(`   Turbopack cache size: ${cacheSizeStr.split('\t')[0]}`);
     
-    // Check .next folder structure
     const lsNext = await sandbox.runCommand({
       cmd: "ls",
       args: ["-la", ".next"],
@@ -269,7 +230,6 @@ export default nextConfig;
     console.log("   .next contents:");
     console.log((await lsNext.stdout()).split('\n').map(l => `      ${l}`).join('\n'));
 
-    // Get Next.js version for the snapshot info (before snapshotting)
     const nextVersionResult = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "cat package.json | grep '\"next\":' | head -1"],
@@ -278,7 +238,6 @@ export default nextConfig;
     const nextVersionLine = (await nextVersionResult.stdout()).trim();
     console.log(`   Next.js version: ${nextVersionLine}`);
 
-    // Step 6: Create snapshot (this stops the sandbox)
     console.log("\n6️⃣  Creating snapshot...");
     const snapshot = await sandbox.snapshot();
 
@@ -290,7 +249,6 @@ export default nextConfig;
     console.log(`NEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}`);
     console.log("\n" + "=".repeat(60));
 
-    // Save snapshot ID
     const snapshotInfo = `# Next.js Sandbox Snapshot with AI Coding Agents
 # Created: ${new Date().toISOString()}
 # Expires: ~7 days from creation
@@ -312,7 +270,6 @@ NEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}
     writeFileSync("scripts/snapshot-id.txt", snapshotInfo);
     console.log("\n📄 Snapshot info saved to scripts/snapshot-id.txt");
 
-    // Also append to .env.local if it exists
     const envLocalPath = ".env.local";
     if (existsSync(envLocalPath)) {
       const envContent = readFileSync(envLocalPath, "utf-8");
@@ -329,7 +286,6 @@ NEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}
     try {
       await sandbox.stop();
     } catch {
-      // Ignore cleanup errors
     }
     process.exit(1);
   }

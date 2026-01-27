@@ -1,8 +1,3 @@
-/**
- * User Menu
- *
- * Dropdown menu showing user info and sign-out option.
- */
 
 "use client";
 

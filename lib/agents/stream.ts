@@ -1,19 +1,8 @@
-/**
- * Agent Stream Utilities
- *
- * Converts agent SDK output to AI SDK UIMessageChunk format.
- * This allows us to use createUIMessageStreamResponse and AI Elements components.
- */
 
 import type { UIMessageChunk } from "ai";
 import type { StreamChunk } from "./types";
 import type { DataPartPayload } from "@/lib/types";
 
-/**
- * Convert our StreamChunk to AI SDK's UIMessageChunk format.
- *
- * This is the bridge between agent harnesses and AI SDK's streaming system.
- */
 export function toUIMessageChunk(
   chunk: StreamChunk,
   partId: string
@@ -48,7 +37,6 @@ export function toUIMessageChunk(
       };
 
     case "tool-result":
-      // AI SDK uses tool-output-available/tool-output-error for streaming results
       if (chunk.isError) {
         return {
           type: "tool-output-error",
@@ -63,7 +51,6 @@ export function toUIMessageChunk(
       };
 
     case "data":
-      // Data parts use type: "data-{name}" format
       return {
         type: `data-${chunk.dataType}`,
         data: chunk.data,
@@ -77,8 +64,6 @@ export function toUIMessageChunk(
 
     case "message-start":
     case "message-end":
-      // These don't have direct UIMessageChunk equivalents
-      // message-end usage could be sent as metadata
       return null;
 
     default:
@@ -86,16 +71,6 @@ export function toUIMessageChunk(
   }
 }
 
-/**
- * Create a ReadableStream of UIMessageChunks from an agent's StreamChunk output.
- *
- * Usage:
- * ```ts
- * const agent = getAgent("claude-agent");
- * const stream = createAgentStream(agent.execute({ prompt, sandboxContext }));
- * return createUIMessageStreamResponse({ stream });
- * ```
- */
 export function createAgentStream(
   chunks: AsyncIterable<StreamChunk>,
   generatePartId: () => string = () => crypto.randomUUID()
@@ -109,7 +84,6 @@ export function createAgentStream(
     async start(controller) {
       try {
         for await (const chunk of chunks) {
-          // Handle text-delta: need to send text-start first
           if (chunk.type === "text-delta" && !sentTextStart) {
             controller.enqueue({
               type: "text-start",
@@ -118,7 +92,6 @@ export function createAgentStream(
             sentTextStart = true;
           }
 
-          // Handle reasoning-delta: need to send reasoning-start first
           if (chunk.type === "reasoning-delta" && !sentReasoningStart) {
             controller.enqueue({
               type: "reasoning-start",
@@ -127,7 +100,6 @@ export function createAgentStream(
             sentReasoningStart = true;
           }
 
-          // After tool use, reset text tracking for new text parts
           if (chunk.type === "tool-start") {
             if (sentTextStart) {
               controller.enqueue({
@@ -153,7 +125,6 @@ export function createAgentStream(
           }
         }
 
-        // Close any open parts
         if (sentTextStart) {
           controller.enqueue({
             type: "text-end",

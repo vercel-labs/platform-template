@@ -1,18 +1,6 @@
-/**
- * Benchmark Different Warmup Strategies
- * 
- * Tests various approaches to minimize the first-command latency:
- * 1. No warmup - just start dev server
- * 2. Await a simple command first, then dev server
- * 3. Dev server + wait longer before command
- * 4. Parallel: warmup command + dev server together
- * 
- * Run with: npx tsx scripts/benchmark-warmup-strategies.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
-// Use minimal snapshot for cleaner comparison
 const SNAPSHOT_ID = "snap_X1Uz65k4dG7MTcGld4ZQdcMHpqeW";
 
 interface Result {
@@ -55,7 +43,6 @@ async function strategy1_NoWarmup(): Promise<Result> {
   console.log(`   Create: ${createTime}ms`);
 
   try {
-    // Start dev server immediately
     sandbox.runCommand({
       cmd: "npm", args: ["run", "dev"],
       cwd: "/vercel/sandbox", detached: true,
@@ -64,13 +51,11 @@ async function strategy1_NoWarmup(): Promise<Result> {
     const devServerReady = await waitForServer(sandbox);
     console.log(`   Dev server ready: ${devServerReady}ms`);
 
-    // First real command
     let start = Date.now();
     await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
     const firstRealCommand = Date.now() - start;
     console.log(`   First command: ${firstRealCommand}ms`);
 
-    // Second command
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     const secondCommand = Date.now() - start;
@@ -106,13 +91,11 @@ async function strategy2_AwaitWarmupFirst(): Promise<Result> {
   console.log(`   Create: ${createTime}ms`);
 
   try {
-    // Await warmup command first
     let start = Date.now();
     await sandbox.runCommand({ cmd: "true", cwd: "/vercel/sandbox" });
     const warmupTime = Date.now() - start;
     console.log(`   Warmup (true): ${warmupTime}ms`);
 
-    // Then start dev server
     sandbox.runCommand({
       cmd: "npm", args: ["run", "dev"],
       cwd: "/vercel/sandbox", detached: true,
@@ -121,13 +104,11 @@ async function strategy2_AwaitWarmupFirst(): Promise<Result> {
     const devServerReady = await waitForServer(sandbox);
     console.log(`   Dev server ready: ${devServerReady}ms`);
 
-    // First real command (should be fast now)
     start = Date.now();
     await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
     const firstRealCommand = Date.now() - start;
     console.log(`   First command: ${firstRealCommand}ms`);
 
-    // Second command
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     const secondCommand = Date.now() - start;
@@ -163,7 +144,6 @@ async function strategy3_LongerWait(): Promise<Result> {
   console.log(`   Create: ${createTime}ms`);
 
   try {
-    // Start dev server
     sandbox.runCommand({
       cmd: "npm", args: ["run", "dev"],
       cwd: "/vercel/sandbox", detached: true,
@@ -172,17 +152,14 @@ async function strategy3_LongerWait(): Promise<Result> {
     const devServerReady = await waitForServer(sandbox);
     console.log(`   Dev server ready: ${devServerReady}ms`);
 
-    // Wait extra 5 seconds
     console.log(`   Waiting 5s after server ready...`);
     await new Promise(r => setTimeout(r, 5000));
 
-    // First real command
     let start = Date.now();
     await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
     const firstRealCommand = Date.now() - start;
     console.log(`   First command: ${firstRealCommand}ms`);
 
-    // Second command
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     const secondCommand = Date.now() - start;
@@ -218,7 +195,6 @@ async function strategy4_ParallelWarmup(): Promise<Result> {
   console.log(`   Create: ${createTime}ms`);
 
   try {
-    // Start both in parallel
     const warmupStart = Date.now();
     
     const warmupPromise = sandbox.runCommand({ cmd: "true", cwd: "/vercel/sandbox" });
@@ -228,7 +204,6 @@ async function strategy4_ParallelWarmup(): Promise<Result> {
       cwd: "/vercel/sandbox", detached: true,
     }).catch(() => {});
 
-    // Wait for both
     await warmupPromise;
     const warmupTime = Date.now() - warmupStart;
     console.log(`   Warmup complete: ${warmupTime}ms`);
@@ -236,13 +211,11 @@ async function strategy4_ParallelWarmup(): Promise<Result> {
     const devServerReady = await waitForServer(sandbox);
     console.log(`   Dev server ready: ${devServerReady}ms (from warmup start)`);
 
-    // First real command
     let start = Date.now();
     await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
     const firstRealCommand = Date.now() - start;
     console.log(`   First command: ${firstRealCommand}ms`);
 
-    // Second command
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     const secondCommand = Date.now() - start;
@@ -265,7 +238,6 @@ async function strategy4_ParallelWarmup(): Promise<Result> {
 async function strategy5_WarmupBeforeCreate(): Promise<Result> {
   console.log("\n📊 Strategy 5: Reuse sandbox (Sandbox.get instead of create)");
   
-  // First create a sandbox
   console.log("   Creating initial sandbox...");
   const initialSandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: SNAPSHOT_ID },
@@ -274,13 +246,11 @@ async function strategy5_WarmupBeforeCreate(): Promise<Result> {
     resources: { vcpus: 2 },
   });
   
-  // Warm it up
   console.log("   Warming up...");
   await initialSandbox.runCommand({ cmd: "true", cwd: "/vercel/sandbox" });
   
   const sandboxId = initialSandbox.sandboxId;
   
-  // Now simulate "getting" the same sandbox (as if user reconnected)
   const totalStart = Date.now();
   
   const createStart = Date.now();
@@ -289,7 +259,6 @@ async function strategy5_WarmupBeforeCreate(): Promise<Result> {
   console.log(`   Get existing: ${createTime}ms`);
 
   try {
-    // Start dev server
     sandbox.runCommand({
       cmd: "npm", args: ["run", "dev"],
       cwd: "/vercel/sandbox", detached: true,
@@ -298,13 +267,11 @@ async function strategy5_WarmupBeforeCreate(): Promise<Result> {
     const devServerReady = await waitForServer(sandbox);
     console.log(`   Dev server ready: ${devServerReady}ms`);
 
-    // First real command (sandbox already warm)
     let start = Date.now();
     await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
     const firstRealCommand = Date.now() - start;
     console.log(`   First command: ${firstRealCommand}ms`);
 
-    // Second command
     start = Date.now();
     await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
     const secondCommand = Date.now() - start;
@@ -338,7 +305,6 @@ async function main() {
   results.push(await strategy4_ParallelWarmup());
   results.push(await strategy5_WarmupBeforeCreate());
 
-  // Summary
   console.log("\n" + "=".repeat(70));
   console.log("RESULTS SUMMARY");
   console.log("=".repeat(70));

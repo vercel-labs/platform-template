@@ -1,14 +1,3 @@
-/**
- * Benchmark End-to-End Startup Time
- * 
- * Tests the realistic scenario:
- * 1. Create sandbox from snapshot
- * 2. Start dev server immediately (detached)
- * 3. Measure time until dev server responds
- * 4. Then measure command latency
- * 
- * Run with: npx tsx scripts/benchmark-e2e-startup.ts
- */
 
 import { Sandbox } from "@vercel/sandbox";
 
@@ -34,7 +23,6 @@ async function benchmarkSnapshot(name: string, snapshotId: string): Promise<Resu
   
   const totalStart = Date.now();
   
-  // Create sandbox
   const createStart = Date.now();
   const sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId },
@@ -46,7 +34,6 @@ async function benchmarkSnapshot(name: string, snapshotId: string): Promise<Resu
   console.log(`   Create: ${createTime}ms`);
 
   try {
-    // Immediately start dev server (fire and forget)
     const devStart = Date.now();
     sandbox.runCommand({
       cmd: "npm",
@@ -55,7 +42,6 @@ async function benchmarkSnapshot(name: string, snapshotId: string): Promise<Resu
       detached: true,
     }).catch(() => {});
 
-    // Wait for dev server to respond
     const url = sandbox.domain(3000);
     let devServerReady = -1;
     
@@ -73,7 +59,6 @@ async function benchmarkSnapshot(name: string, snapshotId: string): Promise<Resu
     const totalToReady = Date.now() - totalStart;
     console.log(`   Dev server ready: ${devServerReady}ms (total: ${totalToReady}ms)`);
 
-    // Now test command latency (should be fast since sandbox is warm)
     const cmdStart = Date.now();
     await sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
     const commandAfterReady = Date.now() - cmdStart;
@@ -101,9 +86,7 @@ async function main() {
 
   const results: Result[] = [];
 
-  // Test each snapshot twice
   for (const [name, snapshotId] of Object.entries(SNAPSHOTS)) {
-    // Run twice to see consistency
     for (let i = 0; i < 2; i++) {
       try {
         const result = await benchmarkSnapshot(`${name} (run ${i + 1})`, snapshotId);
@@ -114,7 +97,6 @@ async function main() {
     }
   }
 
-  // Summary
   console.log("\n" + "=".repeat(70));
   console.log("RESULTS");
   console.log("=".repeat(70));
@@ -131,7 +113,6 @@ async function main() {
     );
   }
 
-  // Averages by snapshot type
   console.log("\n" + "=".repeat(70));
   console.log("AVERAGES");
   console.log("=".repeat(70));

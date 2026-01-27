@@ -1,9 +1,3 @@
-/**
- * Session Management
- *
- * Functions for creating, reading, and saving user sessions.
- * Sessions are stored as encrypted JWE tokens in httpOnly cookies.
- */
 
 import "server-only";
 
@@ -16,9 +10,6 @@ import {
 import { encryptJWE, decryptJWE } from "./jwe";
 import { fetchUser, fetchTeams, getHighestAccountLevel } from "./vercel-api";
 
-/**
- * Create a new session by fetching user data from Vercel API
- */
 export async function createSession(
   tokens: Tokens
 ): Promise<Session | undefined> {
@@ -49,16 +40,11 @@ export async function createSession(
   };
 }
 
-/**
- * Save a session to the response as an encrypted cookie.
- * Pass undefined to clear the session cookie.
- */
 export async function saveSession(
   res: Response,
   session: Session | undefined
 ): Promise<string | undefined> {
   if (!session) {
-    // Clear the session cookie
     res.headers.append(
       "Set-Cookie",
       serializeCookie(SESSION_COOKIE_NAME, "", {
@@ -87,9 +73,6 @@ export async function saveSession(
   return value;
 }
 
-/**
- * Get session from a cookie value
- */
 export async function getSessionFromCookie(
   cookieValue?: string
 ): Promise<Session | undefined> {
@@ -113,9 +96,6 @@ export async function getSessionFromCookie(
   };
 }
 
-/**
- * Get session from a Next.js request
- */
 export async function getSessionFromRequest(
   req: NextRequest
 ): Promise<Session | undefined> {
@@ -123,9 +103,6 @@ export async function getSessionFromRequest(
   return getSessionFromCookie(cookieValue);
 }
 
-// ============================================================================
-// Cookie Serialization (avoiding dependency on 'cookie' package)
-// ============================================================================
 
 interface CookieOptions {
   path?: string;

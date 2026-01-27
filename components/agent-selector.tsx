@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Agent Selector Component
- *
- * Dropdown to select between available AI coding agents.
- */
 
 import { ChevronDown } from "lucide-react";
 import {
@@ -16,7 +11,6 @@ import {
 import { useSandboxStore } from "@/lib/store/sandbox-store";
 import { cn } from "@/lib/utils";
 
-// Agent definitions with icons/logos
 const AGENTS = [
   {
     id: "claude",
@@ -30,13 +24,6 @@ const AGENTS = [
     description: "OpenAI's Codex",
     logo: "openai",
   },
-  // Future: OpenCode
-  // {
-  //   id: "opencode",
-  //   name: "OpenCode",
-  //   description: "Open source coding agent",
-  //   logo: "opencode",
-  // },
 ] as const;
 
 interface AgentSelectorProps {
@@ -84,7 +71,6 @@ export function AgentSelector({ className, disabled }: AgentSelectorProps) {
   );
 }
 
-// Agent logo component
 function AgentLogo({
   provider,
   className,

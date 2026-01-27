@@ -1,17 +1,5 @@
-/**
- * Agent Constants
- *
- * Shared constants used across all agent providers.
- */
 
-// ============================================================================
-// Sandbox Instructions
-// ============================================================================
 
-/**
- * System prompt instructions for agents running in the Vercel Sandbox.
- * Appended/prepended to agent prompts to provide sandbox context.
- */
 export const SANDBOX_INSTRUCTIONS = `
 SANDBOX ENVIRONMENT:
 - You are in a Vercel Sandbox at /vercel/sandbox
@@ -39,16 +27,7 @@ CRITICAL RULES:
 - Just edit files and the preview updates automatically
 `;
 
-// ============================================================================
-// Default Configuration
-// ============================================================================
 
-/**
- * Default dev server port in the sandbox.
- */
 export const SANDBOX_DEV_PORT = 3000;
 
-/**
- * Base path for sandbox files.
- */
 export const SANDBOX_BASE_PATH = "/vercel/sandbox";
