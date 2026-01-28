@@ -9,23 +9,19 @@ export interface SessionData {
   createdAt: number;
   expiresAt: number;
   sandboxId?: string;
-  userId?: string;
-  accessToken?: string;
 }
 
 const SESSION_TTL = 60 * 60;
 
 export async function createSession(
   sessionId: string,
-  options?: { sandboxId?: string; userId?: string; accessToken?: string }
+  options?: { sandboxId?: string }
 ): Promise<SessionData> {
   const now = Date.now();
   const sessionData: SessionData = {
     createdAt: now,
     expiresAt: now + SESSION_TTL * 1000,
     sandboxId: options?.sandboxId,
-    userId: options?.userId,
-    accessToken: options?.accessToken,
   };
 
   await redis.set(`session:${sessionId}`, JSON.stringify(sessionData), {

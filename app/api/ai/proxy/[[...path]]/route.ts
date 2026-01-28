@@ -37,7 +37,7 @@ async function handleRequest(request: NextRequest) {
     );
   }
 
-  const gatewayToken = session.accessToken ?? await getVercelOidcToken();
+  const gatewayToken = await getVercelOidcToken();
 
   const url = new URL(request.url);
   const apiPath = url.pathname.replace(/^\/api\/ai\/proxy/, "");

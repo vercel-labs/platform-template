@@ -3,7 +3,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { onError } from "@orpc/server";
 import { router } from "@/lib/rpc/router";
 
-export const maxDuration = 300; // 5 minutes for long-running agent tasks
+export const maxDuration = 300;
 
 const handler = new RPCHandler(router, {
   interceptors: [
