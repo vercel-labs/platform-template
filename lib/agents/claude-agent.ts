@@ -104,7 +104,8 @@ export class ClaudeAgentProvider implements AgentProvider {
 
     cliArgs.push(`'${escapedPrompt}'`);
 
-    const command = `source ~/.bashrc 2>/dev/null; claude ${cliArgs.join(" ")}`;
+    // Run without sudo because claude CLI refuses --dangerously-skip-permissions with root
+    const command = `export PATH="$HOME/.local/bin:$PATH" && claude ${cliArgs.join(" ")}`;
 
     try {
       const cmd = await sandbox.runCommand({
@@ -116,6 +117,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       });
 
       let lineBuffer = "";
+      let stderrBuffer = "";
       let gotResult = false;
 
       for await (const log of cmd.logs()) {
@@ -141,6 +143,8 @@ export class ClaudeAgentProvider implements AgentProvider {
             } catch {
             }
           }
+        } else if (log.stream === "stderr") {
+          stderrBuffer += log.data;
         }
       }
 
@@ -161,9 +165,11 @@ export class ClaudeAgentProvider implements AgentProvider {
       const finished = await cmd.wait();
 
       if (finished.exitCode !== 0 && !gotResult) {
+        const errorOutput = stderrBuffer || (await finished.stderr().catch(() => ""));
+        console.error(`[claude-agent] CLI exited with code ${finished.exitCode}:`, errorOutput);
         yield {
           type: "error",
-          message: `Claude CLI exited with code ${finished.exitCode}`,
+          message: `Claude CLI exited with code ${finished.exitCode}${errorOutput ? `: ${errorOutput.slice(0, 500)}` : ""}`,
           code: "cli_error",
         };
       }

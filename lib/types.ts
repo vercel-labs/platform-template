@@ -22,6 +22,7 @@ export const AgentStatusSchema = z.object({
 export const SandboxStatusSchema = z.object({
   sandboxId: z.string().optional(),
   status: z.enum(["creating", "warming", "ready", "error"]),
+  message: z.string().optional(),
   error: z.string().optional(),
 });
 

@@ -30,6 +30,7 @@ export interface SandboxState {
   sandboxId: string | null;
   previewUrl: string | null;
   status: "creating" | "warming" | "ready" | "error" | null;
+  statusMessage: string | null;
 
   sessionId: string | null;
 
@@ -43,7 +44,7 @@ export interface SandboxState {
 export interface SandboxActions {
   setSandbox: (sandboxId: string, status?: SandboxState["status"]) => void;
   setPreviewUrl: (url: string) => void;
-  setStatus: (status: SandboxState["status"]) => void;
+  setStatus: (status: SandboxState["status"], message?: string) => void;
 
   setSessionId: (sessionId: string) => void;
 
@@ -66,8 +67,9 @@ const initialState: SandboxState = {
   sandboxId: null,
   previewUrl: null,
   status: null,
+  statusMessage: null,
   sessionId: null,
-  agentId: "claude", // Default agent
+  agentId: "claude",
   files: [],
   commands: [],
 };
@@ -86,7 +88,7 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 
   setPreviewUrl: (previewUrl) => set({ previewUrl }),
 
-  setStatus: (status) => set({ status }),
+  setStatus: (status, message) => set({ status, statusMessage: message ?? null }),
 
   setSessionId: (sessionId) => set({ sessionId }),
 
@@ -155,9 +157,8 @@ export function handleDataPart(
       const sandboxData = parsed as SandboxStatusData;
       if (sandboxData.sandboxId) {
         store.setSandbox(sandboxData.sandboxId, sandboxData.status);
-      } else {
-        store.setStatus(sandboxData.status);
       }
+      store.setStatus(sandboxData.status, sandboxData.message);
       break;
     }
 

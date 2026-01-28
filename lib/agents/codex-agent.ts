@@ -117,7 +117,7 @@ export class CodexAgentProvider implements AgentProvider {
 
     cliArgs.push(`'${escapedPrompt}'`);
 
-    const command = `source ~/.bashrc 2>/dev/null; codex ${cliArgs.join(" ")}`;
+    const command = `export PATH="$PATH:/root/.local/bin:/root/.bun/bin" && codex ${cliArgs.join(" ")}`;
 
     try {
       const cmd = await sandbox.runCommand({
@@ -125,6 +125,7 @@ export class CodexAgentProvider implements AgentProvider {
         args: ["-c", command],
         cwd: SANDBOX_BASE_PATH,
         env,
+        sudo: true,
         detached: true,
       });
 
