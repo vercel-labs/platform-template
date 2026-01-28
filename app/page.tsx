@@ -1,21 +1,12 @@
 import { Chat } from "@/components/chat/chat";
 import { Preview } from "@/components/preview";
 import { WorkspacePanel } from "@/components/workspace-panel";
-import { AuthButton } from "@/components/auth";
+import { Header } from "@/components/header";
 
 export default function Page() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-900">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-        <h1 className="font-mono text-sm font-semibold">Platform Template</h1>
-        <div className="flex items-center gap-4">
-          <span className="font-mono text-xs text-zinc-500">
-            AI Code Generation
-          </span>
-          <AuthButton />
-        </div>
-      </header>
+      <Header />
 
       {/* Main Layout */}
       <div className="flex flex-1 overflow-hidden">

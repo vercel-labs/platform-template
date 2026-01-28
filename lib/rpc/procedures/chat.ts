@@ -1,16 +1,48 @@
-
 import { os, ORPCError } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { getAgent, isValidAgent, getDefaultAgent, SANDBOX_DEV_PORT, SANDBOX_BASE_PATH } from "@/lib/agents";
+import {
+  getAgent,
+  isValidAgent,
+  getDefaultAgent,
+  SANDBOX_DEV_PORT,
+} from "@/lib/agents";
 import { createSession } from "@/lib/redis";
 import { DATA_PART_TYPES } from "@/lib/types";
+import { setupSandbox, SetupProgress } from "@/lib/sandbox/setup";
+import { tryCatch } from "@/lib/utils";
 import type { SandboxContext, ProxyConfig } from "@/lib/agents/types";
 
 const PROXY_BASE_URL =
   process.env.PROXY_BASE_URL ||
   "https://platform-template.labs.vercel.dev/api/ai/proxy";
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object") return JSON.stringify(error);
+  return String(error);
+}
+
+function sandboxStatusEvent(sandboxId: string, progress: SetupProgress) {
+  return {
+    type: "data" as const,
+    dataType: DATA_PART_TYPES.SANDBOX_STATUS,
+    data: {
+      sandboxId,
+      status: progress.stage === "ready" ? "ready" : "creating",
+      message: progress.message,
+    },
+  };
+}
+
+function sandboxErrorEvent(sandboxId: string, error: string) {
+  return {
+    type: "data" as const,
+    dataType: DATA_PART_TYPES.SANDBOX_STATUS,
+    data: { sandboxId, status: "error", error },
+  };
+}
 
 export const sendMessage = os
   .input(
@@ -28,122 +60,54 @@ export const sendMessage = os
       ? getAgent(agentId!)
       : getDefaultAgent();
 
-    let sandbox: Sandbox;
-    let sandboxContext: SandboxContext;
-    let isNewSandbox = false;
+    // Get existing sandbox or create new one
+    const { data: sandbox, error: sandboxError } = await tryCatch(
+      sandboxId
+        ? Sandbox.get({ sandboxId })
+        : Sandbox.create({ ports: [SANDBOX_DEV_PORT], timeout: 600_000 })
+    );
 
-    try {
-      if (sandboxId) {
-        sandbox = await Sandbox.get({ sandboxId });
-      } else {
-        isNewSandbox = true;
-        const snapshotId = process.env.NEXTJS_SNAPSHOT_ID;
-
-        if (snapshotId) {
-          sandbox = await Sandbox.create({
-            source: { type: "snapshot", snapshotId },
-            ports: [SANDBOX_DEV_PORT],
-            timeout: 600_000,
-            resources: { vcpus: 2 },
-          });
-        } else {
-          sandbox = await Sandbox.create({
-            ports: [SANDBOX_DEV_PORT],
-            timeout: 600_000,
-          });
-        }
-      }
-      sandboxContext = { sandboxId: sandbox.sandboxId, sandbox };
-    } catch (error) {
+    if (sandboxError || !sandbox) {
       throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: `Sandbox error: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Sandbox error: ${toErrorMessage(sandboxError)}`,
       });
     }
 
-    yield {
-      type: "sandbox-id" as const,
-      sandboxId: sandbox.sandboxId,
-    };
+    const isNewSandbox = !sandboxId;
 
+    // Immediately yield sandbox ID so client can show preview
+    yield { type: "sandbox-id" as const, sandboxId: sandbox.sandboxId };
+
+    // Set up new sandboxes with Next.js + shadcn + agent CLI
     if (isNewSandbox) {
-      yield {
-        type: "data" as const,
-        dataType: DATA_PART_TYPES.SANDBOX_STATUS,
-        data: { sandboxId: sandbox.sandboxId, status: "warming" },
-      };
+      try {
+        for await (const progress of setupSandbox(sandbox, { agentId: agent.id })) {
+          if (progress) yield sandboxStatusEvent(sandbox.sandboxId, progress);
+        }
+      } catch (error) {
+        const message = toErrorMessage(error);
+        console.error("[chat] Setup failed:", message);
+        yield sandboxErrorEvent(sandbox.sandboxId, message);
+        throw new ORPCError("INTERNAL_SERVER_ERROR", { message: `Sandbox setup failed: ${message}` });
+      }
     }
 
+    // Create proxy session for agent API calls
     const proxySessionId = nanoid(32);
     await createSession(proxySessionId, { sandboxId: sandbox.sandboxId });
-    const proxyConfig: ProxyConfig = {
-      sessionId: proxySessionId,
-      baseUrl: PROXY_BASE_URL,
-    };
 
-    let devServerStarted = false;
-    if (isNewSandbox && process.env.NEXTJS_SNAPSHOT_ID) {
-      sandbox
-        .runCommand({
-          cmd: "npm",
-          args: ["run", "dev"],
-          cwd: SANDBOX_BASE_PATH,
-          detached: true,
-        })
-        .catch(() => {
-        });
-      devServerStarted = true;
-    }
+    const sandboxContext: SandboxContext = { sandboxId: sandbox.sandboxId, sandbox };
+    const proxyConfig: ProxyConfig = { sessionId: proxySessionId, baseUrl: PROXY_BASE_URL };
 
-    const agentOutput = agent.execute({
-      prompt,
-      sandboxContext,
-      sessionId,
-      proxyConfig,
-    });
-
-    let firstChunkReceived = false;
-    for await (const chunk of agentOutput) {
-      if (!firstChunkReceived && isNewSandbox) {
-        firstChunkReceived = true;
-        yield {
-          type: "data" as const,
-          dataType: DATA_PART_TYPES.SANDBOX_STATUS,
-          data: { sandboxId: sandbox.sandboxId, status: "ready" },
-        };
-      }
+    // Stream agent output
+    for await (const chunk of agent.execute({ prompt, sandboxContext, sessionId, proxyConfig })) {
       yield chunk;
     }
 
-    const previewUrl = sandbox.domain(SANDBOX_DEV_PORT);
-
-    if (devServerStarted) {
-      const maxWaitMs = 10_000;
-      const pollIntervalMs = 250;
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < maxWaitMs) {
-        try {
-          const response = await fetch(previewUrl, {
-            method: "HEAD",
-            signal: AbortSignal.timeout(2000),
-          });
-          if (response.ok || response.status === 404) {
-            yield {
-              type: "data" as const,
-              dataType: DATA_PART_TYPES.PREVIEW_URL,
-              data: { url: previewUrl, port: SANDBOX_DEV_PORT },
-            };
-            break;
-          }
-        } catch {
-        }
-        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-      }
-    } else {
-      yield {
-        type: "data" as const,
-        dataType: DATA_PART_TYPES.PREVIEW_URL,
-        data: { url: previewUrl, port: SANDBOX_DEV_PORT },
-      };
-    }
+    // Yield preview URL at the end
+    yield {
+      type: "data" as const,
+      dataType: DATA_PART_TYPES.PREVIEW_URL,
+      data: { url: sandbox.domain(SANDBOX_DEV_PORT), port: SANDBOX_DEV_PORT },
+    };
   });
