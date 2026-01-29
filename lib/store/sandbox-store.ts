@@ -1,4 +1,3 @@
-
 import { create } from "zustand";
 import {
   UI_DATA_PART_TYPES,
@@ -9,7 +8,6 @@ import {
   type PreviewUrlData,
   type CommandOutputData,
 } from "@/lib/types";
-
 
 export interface CommandLog {
   timestamp: number;
@@ -62,7 +60,6 @@ export interface SandboxActions {
 
 export type SandboxStore = SandboxState & SandboxActions;
 
-
 const initialState: SandboxState = {
   sandboxId: null,
   previewUrl: null,
@@ -73,7 +70,6 @@ const initialState: SandboxState = {
   files: [],
   commands: [],
 };
-
 
 export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   ...initialState,
@@ -88,7 +84,8 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 
   setPreviewUrl: (previewUrl) => set({ previewUrl }),
 
-  setStatus: (status, message) => set({ status, statusMessage: message ?? null }),
+  setStatus: (status, message) =>
+    set({ status, statusMessage: message ?? null }),
 
   setSessionId: (sessionId) => set({ sessionId }),
 
@@ -144,11 +141,10 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   reset: () => set(initialState),
 }));
 
-
 export function handleDataPart(
   store: SandboxStore,
   type: string,
-  data: unknown
+  data: unknown,
 ): void {
   switch (type) {
     case UI_DATA_PART_TYPES.SANDBOX_STATUS: {
@@ -188,7 +184,10 @@ export function handleDataPart(
         store.addCommand({ cmdId, command: cmdData.command });
       }
 
-      store.addCommandLog(cmdId, { stream: cmdData.stream, data: cmdData.output });
+      store.addCommandLog(cmdId, {
+        stream: cmdData.stream,
+        data: cmdData.output,
+      });
 
       if (cmdData.exitCode !== undefined) {
         store.setCommandExitCode(cmdId, cmdData.exitCode);

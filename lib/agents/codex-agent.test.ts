@@ -1,4 +1,3 @@
-
 import { test, expect, describe, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
 import { nanoid } from "nanoid";
@@ -13,7 +12,7 @@ const PROXY_BASE_URL =
 const SESSION_URL = "https://platform-template.labs.vercel.dev/api/ai/session";
 
 async function collectChunks(
-  iterable: AsyncIterable<StreamChunk>
+  iterable: AsyncIterable<StreamChunk>,
 ): Promise<StreamChunk[]> {
   const chunks: StreamChunk[] = [];
   for await (const chunk of iterable) {
@@ -24,10 +23,10 @@ async function collectChunks(
 
 function findChunks<T extends StreamChunk["type"]>(
   chunks: StreamChunk[],
-  type: T
+  type: T,
 ): Extract<StreamChunk, { type: T }>[] {
   return chunks.filter(
-    (c): c is Extract<StreamChunk, { type: T }> => c.type === type
+    (c): c is Extract<StreamChunk, { type: T }> => c.type === type,
   );
 }
 
@@ -86,30 +85,26 @@ describe("Codex Agent", () => {
     }
   });
 
-  test(
-    "should execute a simple prompt through the proxy",
-    async () => {
-      const chunks = await collectChunks(
-        provider.execute({
-          prompt: "Say 'CODEX_TEST_SUCCESS' and nothing else.",
-          sandboxContext,
-          proxyConfig,
-        })
-      );
+  test("should execute a simple prompt through the proxy", async () => {
+    const chunks = await collectChunks(
+      provider.execute({
+        prompt: "Say 'CODEX_TEST_SUCCESS' and nothing else.",
+        sandboxContext,
+        proxyConfig,
+      }),
+    );
 
-      const errors = findChunks(chunks, "error");
-      if (errors.length > 0) {
-        console.error("Errors:", errors);
-      }
+    const errors = findChunks(chunks, "error");
+    if (errors.length > 0) {
+      console.error("Errors:", errors);
+    }
 
-      const textDeltas = findChunks(chunks, "text-delta");
-      expect(textDeltas.length).toBeGreaterThan(0);
+    const textDeltas = findChunks(chunks, "text-delta");
+    expect(textDeltas.length).toBeGreaterThan(0);
 
-      const fullText = textDeltas.map((c) => c.text).join("");
-      console.log("Response through proxy:", fullText);
+    const fullText = textDeltas.map((c) => c.text).join("");
+    console.log("Response through proxy:", fullText);
 
-      expect(fullText).toContain("CODEX_TEST_SUCCESS");
-    },
-    120_000
-  );
+    expect(fullText).toContain("CODEX_TEST_SUCCESS");
+  }, 120_000);
 });

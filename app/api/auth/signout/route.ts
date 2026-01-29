@@ -1,4 +1,3 @@
-
 import type { NextRequest } from "next/server";
 import {
   VERCEL_OAUTH,
@@ -18,7 +17,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Basic ${Buffer.from(
-            `${process.env.VERCEL_CLIENT_ID}:${process.env.VERCEL_CLIENT_SECRET}`
+            `${process.env.VERCEL_CLIENT_ID}:${process.env.VERCEL_CLIENT_SECRET}`,
           ).toString("base64")}`,
         },
       });

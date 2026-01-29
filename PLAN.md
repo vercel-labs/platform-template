@@ -5,6 +5,7 @@ A multi-project platform where users generate code with AI agents and deploy to 
 ## Overview
 
 This template demonstrates building a "vibe coding" platform using:
+
 - **AI Agents** (Claude Agent SDK, OpenAI Codex, OpenCode) running in sandboxes
 - **Vercel Sandbox** for isolated code execution
 - **Vercel SDK** for deploying generated code to production
@@ -55,15 +56,15 @@ This template demonstrates building a "vibe coding" platform using:
 
 ## Key Decisions
 
-| Decision | Choice |
-|----------|--------|
+| Decision            | Choice                                                                   |
+| ------------------- | ------------------------------------------------------------------------ |
 | **Agent Interface** | Unified `AgentProvider` interface - all agents are equal implementations |
-| **Default Agent** | Claude Agent SDK (user can switch to any other) |
-| **LLM Routing** | AI Gateway via `VERCEL_OIDC_TOKEN` |
-| **Tools** | Disable built-in tools, provide shared MCP tools for sandbox ops |
-| **Auth** | None (ephemeral demo) |
-| **Persistence** | Session-based only (sandbox continues until timeout) |
-| **Deployment** | `deployFiles()` pattern from vercel-platforms-docs |
+| **Default Agent**   | Claude Agent SDK (user can switch to any other)                          |
+| **LLM Routing**     | AI Gateway via `VERCEL_OIDC_TOKEN`                                       |
+| **Tools**           | Disable built-in tools, provide shared MCP tools for sandbox ops         |
+| **Auth**            | None (ephemeral demo)                                                    |
+| **Persistence**     | Session-based only (sandbox continues until timeout)                     |
+| **Deployment**      | `deployFiles()` pattern from vercel-platforms-docs                       |
 
 ## Tech Stack
 
@@ -248,7 +249,12 @@ export type StreamChunk =
   | { type: "reasoning-delta"; text: string }
   | { type: "tool-start"; toolCallId: string; toolName: string }
   | { type: "tool-input-delta"; toolCallId: string; input: string }
-  | { type: "tool-result"; toolCallId: string; output: string; isError?: boolean }
+  | {
+      type: "tool-result";
+      toolCallId: string;
+      output: string;
+      isError?: boolean;
+    }
   | { type: "data"; dataType: keyof DataPart; data: DataPart[keyof DataPart] }
   | { type: "message-end"; usage?: { input: number; output: number } }
   | { type: "error"; message: string };
@@ -257,7 +263,8 @@ export type StreamChunk =
 export class MessageAccumulator {
   private message: ChatMessage;
   private currentTextPart: { type: "text"; text: string } | null = null;
-  private currentReasoningPart: { type: "reasoning"; text: string } | null = null;
+  private currentReasoningPart: { type: "reasoning"; text: string } | null =
+    null;
   private toolParts: Map<string, ChatMessagePart> = new Map();
 
   constructor(id: string, metadata?: ChatMessage["metadata"]) {
@@ -311,7 +318,9 @@ export class MessageAccumulator {
       case "tool-result":
         const resultPart = this.toolParts.get(chunk.toolCallId);
         if (resultPart && resultPart.type === "dynamic-tool") {
-          resultPart.state = chunk.isError ? "output-error" : "output-available";
+          resultPart.state = chunk.isError
+            ? "output-error"
+            : "output-available";
           if (chunk.isError) {
             resultPart.errorText = chunk.output;
           } else {
@@ -344,8 +353,6 @@ export class MessageAccumulator {
 }
 ```
 
-
-
 ### Updated Agent Provider Interface
 
 The agent provider now yields `StreamChunk` which gets converted to UIMessage:
@@ -364,7 +371,7 @@ export interface SandboxContext {
 export interface AgentProvider {
   id: string;
   name: string;
-  
+
   // Yields StreamChunk objects that get converted to UIMessage
   execute(params: {
     prompt: string;
@@ -382,7 +389,10 @@ export interface AgentProvider {
 import { NextResponse } from "next/server";
 import { Sandbox } from "@vercel/sandbox";
 import { getAgent } from "@/lib/agents/registry";
-import { MessageAccumulator, type StreamChunk } from "@/lib/agents/message-converter";
+import {
+  MessageAccumulator,
+  type StreamChunk,
+} from "@/lib/agents/message-converter";
 import { nanoid } from "nanoid";
 
 export async function POST(req: Request) {
@@ -413,7 +423,13 @@ export async function POST(req: Request) {
 
       // Start message
       controller.enqueue(
-        encoder.encode(JSON.stringify({ type: "message-start", id: messageId, role: "assistant" }) + "\n")
+        encoder.encode(
+          JSON.stringify({
+            type: "message-start",
+            id: messageId,
+            role: "assistant",
+          }) + "\n",
+        ),
       );
 
       try {
@@ -425,13 +441,17 @@ export async function POST(req: Request) {
           controller.enqueue(encoder.encode(JSON.stringify(chunk) + "\n"));
         }
 
-        controller.enqueue(encoder.encode(JSON.stringify({ type: "message-end" }) + "\n"));
+        controller.enqueue(
+          encoder.encode(JSON.stringify({ type: "message-end" }) + "\n"),
+        );
       } catch (error) {
         controller.enqueue(
-          encoder.encode(JSON.stringify({
-            type: "error",
-            message: error instanceof Error ? error.message : "Unknown error",
-          }) + "\n")
+          encoder.encode(
+            JSON.stringify({
+              type: "error",
+              message: error instanceof Error ? error.message : "Unknown error",
+            }) + "\n",
+          ),
         );
       }
 
@@ -452,93 +472,104 @@ export async function POST(req: Request) {
 
 import { useState, useCallback, useRef } from "react";
 import type { ChatMessage } from "@/lib/types";
-import { MessageAccumulator, type StreamChunk } from "@/lib/agents/message-converter";
+import {
+  MessageAccumulator,
+  type StreamChunk,
+} from "@/lib/agents/message-converter";
 import { useAppStore } from "@/lib/store";
 
 export function useAgentChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [status, setStatus] = useState<"ready" | "streaming" | "error">("ready");
+  const [status, setStatus] = useState<"ready" | "streaming" | "error">(
+    "ready",
+  );
   const abortRef = useRef<AbortController | null>(null);
-  const { agentId, sandboxId, setSandboxId, setPreviewUrl, addFiles } = useAppStore();
+  const { agentId, sandboxId, setSandboxId, setPreviewUrl, addFiles } =
+    useAppStore();
 
-  const sendMessage = useCallback(async (content: string) => {
-    // Add user message
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      parts: [{ type: "text", text: content }],
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    setStatus("streaming");
+  const sendMessage = useCallback(
+    async (content: string) => {
+      // Add user message
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        parts: [{ type: "text", text: content }],
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setStatus("streaming");
 
-    abortRef.current = new AbortController();
+      abortRef.current = new AbortController();
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          agentId,
-          sandboxId,
-        }),
-        signal: abortRef.current.signal,
-      });
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [...messages, userMessage],
+            agentId,
+            sandboxId,
+          }),
+          signal: abortRef.current.signal,
+        });
 
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let accumulator: MessageAccumulator | null = null;
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let accumulator: MessageAccumulator | null = null;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        const lines = decoder.decode(value).split("\n").filter(Boolean);
-        for (const line of lines) {
-          const chunk: StreamChunk = JSON.parse(line);
+          const lines = decoder.decode(value).split("\n").filter(Boolean);
+          for (const line of lines) {
+            const chunk: StreamChunk = JSON.parse(line);
 
-          // Handle message start
-          if (chunk.type === "message-start") {
-            accumulator = new MessageAccumulator(chunk.id, { agentId });
-            continue;
-          }
-
-          // Handle special data parts for app state
-          if (chunk.type === "data") {
-            if (chunk.dataType === "sandbox-status" && chunk.data.sandboxId) {
-              setSandboxId(chunk.data.sandboxId);
+            // Handle message start
+            if (chunk.type === "message-start") {
+              accumulator = new MessageAccumulator(chunk.id, { agentId });
+              continue;
             }
-            if (chunk.dataType === "preview-url") {
-              setPreviewUrl(chunk.data.url);
-            }
-            if (chunk.dataType === "file-written") {
-              addFiles([chunk.data.path]);
-            }
-          }
 
-          // Accumulate into UIMessage
-          if (accumulator) {
-            const updatedMessage = accumulator.process(chunk);
-            setMessages((prev) => {
-              const existing = prev.findIndex((m) => m.id === updatedMessage.id);
-              if (existing >= 0) {
-                const updated = [...prev];
-                updated[existing] = { ...updatedMessage };
-                return updated;
+            // Handle special data parts for app state
+            if (chunk.type === "data") {
+              if (chunk.dataType === "sandbox-status" && chunk.data.sandboxId) {
+                setSandboxId(chunk.data.sandboxId);
               }
-              return [...prev, updatedMessage];
-            });
+              if (chunk.dataType === "preview-url") {
+                setPreviewUrl(chunk.data.url);
+              }
+              if (chunk.dataType === "file-written") {
+                addFiles([chunk.data.path]);
+              }
+            }
+
+            // Accumulate into UIMessage
+            if (accumulator) {
+              const updatedMessage = accumulator.process(chunk);
+              setMessages((prev) => {
+                const existing = prev.findIndex(
+                  (m) => m.id === updatedMessage.id,
+                );
+                if (existing >= 0) {
+                  const updated = [...prev];
+                  updated[existing] = { ...updatedMessage };
+                  return updated;
+                }
+                return [...prev, updatedMessage];
+              });
+            }
           }
         }
-      }
 
-      setStatus("ready");
-    } catch (error) {
-      if ((error as Error).name !== "AbortError") {
-        setStatus("error");
+        setStatus("ready");
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          setStatus("error");
+        }
       }
-    }
-  }, [messages, agentId, sandboxId, setSandboxId, setPreviewUrl, addFiles]);
+    },
+    [messages, agentId, sandboxId, setSandboxId, setPreviewUrl, addFiles],
+  );
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -568,7 +599,7 @@ export interface SandboxContext {
 }
 
 export interface AgentMessage {
-  type: 'text' | 'tool_use' | 'tool_result' | 'error' | 'done';
+  type: "text" | "tool_use" | "tool_result" | "error" | "done";
   content?: string;
   toolName?: string;
   toolInput?: unknown;
@@ -576,7 +607,7 @@ export interface AgentMessage {
 }
 
 export interface Message {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 }
 
@@ -585,12 +616,12 @@ export interface AgentProvider {
    * Unique identifier for this agent provider
    */
   id: string;
-  
+
   /**
    * Display name for UI
    */
   name: string;
-  
+
   /**
    * Execute a prompt and stream responses
    */
@@ -610,7 +641,11 @@ The Claude Agent SDK conversion happens **inside** the provider - the interface 
 ```typescript
 // lib/agents/claude-agent.ts
 
-import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query,
+  createSdkMcpServer,
+  tool,
+} from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { AgentProvider, SandboxContext } from "./types";
 import type { StreamChunk } from "./message-converter";
@@ -681,9 +716,10 @@ export class ClaudeAgentProvider implements AgentProvider {
           yield {
             type: "tool-result",
             toolCallId: block.tool_use_id,
-            output: typeof block.content === "string" 
-              ? block.content 
-              : JSON.stringify(block.content),
+            output:
+              typeof block.content === "string"
+                ? block.content
+                : JSON.stringify(block.content),
             isError: block.is_error,
           };
         }
@@ -703,14 +739,21 @@ export class ClaudeAgentProvider implements AgentProvider {
         { path: z.string().describe("Path within /vercel/sandbox") },
         async ({ path }) => {
           if (!path.startsWith("/vercel/sandbox")) {
-            return { content: [{ type: "text", text: "Error: Path must be within /vercel/sandbox" }] };
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: Path must be within /vercel/sandbox",
+                },
+              ],
+            };
           }
           const stream = await ctx.sandbox.readFile({ path });
           const chunks: Uint8Array[] = [];
           for await (const chunk of stream) chunks.push(chunk);
           const content = new TextDecoder().decode(Buffer.concat(chunks));
           return { content: [{ type: "text", text: content }] };
-        }
+        },
       ),
       tool(
         "write_file",
@@ -721,15 +764,31 @@ export class ClaudeAgentProvider implements AgentProvider {
         },
         async ({ path, content }) => {
           if (!path.startsWith("/vercel/sandbox")) {
-            return { content: [{ type: "text", text: "Error: Path must be within /vercel/sandbox" }] };
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: Path must be within /vercel/sandbox",
+                },
+              ],
+            };
           }
-          await ctx.sandbox.writeFiles([{ path, content: Buffer.from(content, "utf-8") }]);
-          
+          await ctx.sandbox.writeFiles([
+            { path, content: Buffer.from(content, "utf-8") },
+          ]);
+
           // Emit file-written data part for UI tracking
           // Note: This would need access to a writer - see alternative below
-          
-          return { content: [{ type: "text", text: `Wrote ${content.length} bytes to ${path}` }] };
-        }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Wrote ${content.length} bytes to ${path}`,
+              },
+            ],
+          };
+        },
       ),
       tool(
         "run_command",
@@ -746,12 +805,14 @@ export class ClaudeAgentProvider implements AgentProvider {
             cwd: cwd ?? "/vercel/sandbox",
           });
           return {
-            content: [{
-              type: "text",
-              text: `Exit code: ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
-            }],
+            content: [
+              {
+                type: "text",
+                text: `Exit code: ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+              },
+            ],
           };
-        }
+        },
       ),
       tool(
         "list_files",
@@ -762,11 +823,13 @@ export class ClaudeAgentProvider implements AgentProvider {
         },
         async ({ path, recursive }) => {
           const targetPath = path ?? "/vercel/sandbox";
-          const args = recursive ? [targetPath, "-type", "f"] : ["-la", targetPath];
+          const args = recursive
+            ? [targetPath, "-type", "f"]
+            : ["-la", targetPath];
           const cmd = recursive ? "find" : "ls";
           const result = await ctx.sandbox.runCommand({ cmd, args });
           return { content: [{ type: "text", text: result.stdout }] };
-        }
+        },
       ),
       tool(
         "get_preview_url",
@@ -777,9 +840,13 @@ export class ClaudeAgentProvider implements AgentProvider {
             const url = ctx.sandbox.domain(port);
             return { content: [{ type: "text", text: `Preview URL: ${url}` }] };
           } catch {
-            return { content: [{ type: "text", text: `Error: Port ${port} is not exposed` }] };
+            return {
+              content: [
+                { type: "text", text: `Error: Port ${port} is not exposed` },
+              ],
+            };
           }
-        }
+        },
       ),
     ];
   }
@@ -823,7 +890,7 @@ export class CodexAgentProvider implements AgentProvider {
     signal?: AbortSignal;
   }): AsyncIterable<StreamChunk> {
     // TODO: Implement using @openai/codex-sdk
-    // 
+    //
     // Pattern:
     // 1. Create Codex client with AI Gateway
     // 2. Configure with MCP tools (same sandbox tools)
@@ -838,7 +905,7 @@ export class CodexAgentProvider implements AgentProvider {
     // for await (const sdkMessage of codex.run({ prompt, tools })) {
     //   yield* this.convertToStreamChunks(sdkMessage);
     // }
-    
+
     yield { type: "error", message: "Codex agent not yet implemented" };
   }
 
@@ -869,11 +936,11 @@ export class OpenCodeAgentProvider implements AgentProvider {
     // TODO: Implement using @opencode-ai/sdk
     //
     // Pattern:
-    // 1. Create OpenCode client with AI Gateway  
+    // 1. Create OpenCode client with AI Gateway
     // 2. Configure with MCP tools (same sandbox tools)
     // 3. Iterate over OpenCode SDK messages
     // 4. Convert internally to StreamChunk via this.convertToStreamChunks()
-    
+
     yield { type: "error", message: "OpenCode agent not yet implemented" };
   }
 
@@ -896,7 +963,7 @@ import { OpenCodeAgentProvider } from "./opencode-agent";
 
 // All agents implement the same interface - execute() yields StreamChunk
 const agents: AgentProvider[] = [
-  new ClaudeAgentProvider(),  // Default
+  new ClaudeAgentProvider(), // Default
   new CodexAgentProvider(),
   new OpenCodeAgentProvider(),
 ];
@@ -965,7 +1032,9 @@ export const sandboxToolDefinitions: ToolDefinition[] = [
       if (!path.startsWith("/vercel/sandbox")) {
         return { text: "Error: Path must be within /vercel/sandbox" };
       }
-      await ctx.sandbox.writeFiles([{ path, content: Buffer.from(content, "utf-8") }]);
+      await ctx.sandbox.writeFiles([
+        { path, content: Buffer.from(content, "utf-8") },
+      ]);
       return { text: `Wrote ${content.length} bytes to ${path}` };
     },
   },
@@ -1024,16 +1093,29 @@ export const sandboxToolDefinitions: ToolDefinition[] = [
 // Claude Agent SDK adapter
 import { tool as claudeTool } from "@anthropic-ai/claude-agent-sdk";
 
-export function toClaudeTools(definitions: ToolDefinition[], ctx: SandboxContext) {
+export function toClaudeTools(
+  definitions: ToolDefinition[],
+  ctx: SandboxContext,
+) {
   return definitions.map((def) =>
-    claudeTool(def.name, def.description, def.parameters.shape, async (params) => ({
-      content: [{ type: "text", text: (await def.execute(params, ctx)).text }],
-    }))
+    claudeTool(
+      def.name,
+      def.description,
+      def.parameters.shape,
+      async (params) => ({
+        content: [
+          { type: "text", text: (await def.execute(params, ctx)).text },
+        ],
+      }),
+    ),
   );
 }
 
 // Codex SDK adapter (when implemented)
-export function toCodexTools(definitions: ToolDefinition[], ctx: SandboxContext) {
+export function toCodexTools(
+  definitions: ToolDefinition[],
+  ctx: SandboxContext,
+) {
   // TODO: Adapt to Codex SDK tool format
   return definitions.map((def) => ({
     name: def.name,
@@ -1043,8 +1125,11 @@ export function toCodexTools(definitions: ToolDefinition[], ctx: SandboxContext)
   }));
 }
 
-// OpenCode SDK adapter (when implemented)  
-export function toOpenCodeTools(definitions: ToolDefinition[], ctx: SandboxContext) {
+// OpenCode SDK adapter (when implemented)
+export function toOpenCodeTools(
+  definitions: ToolDefinition[],
+  ctx: SandboxContext,
+) {
   // TODO: Adapt to OpenCode SDK tool format
   return definitions.map((def) => ({
     name: def.name,
@@ -1064,18 +1149,18 @@ import { sandboxToolDefinitions, toClaudeTools } from "./tool-definitions";
 
 export class ClaudeAgentProvider implements AgentProvider {
   // ...
-  
+
   async *execute(params) {
     const { sandboxContext } = params;
-    
+
     // Convert neutral definitions to Claude SDK format
     const tools = toClaudeTools(sandboxToolDefinitions, sandboxContext);
-    
+
     const sandboxMcp = createSdkMcpServer({
       name: "sandbox",
       tools,
     });
-    
+
     // ... rest of implementation
   }
 }
@@ -1113,7 +1198,7 @@ export async function POST(req: Request) {
   if (!parseResult.success) {
     return NextResponse.json(
       { error: "Invalid request", details: parseResult.error.issues },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -1132,8 +1217,11 @@ export async function POST(req: Request) {
         });
   } catch (error) {
     return NextResponse.json(
-      { error: "Sandbox error", message: "Failed to create or retrieve sandbox" },
-      { status: 500 }
+      {
+        error: "Sandbox error",
+        message: "Failed to create or retrieve sandbox",
+      },
+      { status: 500 },
     );
   }
 
@@ -1146,7 +1234,7 @@ export async function POST(req: Request) {
   if (lastMessage.role !== "user") {
     return NextResponse.json(
       { error: "Last message must be from user" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -1158,8 +1246,9 @@ export async function POST(req: Request) {
       // Send sandbox ID first
       controller.enqueue(
         encoder.encode(
-          JSON.stringify({ type: "sandbox", sandboxId: sandbox.sandboxId }) + "\n"
-        )
+          JSON.stringify({ type: "sandbox", sandboxId: sandbox.sandboxId }) +
+            "\n",
+        ),
       );
 
       try {
@@ -1180,8 +1269,8 @@ export async function POST(req: Request) {
               errorType,
               content: error instanceof Error ? error.message : "Unknown error",
               retryable: errorType !== "auth",
-            }) + "\n"
-          )
+            }) + "\n",
+          ),
         );
       }
 
@@ -1201,7 +1290,8 @@ function classifyError(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
   if (message.includes("rate limit")) return "rate_limit";
   if (message.includes("auth") || message.includes("401")) return "auth";
-  if (message.includes("sandbox") || message.includes("expired")) return "sandbox_expired";
+  if (message.includes("sandbox") || message.includes("expired"))
+    return "sandbox_expired";
   return "agent_error";
 }
 ```
@@ -1316,7 +1406,14 @@ import type { ChatMessage, DataPart } from "@/lib/types";
 import { useEffect } from "react";
 
 export function useAppChat() {
-  const { agentId, sandboxId, setSandboxId, setPreviewUrl, addFiles, addCommandLog } = useAppStore();
+  const {
+    agentId,
+    sandboxId,
+    setSandboxId,
+    setPreviewUrl,
+    addFiles,
+    addCommandLog,
+  } = useAppStore();
 
   const chat = useChat<ChatMessage>({
     api: "/api/chat",
@@ -1438,19 +1535,19 @@ npx shadcn@latest add https://ai-sdk.dev/r/attachments
 
 ### Components from AI Elements
 
-| Component | Registry URL | Usage |
-|-----------|--------------|-------|
-| **Conversation** | `https://ai-sdk.dev/r/conversation` | Auto-scrolling chat container |
-| **Message** | `https://ai-sdk.dev/r/message` | User/assistant message with markdown |
-| **PromptInput** | `https://ai-sdk.dev/r/prompt-input` | Chat input with file attachments |
-| **FileTree** | `https://ai-sdk.dev/r/file-tree` | Hierarchical file explorer |
-| **WebPreview** | `https://ai-sdk.dev/r/web-preview` | Sandboxed iframe with URL bar + console |
-| **Terminal** | `https://ai-sdk.dev/r/terminal` | ANSI-colored console output |
-| **CodeBlock** | `https://ai-sdk.dev/r/code-block` | Syntax-highlighted code with shiki |
-| **Tool** | `https://ai-sdk.dev/r/tool` | Tool execution visualization |
-| **Reasoning** | `https://ai-sdk.dev/r/reasoning` | "Thinking" indicator |
-| **ModelSelector** | `https://ai-sdk.dev/r/model-selector` | AI model dropdown |
-| **Attachments** | `https://ai-sdk.dev/r/attachments` | File attachment display |
+| Component         | Registry URL                          | Usage                                   |
+| ----------------- | ------------------------------------- | --------------------------------------- |
+| **Conversation**  | `https://ai-sdk.dev/r/conversation`   | Auto-scrolling chat container           |
+| **Message**       | `https://ai-sdk.dev/r/message`        | User/assistant message with markdown    |
+| **PromptInput**   | `https://ai-sdk.dev/r/prompt-input`   | Chat input with file attachments        |
+| **FileTree**      | `https://ai-sdk.dev/r/file-tree`      | Hierarchical file explorer              |
+| **WebPreview**    | `https://ai-sdk.dev/r/web-preview`    | Sandboxed iframe with URL bar + console |
+| **Terminal**      | `https://ai-sdk.dev/r/terminal`       | ANSI-colored console output             |
+| **CodeBlock**     | `https://ai-sdk.dev/r/code-block`     | Syntax-highlighted code with shiki      |
+| **Tool**          | `https://ai-sdk.dev/r/tool`           | Tool execution visualization            |
+| **Reasoning**     | `https://ai-sdk.dev/r/reasoning`      | "Thinking" indicator                    |
+| **ModelSelector** | `https://ai-sdk.dev/r/model-selector` | AI model dropdown                       |
+| **Attachments**   | `https://ai-sdk.dev/r/attachments`    | File attachment display                 |
 
 ### Chat Panel Example
 
@@ -1573,7 +1670,15 @@ function buildTree(paths: string[]) {
   return tree;
 }
 
-function TreeNode({ name, path, children }: { name: string; path: string; children: any }) {
+function TreeNode({
+  name,
+  path,
+  children,
+}: {
+  name: string;
+  path: string;
+  children: any;
+}) {
   if (children === null) {
     return <FileTreeFile path={path} name={name} />;
   }
@@ -1599,7 +1704,9 @@ export function FilesPanel() {
     <FileTree
       selectedPath={selectedFile}
       onSelect={setSelectedFile}
-      defaultExpanded={new Set(files.map((f) => f.split("/").slice(0, -1).join("/")))}
+      defaultExpanded={
+        new Set(files.map((f) => f.split("/").slice(0, -1).join("/")))
+      }
     >
       {Object.entries(tree).map(([name, children]) => (
         <TreeNode key={name} name={name} path={name} children={children} />
@@ -1669,10 +1776,7 @@ export function LogsPanel() {
         <TerminalTitle>Logs</TerminalTitle>
         <TerminalClearButton onClick={clearLogs} />
       </TerminalHeader>
-      <TerminalContent
-        output={commandLogs.join("\n")}
-        autoScroll
-      />
+      <TerminalContent output={commandLogs.join("\n")} autoScroll />
     </Terminal>
   );
 }
@@ -1712,7 +1816,7 @@ export function ChatInput() {
         <AgentSelector />
       </PromptInputTools>
       <PromptInputSubmit
-        status={status}  // ChatStatus from AI SDK
+        status={status} // ChatStatus from AI SDK
         onStop={stop}
       />
     </PromptInput>
@@ -1805,23 +1909,24 @@ export const TEAM_ID = process.env.VERCEL_TEAM_ID!;
 // lib/deploy.ts
 
 export type DeploymentState =
-  | 'not-deployed'
-  | 'deploying'
-  | 'queued'
-  | 'building'
-  | 'failed'
-  | 'deployed'
-  | 'error';
+  | "not-deployed"
+  | "deploying"
+  | "queued"
+  | "building"
+  | "failed"
+  | "deployed"
+  | "error";
 
 export function mapReadyStateToDeploymentState(
-  readyState: string | undefined
+  readyState: string | undefined,
 ): DeploymentState {
-  if (readyState === 'READY') return 'deployed';
-  if (readyState && ['BUILDING', 'NOTREADY'].includes(readyState)) return 'building';
-  if (readyState && ['ERROR', 'CANCELED'].includes(readyState)) return 'failed';
-  if (readyState === 'QUEUED') return 'queued';
-  if (readyState === 'INITIALIZING') return 'deploying';
-  return 'not-deployed';
+  if (readyState === "READY") return "deployed";
+  if (readyState && ["BUILDING", "NOTREADY"].includes(readyState))
+    return "building";
+  if (readyState && ["ERROR", "CANCELED"].includes(readyState)) return "failed";
+  if (readyState === "QUEUED") return "queued";
+  if (readyState === "INITIALIZING") return "deploying";
+  return "not-deployed";
 }
 ```
 
@@ -1831,7 +1936,10 @@ export function mapReadyStateToDeploymentState(
 // lib/deploy.ts
 
 import { Vercel } from "@vercel/sdk";
-import type { InlinedFile, ProjectSettings } from "@vercel/sdk/models/createdeploymentop.js";
+import type {
+  InlinedFile,
+  ProjectSettings,
+} from "@vercel/sdk/models/createdeploymentop.js";
 import { vercel, TEAM_ID } from "./vercel";
 
 const MAX_PROJECT_NAME_LENGTH = 100;
@@ -1852,7 +1960,7 @@ export async function deployFiles(
     projectId?: string;
     projectSettings?: ProjectSettings;
     domain?: string;
-  }
+  },
 ) {
   const {
     deploymentName = crypto.randomUUID(),
@@ -1928,7 +2036,7 @@ export async function waitForDeployment(
     maxWaitMs?: number;
     pollIntervalMs?: number;
     onStatusChange?: (state: DeploymentState) => void;
-  }
+  },
 ): Promise<{ state: DeploymentState; url?: string }> {
   const {
     maxWaitMs = 4 * 60_000,
@@ -1943,14 +2051,14 @@ export async function waitForDeployment(
 
     onStatusChange?.(state);
 
-    if (state === 'deployed' || state === 'failed' || state === 'error') {
+    if (state === "deployed" || state === "failed" || state === "error") {
       return { state, url };
     }
 
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
-  return { state: 'error' };
+  return { state: "error" };
 }
 ```
 
@@ -1968,7 +2076,7 @@ export async function createProject(
       value: string;
       target: ("production" | "preview" | "development")[];
     }>;
-  }
+  },
 ) {
   const project = await vercel.projects.createProject({
     teamId: TEAM_ID,
@@ -2021,7 +2129,8 @@ interface RequestBody {
 }
 
 export async function POST(req: Request) {
-  const { sandboxId, files, deploymentName } = (await req.json()) as RequestBody;
+  const { sandboxId, files, deploymentName } =
+    (await req.json()) as RequestBody;
 
   const sandbox = await Sandbox.get({ sandboxId });
 
@@ -2039,7 +2148,7 @@ export async function POST(req: Request) {
         file: deployPath,
         data: Buffer.concat(chunks).toString("utf-8"),
       };
-    })
+    }),
   );
 
   // Create deployment using @vercel/sdk
@@ -2059,7 +2168,10 @@ export async function GET(req: Request) {
   const id = searchParams.get("id");
 
   if (!id) {
-    return NextResponse.json({ error: "Missing deployment ID" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing deployment ID" },
+      { status: 400 },
+    );
   }
 
   const status = await getDeploymentStatus(id);
@@ -2119,7 +2231,11 @@ export function useDeployment() {
 
         if (status.readyState === "READY") {
           setState("deployed");
-          setDeployment({ id, url: `https://${status.url}`, status: "deployed" });
+          setDeployment({
+            id,
+            url: `https://${status.url}`,
+            status: "deployed",
+          });
           return;
         }
 

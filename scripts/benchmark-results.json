@@ -4,9 +4,7 @@
   "results": {
     "snapshot-create-2vcpu": {
       "name": "Snapshot Create (2 vCPU)",
-      "runs": [
-        454
-      ],
+      "runs": [454],
       "avg": 454,
       "min": 454,
       "max": 454,
@@ -14,9 +12,7 @@
     },
     "snapshot-create-4vcpu": {
       "name": "Snapshot Create (4 vCPU)",
-      "runs": [
-        412
-      ],
+      "runs": [412],
       "avg": 412,
       "min": 412,
       "max": 412,
@@ -24,9 +20,7 @@
     },
     "cold-boot-2vcpu": {
       "name": "Cold Boot (2 vCPU)",
-      "runs": [
-        361
-      ],
+      "runs": [361],
       "avg": 361,
       "min": 361,
       "max": 361,
@@ -34,9 +28,7 @@
     },
     "get-existing": {
       "name": "Get Existing Sandbox",
-      "runs": [
-        110
-      ],
+      "runs": [110],
       "avg": 110,
       "min": 110,
       "max": 110,
@@ -44,9 +36,7 @@
     },
     "dev-server-cmd": {
       "name": "Dev Server Command",
-      "runs": [
-        0
-      ],
+      "runs": [0],
       "avg": 0,
       "min": 0,
       "max": 0,
@@ -54,9 +44,7 @@
     },
     "dev-server-ready": {
       "name": "Dev Server Ready",
-      "runs": [
-        1672
-      ],
+      "runs": [1672],
       "avg": 1672,
       "min": 1672,
       "max": 1672,
@@ -64,9 +52,7 @@
     },
     "cmd-simple": {
       "name": "Simple Command (echo)",
-      "runs": [
-        21312
-      ],
+      "runs": [21312],
       "avg": 21312,
       "min": 21312,
       "max": 21312,
@@ -74,9 +60,7 @@
     },
     "cmd-complex": {
       "name": "Complex Command (ls)",
-      "runs": [
-        206
-      ],
+      "runs": [206],
       "avg": 206,
       "min": 206,
       "max": 206,
@@ -84,9 +68,7 @@
     },
     "file-read": {
       "name": "File Read",
-      "runs": [
-        184
-      ],
+      "runs": [184],
       "avg": 184,
       "min": 184,
       "max": 184,
@@ -94,9 +76,7 @@
     },
     "file-write": {
       "name": "File Write",
-      "runs": [
-        173
-      ],
+      "runs": [173],
       "avg": 173,
       "min": 173,
       "max": 173,
@@ -104,9 +84,7 @@
     },
     "file-list": {
       "name": "File List",
-      "runs": [
-        180
-      ],
+      "runs": [180],
       "avg": 180,
       "min": 180,
       "max": 180,
@@ -114,9 +92,7 @@
     },
     "e2e-total": {
       "name": "End-to-End Total",
-      "runs": [
-        2112
-      ],
+      "runs": [2112],
       "avg": 2112,
       "min": 2112,
       "max": 2112,

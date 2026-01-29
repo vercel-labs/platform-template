@@ -1,17 +1,13 @@
-
 import "server-only";
 
 import type { NextRequest } from "next/server";
 import type { Session, Tokens } from "./types";
-import {
-  SESSION_COOKIE_NAME,
-  SESSION_COOKIE_TTL_MS,
-} from "./constants";
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_TTL_MS } from "./constants";
 import { encryptJWE, decryptJWE } from "./jwe";
 import { fetchUser, fetchTeams, getHighestAccountLevel } from "./vercel-api";
 
 export async function createSession(
-  tokens: Tokens
+  tokens: Tokens,
 ): Promise<Session | undefined> {
   const [user, teams] = await Promise.all([
     fetchUser(tokens.accessToken),
@@ -42,7 +38,7 @@ export async function createSession(
 
 export async function saveSession(
   res: Response,
-  session: Session | undefined
+  session: Session | undefined,
 ): Promise<string | undefined> {
   if (!session) {
     res.headers.append(
@@ -52,7 +48,7 @@ export async function saveSession(
         path: "/",
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
-      })
+      }),
     );
     return;
   }
@@ -67,14 +63,14 @@ export async function saveSession(
       expires: new Date(Date.now() + SESSION_COOKIE_TTL_MS),
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-    })
+    }),
   );
 
   return value;
 }
 
 export async function getSessionFromCookie(
-  cookieValue?: string
+  cookieValue?: string,
 ): Promise<Session | undefined> {
   if (!cookieValue) {
     return undefined;
@@ -97,12 +93,11 @@ export async function getSessionFromCookie(
 }
 
 export async function getSessionFromRequest(
-  req: NextRequest
+  req: NextRequest,
 ): Promise<Session | undefined> {
   const cookieValue = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   return getSessionFromCookie(cookieValue);
 }
-
 
 interface CookieOptions {
   path?: string;
@@ -116,7 +111,7 @@ interface CookieOptions {
 function serializeCookie(
   name: string,
   value: string,
-  options: CookieOptions = {}
+  options: CookieOptions = {},
 ): string {
   const parts = [`${encodeURIComponent(name)}=${encodeURIComponent(value)}`];
 

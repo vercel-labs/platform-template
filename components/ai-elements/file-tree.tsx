@@ -71,7 +71,7 @@ export const FileTree = ({
       <div
         className={cn(
           "rounded-lg border bg-background font-mono text-sm",
-          className
+          className,
         )}
         role="tree"
         {...props}
@@ -124,7 +124,7 @@ export const FileTreeFolder = ({
             <button
               className={cn(
                 "flex w-full items-center gap-1 rounded px-2 py-1 text-left transition-colors hover:bg-muted/50",
-                isSelected && "bg-muted"
+                isSelected && "bg-muted",
               )}
               onClick={() => onSelect?.(path)}
               type="button"
@@ -132,7 +132,7 @@ export const FileTreeFolder = ({
               <ChevronRightIcon
                 className={cn(
                   "size-4 shrink-0 text-muted-foreground transition-transform",
-                  isExpanded && "rotate-90"
+                  isExpanded && "rotate-90",
                 )}
               />
               <FileTreeIcon>
@@ -187,7 +187,7 @@ export const FileTreeFile = ({
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50",
           isSelected && "bg-muted",
-          className
+          className,
         )}
         onClick={() => onSelect?.(path)}
         onKeyDown={(e) => {

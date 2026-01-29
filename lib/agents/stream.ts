@@ -1,11 +1,10 @@
-
 import type { UIMessageChunk } from "ai";
 import type { StreamChunk } from "./types";
 import type { DataPartPayload } from "@/lib/types";
 
 export function toUIMessageChunk(
   chunk: StreamChunk,
-  partId: string
+  partId: string,
 ): UIMessageChunk<unknown, DataPartPayload> | null {
   switch (chunk.type) {
     case "text-delta":
@@ -73,7 +72,7 @@ export function toUIMessageChunk(
 
 export function createAgentStream(
   chunks: AsyncIterable<StreamChunk>,
-  generatePartId: () => string = () => crypto.randomUUID()
+  generatePartId: () => string = () => crypto.randomUUID(),
 ): ReadableStream<UIMessageChunk<unknown, DataPartPayload>> {
   let currentTextPartId = generatePartId();
   let currentReasoningPartId = generatePartId();

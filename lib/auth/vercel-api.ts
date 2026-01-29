@@ -1,4 +1,3 @@
-
 import { Vercel } from "@vercel/sdk";
 import type { BillingPlan } from "./types";
 
@@ -24,7 +23,7 @@ export interface VercelTeamData {
 }
 
 export async function fetchUser(
-  accessToken: string
+  accessToken: string,
 ): Promise<VercelUserData | undefined> {
   try {
     const client = createClient(accessToken);
@@ -52,7 +51,7 @@ export async function fetchUser(
 }
 
 export async function fetchTeams(
-  accessToken: string
+  accessToken: string,
 ): Promise<VercelTeamData[] | undefined> {
   try {
     const client = createClient(accessToken);
@@ -82,7 +81,6 @@ interface PlanInfo {
 }
 
 export function getHighestAccountLevel(teams: VercelTeamData[]): PlanInfo {
-
   if (!teams?.length) {
     return { plan: "hobby", teamId: null };
   }

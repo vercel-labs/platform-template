@@ -1,4 +1,3 @@
-
 import { Sandbox } from "@vercel/sandbox";
 
 const SNAPSHOT_ID = process.env.NEXTJS_SNAPSHOT_ID!;
@@ -16,68 +15,80 @@ async function main() {
 
   console.log("\n📦 TEST 1: Sequential Commands WITHOUT Warmup");
   console.log("-".repeat(50));
-  
+
   let sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: SNAPSHOT_ID },
     timeout: 300_000,
     resources: { vcpus: 2 },
   });
   console.log(`Created sandbox: ${sandbox.sandboxId}`);
-  
-  const commands = ["echo hello", "ls -la", "cat package.json", "npm --version", "node --version"];
-  
+
+  const commands = [
+    "echo hello",
+    "ls -la",
+    "cat package.json",
+    "npm --version",
+    "node --version",
+  ];
+
   for (let i = 0; i < commands.length; i++) {
     const cmd = commands[i].split(" ");
     const start = Date.now();
-    await sandbox.runCommand({ 
-      cmd: cmd[0], 
-      args: cmd.slice(1), 
-      cwd: "/vercel/sandbox" 
+    await sandbox.runCommand({
+      cmd: cmd[0],
+      args: cmd.slice(1),
+      cwd: "/vercel/sandbox",
     });
     const time = Date.now() - start;
-    console.log(`  Command ${i + 1} (${commands[i]}): ${time}ms ${i === 0 ? "⚠️ FIRST COMMAND" : ""}`);
+    console.log(
+      `  Command ${i + 1} (${commands[i]}): ${time}ms ${i === 0 ? "⚠️ FIRST COMMAND" : ""}`,
+    );
   }
-  
+
   await sandbox.stop();
 
   console.log("\n\n🔥 TEST 2: Warmup with 'true' Command First");
   console.log("-".repeat(50));
-  
+
   sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: SNAPSHOT_ID },
     timeout: 300_000,
     resources: { vcpus: 2 },
   });
   console.log(`Created sandbox: ${sandbox.sandboxId}`);
-  
+
   console.log("  Kicking off warmup command (detached)...");
   const warmupStart = Date.now();
-  sandbox.runCommand({ 
-    cmd: "true", 
-    cwd: "/vercel/sandbox",
-    detached: true,
-  }).catch(() => {});
-  
-  await new Promise(r => setTimeout(r, 100));
-  console.log(`  Warmup command sent (took ${Date.now() - warmupStart}ms to kick off)`);
-  
+  sandbox
+    .runCommand({
+      cmd: "true",
+      cwd: "/vercel/sandbox",
+      detached: true,
+    })
+    .catch(() => {});
+
+  await new Promise((r) => setTimeout(r, 100));
+  console.log(
+    `  Warmup command sent (took ${Date.now() - warmupStart}ms to kick off)`,
+  );
+
   for (let i = 0; i < commands.length; i++) {
     const cmd = commands[i].split(" ");
     const start = Date.now();
-    await sandbox.runCommand({ 
-      cmd: cmd[0], 
-      args: cmd.slice(1), 
-      cwd: "/vercel/sandbox" 
+    await sandbox.runCommand({
+      cmd: cmd[0],
+      args: cmd.slice(1),
+      cwd: "/vercel/sandbox",
     });
     const time = Date.now() - start;
     console.log(`  Command ${i + 1} (${commands[i]}): ${time}ms`);
   }
-  
+
   await sandbox.stop();
 
   console.log("\n\n🚀 TEST 3: Dev Server Start as Warmup (Parallel)");
   console.log("-".repeat(50));
-  
+
   sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: SNAPSHOT_ID },
     ports: [3000],
@@ -85,51 +96,58 @@ async function main() {
     resources: { vcpus: 2 },
   });
   console.log(`Created sandbox: ${sandbox.sandboxId}`);
-  
+
   console.log("  Starting dev server (detached)...");
   const devStart = Date.now();
-  sandbox.runCommand({
-    cmd: "npm",
-    args: ["run", "dev"],
-    cwd: "/vercel/sandbox",
-    detached: true,
-  }).catch(() => {});
+  sandbox
+    .runCommand({
+      cmd: "npm",
+      args: ["run", "dev"],
+      cwd: "/vercel/sandbox",
+      detached: true,
+    })
+    .catch(() => {});
   console.log(`  Dev server command sent (${Date.now() - devStart}ms)`);
-  
+
   console.log("\n  Running commands while dev server starts:");
   for (let i = 0; i < commands.length; i++) {
     const cmd = commands[i].split(" ");
     const start = Date.now();
-    await sandbox.runCommand({ 
-      cmd: cmd[0], 
-      args: cmd.slice(1), 
-      cwd: "/vercel/sandbox" 
+    await sandbox.runCommand({
+      cmd: cmd[0],
+      args: cmd.slice(1),
+      cwd: "/vercel/sandbox",
     });
     const time = Date.now() - start;
     console.log(`  Command ${i + 1} (${commands[i]}): ${time}ms`);
   }
-  
+
   const previewUrl = sandbox.domain(3000);
   console.log(`\n  Waiting for dev server at ${previewUrl}...`);
   const serverStart = Date.now();
   for (let i = 0; i < 60; i++) {
     try {
-      const res = await fetch(previewUrl, { method: "HEAD", signal: AbortSignal.timeout(2000) });
+      const res = await fetch(previewUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
       if (res.ok || res.status === 404) {
-        console.log(`  Dev server ready! (${Date.now() - serverStart}ms after we started waiting)`);
+        console.log(
+          `  Dev server ready! (${Date.now() - serverStart}ms after we started waiting)`,
+        );
         break;
       }
     } catch {}
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 250));
   }
-  
+
   await sandbox.stop();
 
   console.log("\n\n🤖 TEST 4: Agent-Like Pattern (Optimized)");
   console.log("-".repeat(50));
-  
+
   const totalStart = Date.now();
-  
+
   sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: SNAPSHOT_ID },
     ports: [3000],
@@ -138,44 +156,61 @@ async function main() {
   });
   const createTime = Date.now() - totalStart;
   console.log(`  Sandbox created: ${createTime}ms`);
-  
-  sandbox.runCommand({
-    cmd: "npm",
-    args: ["run", "dev"],
-    cwd: "/vercel/sandbox",
-    detached: true,
-  }).catch(() => {});
+
+  sandbox
+    .runCommand({
+      cmd: "npm",
+      args: ["run", "dev"],
+      cwd: "/vercel/sandbox",
+      detached: true,
+    })
+    .catch(() => {});
   console.log(`  Dev server kicked off: ${Date.now() - totalStart}ms`);
-  
-  await new Promise(r => setTimeout(r, 500)); // Small delay like network latency
-  
+
+  await new Promise((r) => setTimeout(r, 500)); // Small delay like network latency
+
   let start = Date.now();
-  await sandbox.runCommand({ cmd: "cat", args: ["package.json"], cwd: "/vercel/sandbox" });
+  await sandbox.runCommand({
+    cmd: "cat",
+    args: ["package.json"],
+    cwd: "/vercel/sandbox",
+  });
   console.log(`  First agent command (cat): ${Date.now() - start}ms`);
-  
+
   start = Date.now();
-  await sandbox.runCommand({ cmd: "ls", args: ["-la", "src"], cwd: "/vercel/sandbox" });
+  await sandbox.runCommand({
+    cmd: "ls",
+    args: ["-la", "src"],
+    cwd: "/vercel/sandbox",
+  });
   console.log(`  Second agent command (ls): ${Date.now() - start}ms`);
-  
+
   start = Date.now();
-  await sandbox.writeFiles([{ path: "/vercel/sandbox/test.txt", content: Buffer.from("hello") }]);
+  await sandbox.writeFiles([
+    { path: "/vercel/sandbox/test.txt", content: Buffer.from("hello") },
+  ]);
   console.log(`  Write file: ${Date.now() - start}ms`);
-  
+
   const url = sandbox.domain(3000);
   start = Date.now();
   for (let i = 0; i < 60; i++) {
     try {
-      const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(2000) });
+      const res = await fetch(url, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
       if (res.ok || res.status === 404) {
-        console.log(`  Preview ready: ${Date.now() - start}ms (total: ${Date.now() - totalStart}ms)`);
+        console.log(
+          `  Preview ready: ${Date.now() - start}ms (total: ${Date.now() - totalStart}ms)`,
+        );
         break;
       }
     } catch {}
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 250));
   }
-  
+
   console.log(`\n  TOTAL TIME TO WORKING AGENT: ${Date.now() - totalStart}ms`);
-  
+
   await sandbox.stop();
 
   console.log("\n" + "=".repeat(70));

@@ -7,51 +7,59 @@ import { Sandbox } from "@vercel/sandbox";
 const SANDBOX_BASE_PATH = "/vercel/sandbox";
 
 const PROJECT_FILES = {
-  "package.json": JSON.stringify({
-    name: "my-app",
-    version: "0.1.0",
-    private: true,
-    scripts: {
-      dev: "next dev --turbopack",
-      build: "next build",
-      start: "next start",
+  "package.json": JSON.stringify(
+    {
+      name: "my-app",
+      version: "0.1.0",
+      private: true,
+      scripts: {
+        dev: "next dev --turbopack",
+        build: "next build",
+        start: "next start",
+      },
+      dependencies: {
+        next: "^15",
+        react: "^19",
+        "react-dom": "^19",
+      },
+      devDependencies: {
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        typescript: "^5",
+        tailwindcss: "^4",
+        "@tailwindcss/postcss": "^4",
+      },
     },
-    dependencies: {
-      "next": "^15",
-      "react": "^19",
-      "react-dom": "^19"
+    null,
+    2,
+  ),
+
+  "tsconfig.json": JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2017",
+        lib: ["dom", "dom.iterable", "esnext"],
+        allowJs: true,
+        skipLibCheck: true,
+        strict: true,
+        noEmit: true,
+        esModuleInterop: true,
+        module: "esnext",
+        moduleResolution: "bundler",
+        resolveJsonModule: true,
+        isolatedModules: true,
+        jsx: "preserve",
+        incremental: true,
+        plugins: [{ name: "next" }],
+        paths: { "@/*": ["./src/*"] },
+      },
+      include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+      exclude: ["node_modules"],
     },
-    devDependencies: {
-      "@types/node": "^20",
-      "@types/react": "^19",
-      "@types/react-dom": "^19",
-      "typescript": "^5",
-      "tailwindcss": "^4",
-      "@tailwindcss/postcss": "^4"
-    }
-  }, null, 2),
-  
-  "tsconfig.json": JSON.stringify({
-    compilerOptions: {
-      target: "ES2017",
-      lib: ["dom", "dom.iterable", "esnext"],
-      allowJs: true,
-      skipLibCheck: true,
-      strict: true,
-      noEmit: true,
-      esModuleInterop: true,
-      module: "esnext",
-      moduleResolution: "bundler",
-      resolveJsonModule: true,
-      isolatedModules: true,
-      jsx: "preserve",
-      incremental: true,
-      plugins: [{ name: "next" }],
-      paths: { "@/*": ["./src/*"] }
-    },
-    include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-    exclude: ["node_modules"]
-  }, null, 2),
+    null,
+    2,
+  ),
 
   "next.config.ts": `import type { NextConfig } from "next";
 const nextConfig: NextConfig = {};
@@ -98,10 +106,14 @@ async function benchmark() {
   console.log(`Warmup: ${Date.now() - t}ms\n`);
 
   // Check if bun exists
-  const bunCheck = await sandbox.runCommand({ cmd: "which", args: ["bun"], sudo: true });
+  const bunCheck = await sandbox.runCommand({
+    cmd: "which",
+    args: ["bun"],
+    sudo: true,
+  });
   const hasBun = bunCheck.exitCode === 0;
   console.log(`Bun available: ${hasBun}`);
-  
+
   if (!hasBun) {
     console.log("Installing bun...");
     t = Date.now();
@@ -128,7 +140,10 @@ async function benchmark() {
   t = Date.now();
   const install = await sandbox.runCommand({
     cmd: "sh",
-    args: ["-c", "export BUN_INSTALL=/root/.bun && export PATH=$BUN_INSTALL/bin:$PATH && bun install"],
+    args: [
+      "-c",
+      "export BUN_INSTALL=/root/.bun && export PATH=$BUN_INSTALL/bin:$PATH && bun install",
+    ],
     cwd: SANDBOX_BASE_PATH,
     sudo: true,
   });

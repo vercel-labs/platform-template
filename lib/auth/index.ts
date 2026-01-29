@@ -1,4 +1,3 @@
-
 export type {
   Session,
   Tokens,
@@ -7,10 +6,7 @@ export type {
   SessionUserInfo,
 } from "./types";
 
-export type {
-  VercelUserData,
-  VercelTeamData,
-} from "./vercel-api";
+export type { VercelUserData, VercelTeamData } from "./vercel-api";
 
 export {
   SESSION_COOKIE_NAME,

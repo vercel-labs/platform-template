@@ -71,9 +71,7 @@ async function readFileForDeploy(
     );
   }
 
-  const data = await new Response(
-    stream as unknown as ReadableStream,
-  ).text();
+  const data = await new Response(stream as unknown as ReadableStream).text();
   return Result.ok({ file: toRelativePath(path), data });
 }
 
@@ -113,9 +111,7 @@ export const deployFiles = os
       const filePaths = yield* Result.await(
         listDeployableFiles(sandbox, sandboxId),
       );
-      const files = yield* Result.await(
-        readFilesForDeploy(sandbox, filePaths),
-      );
+      const files = yield* Result.await(readFilesForDeploy(sandbox, filePaths));
 
       // Create deployment
       const name =
@@ -165,7 +161,8 @@ export const getDeploymentStatus = os
       const vercel = yield* Result.await(getVercelClient());
       const deployment = yield* Result.await(
         Result.tryPromise({
-          try: () => vercel.deployments.getDeployment({ idOrUrl: deploymentId }),
+          try: () =>
+            vercel.deployments.getDeployment({ idOrUrl: deploymentId }),
           catch: (err) => new NetworkError({ message: errorMessage(err) }),
         }),
       );
@@ -190,7 +187,9 @@ const LOG_TYPES = ["stdout", "stderr", "command"];
 /** Stream deployment build logs in real-time */
 export const streamDeploymentLogs = os
   .input(z.object({ deploymentId: z.string() }))
-  .handler(async function* ({ input: { deploymentId } }): AsyncGenerator<LogEvent> {
+  .handler(async function* ({
+    input: { deploymentId },
+  }): AsyncGenerator<LogEvent> {
     const vercelResult = await getVercelClient();
     if (vercelResult.isErr()) {
       yield { type: "error", message: "Unauthorized", timestamp: Date.now() };
@@ -215,7 +214,11 @@ export const streamDeploymentLogs = os
           type: string;
           serial?: string;
           text?: string;
-          payload?: { serial?: string; text?: string; info?: { readyState?: string } };
+          payload?: {
+            serial?: string;
+            text?: string;
+            info?: { readyState?: string };
+          };
           info?: { readyState?: string };
         }>;
 
@@ -228,11 +231,16 @@ export const streamDeploymentLogs = os
           // Emit log output
           const text = event.text ?? event.payload?.text;
           if (text && LOG_TYPES.includes(event.type)) {
-            yield { type: event.type as "stdout" | "stderr" | "command", text, timestamp: Date.now() };
+            yield {
+              type: event.type as "stdout" | "stderr" | "command",
+              text,
+              timestamp: Date.now(),
+            };
           }
 
           // Emit state changes
-          const state = event.info?.readyState ?? event.payload?.info?.readyState;
+          const state =
+            event.info?.readyState ?? event.payload?.info?.readyState;
           if (event.type === "deployment-state" && state) {
             yield { type: "state", readyState: state, timestamp: Date.now() };
           }
@@ -240,13 +248,21 @@ export const streamDeploymentLogs = os
 
         // Check if deployment finished
         if (TERMINAL_STATES.includes(readyState as string)) {
-          yield { type: "done", readyState: String(readyState), timestamp: Date.now() };
+          yield {
+            type: "done",
+            readyState: String(readyState),
+            timestamp: Date.now(),
+          };
           return;
         }
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
       } catch (err) {
-        yield { type: "error", message: errorMessage(err), timestamp: Date.now() };
+        yield {
+          type: "error",
+          message: errorMessage(err),
+          timestamp: Date.now(),
+        };
         return;
       }
     }

@@ -1,9 +1,10 @@
-
 import { Sandbox } from "@vercel/sandbox";
 import { writeFileSync } from "fs";
 
 async function main() {
-  console.log("🚀 Creating MINIMAL Next.js snapshot (no AI agents, no cache)...\n");
+  console.log(
+    "🚀 Creating MINIMAL Next.js snapshot (no AI agents, no cache)...\n",
+  );
 
   const sandbox = await Sandbox.create({
     timeout: 300_000,
@@ -16,7 +17,7 @@ async function main() {
 
   try {
     console.log("1️⃣  Running create-next-app...");
-    
+
     const createApp = await sandbox.runCommand({
       cmd: "npx",
       args: [
@@ -25,7 +26,7 @@ async function main() {
         "/tmp/app",
         "--yes",
         "--typescript",
-        "--tailwind", 
+        "--tailwind",
         "--eslint",
         "--app",
         "--src-dir",
@@ -39,7 +40,7 @@ async function main() {
     if (createApp.exitCode !== 0) {
       throw new Error(`create-next-app failed: ${await createApp.stderr()}`);
     }
-    
+
     await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "cp -r /tmp/app/. /vercel/sandbox/"],
@@ -59,7 +60,10 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 `;
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/next.config.ts", content: Buffer.from(nextConfig) },
+      {
+        path: "/vercel/sandbox/next.config.ts",
+        content: Buffer.from(nextConfig),
+      },
     ]);
     console.log("   ✅ next.config.ts updated\n");
 
@@ -74,7 +78,10 @@ export default nextConfig;
 }
 `;
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/src/app/page.tsx", content: Buffer.from(minimalPage) },
+      {
+        path: "/vercel/sandbox/src/app/page.tsx",
+        content: Buffer.from(minimalPage),
+      },
     ]);
     console.log("   ✅ Starter page created\n");
 
@@ -93,12 +100,16 @@ export default nextConfig;
     console.log("✅ MINIMAL SNAPSHOT CREATED!");
     console.log("=".repeat(60));
     console.log(`\nSnapshot ID: ${snapshot.snapshotId}`);
-    console.log(`\nContents: Next.js + Tailwind only (NO AI agents, NO .next cache)`);
+    console.log(
+      `\nContents: Next.js + Tailwind only (NO AI agents, NO .next cache)`,
+    );
     console.log("\n" + "=".repeat(60));
 
-    writeFileSync("scripts/minimal-snapshot-id.txt", `MINIMAL_SNAPSHOT_ID=${snapshot.snapshotId}\n`);
+    writeFileSync(
+      "scripts/minimal-snapshot-id.txt",
+      `MINIMAL_SNAPSHOT_ID=${snapshot.snapshotId}\n`,
+    );
     console.log("\n📄 Saved to scripts/minimal-snapshot-id.txt\n");
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     try {

@@ -1,11 +1,6 @@
 "use client";
 
-
-import {
-  ExternalLinkIcon,
-  Globe,
-  RefreshCwIcon,
-} from "lucide-react";
+import { ExternalLinkIcon, Globe, RefreshCwIcon } from "lucide-react";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import {
   WebPreview,
@@ -25,7 +20,7 @@ interface PreviewProps {
 export function Preview({ className }: PreviewProps) {
   const { previewUrl, sandboxId, status } = useSandboxStore();
   const [key, setKey] = useState(0);
-  
+
   console.log("[preview] Current state:", { previewUrl, sandboxId, status });
 
   const refresh = useCallback(() => {
@@ -61,10 +56,7 @@ export function Preview({ className }: PreviewProps) {
             className="h-full border-0 rounded-none"
           >
             <WebPreviewNavigation>
-              <WebPreviewNavigationButton
-                onClick={refresh}
-                tooltip="Refresh"
-              >
+              <WebPreviewNavigationButton onClick={refresh} tooltip="Refresh">
                 <RefreshCwIcon className="h-4 w-4" />
               </WebPreviewNavigationButton>
               <WebPreviewUrl readOnly className="font-mono text-xs" />

@@ -1,4 +1,3 @@
-
 import { type NextRequest } from "next/server";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { redis, type SessionData } from "@/lib/redis";
@@ -23,7 +22,7 @@ async function handleRequest(request: NextRequest) {
       {
         status: 401,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 
@@ -33,7 +32,7 @@ async function handleRequest(request: NextRequest) {
   if (!session) {
     return new Response(
       JSON.stringify({ error: "Invalid or expired session" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
+      { status: 401, headers: { "Content-Type": "application/json" } },
     );
   }
 

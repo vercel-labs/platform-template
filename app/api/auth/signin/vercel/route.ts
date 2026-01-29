@@ -1,4 +1,3 @@
-
 import { type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import {
@@ -18,7 +17,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   const client = new OAuth2Client(
     process.env.VERCEL_CLIENT_ID ?? "",
     process.env.VERCEL_CLIENT_SECRET ?? "",
-    `${req.nextUrl.origin}/api/auth/callback/vercel`
+    `${req.nextUrl.origin}/api/auth/callback/vercel`,
   );
 
   const state = generateState();
@@ -28,7 +27,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     state,
     CodeChallengeMethod.S256,
     verifier,
-    [...OAUTH_SCOPES]
+    [...OAUTH_SCOPES],
   );
 
   const store = await cookies();

@@ -55,30 +55,37 @@ async function benchmark() {
   // Start dev server
   console.log("Starting dev server...");
   t = Date.now();
-  sandbox.runCommand({
-    cmd: "sh",
-    args: [
-      "-c",
-      "export BUN_INSTALL=/root/.bun && export PATH=$BUN_INSTALL/bin:$PATH && bun run dev",
-    ],
-    cwd: SANDBOX_BASE_PATH,
-    sudo: true,
-    detached: true,
-  }).catch(() => {});
+  sandbox
+    .runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        "export BUN_INSTALL=/root/.bun && export PATH=$BUN_INSTALL/bin:$PATH && bun run dev",
+      ],
+      cwd: SANDBOX_BASE_PATH,
+      sudo: true,
+      detached: true,
+    })
+    .catch(() => {});
 
   const previewUrl = sandbox.domain(3000);
   let ready = false;
   while (Date.now() - t < 30000) {
     try {
-      const res = await fetch(previewUrl, { method: "HEAD", signal: AbortSignal.timeout(2000) });
+      const res = await fetch(previewUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
       if (res.ok || res.status === 404) {
         ready = true;
         break;
       }
     } catch {}
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 500));
   }
-  console.log(`Dev server: ${Date.now() - t}ms (${ready ? "ready" : "timeout"})\n`);
+  console.log(
+    `Dev server: ${Date.now() - t}ms (${ready ? "ready" : "timeout"})\n`,
+  );
 
   await sandbox.stop();
   console.log("Done!");

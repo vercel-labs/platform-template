@@ -8,52 +8,60 @@ const SANDBOX_BASE_PATH = "/vercel/sandbox";
 
 // Minimal Next.js project files
 const PROJECT_FILES = {
-  "package.json": JSON.stringify({
-    name: "my-app",
-    version: "0.1.0",
-    private: true,
-    scripts: {
-      dev: "next dev --turbopack",
-      build: "next build",
-      start: "next start",
-      lint: "next lint"
+  "package.json": JSON.stringify(
+    {
+      name: "my-app",
+      version: "0.1.0",
+      private: true,
+      scripts: {
+        dev: "next dev --turbopack",
+        build: "next build",
+        start: "next start",
+        lint: "next lint",
+      },
+      dependencies: {
+        next: "^15",
+        react: "^19",
+        "react-dom": "^19",
+      },
+      devDependencies: {
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        typescript: "^5",
+        tailwindcss: "^4",
+        "@tailwindcss/postcss": "^4",
+      },
     },
-    dependencies: {
-      "next": "^15",
-      "react": "^19",
-      "react-dom": "^19"
+    null,
+    2,
+  ),
+
+  "tsconfig.json": JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2017",
+        lib: ["dom", "dom.iterable", "esnext"],
+        allowJs: true,
+        skipLibCheck: true,
+        strict: true,
+        noEmit: true,
+        esModuleInterop: true,
+        module: "esnext",
+        moduleResolution: "bundler",
+        resolveJsonModule: true,
+        isolatedModules: true,
+        jsx: "preserve",
+        incremental: true,
+        plugins: [{ name: "next" }],
+        paths: { "@/*": ["./src/*"] },
+      },
+      include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+      exclude: ["node_modules"],
     },
-    devDependencies: {
-      "@types/node": "^20",
-      "@types/react": "^19",
-      "@types/react-dom": "^19",
-      "typescript": "^5",
-      "tailwindcss": "^4",
-      "@tailwindcss/postcss": "^4"
-    }
-  }, null, 2),
-  
-  "tsconfig.json": JSON.stringify({
-    compilerOptions: {
-      target: "ES2017",
-      lib: ["dom", "dom.iterable", "esnext"],
-      allowJs: true,
-      skipLibCheck: true,
-      strict: true,
-      noEmit: true,
-      esModuleInterop: true,
-      module: "esnext",
-      moduleResolution: "bundler",
-      resolveJsonModule: true,
-      isolatedModules: true,
-      jsx: "preserve",
-      incremental: true,
-      plugins: [{ name: "next" }],
-      paths: { "@/*": ["./src/*"] }
-    },
-    include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-    exclude: ["node_modules"]
-  }, null, 2),
+    null,
+    2,
+  ),
 
   "next.config.ts": `import type { NextConfig } from "next";
 
@@ -123,12 +131,12 @@ async function benchmark() {
   // Write all files
   console.log("Writing project files...");
   t = Date.now();
-  
+
   const files = Object.entries(PROJECT_FILES).map(([path, content]) => ({
     path: `${SANDBOX_BASE_PATH}/${path}`,
     content: Buffer.from(content),
   }));
-  
+
   await sandbox.writeFiles(files);
   console.log(`Write files: ${Date.now() - t}ms\n`);
 
@@ -150,27 +158,34 @@ async function benchmark() {
   // Start dev server
   console.log("Starting dev server...");
   t = Date.now();
-  sandbox.runCommand({
-    cmd: "npm",
-    args: ["run", "dev"],
-    cwd: SANDBOX_BASE_PATH,
-    sudo: true,
-    detached: true,
-  }).catch(() => {});
+  sandbox
+    .runCommand({
+      cmd: "npm",
+      args: ["run", "dev"],
+      cwd: SANDBOX_BASE_PATH,
+      sudo: true,
+      detached: true,
+    })
+    .catch(() => {});
 
   const previewUrl = sandbox.domain(3000);
   let ready = false;
   while (Date.now() - t < 30000) {
     try {
-      const res = await fetch(previewUrl, { method: "HEAD", signal: AbortSignal.timeout(2000) });
+      const res = await fetch(previewUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
       if (res.ok || res.status === 404) {
         ready = true;
         break;
       }
     } catch {}
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 500));
   }
-  console.log(`Dev server: ${Date.now() - t}ms (${ready ? "ready" : "timeout"})\n`);
+  console.log(
+    `Dev server: ${Date.now() - t}ms (${ready ? "ready" : "timeout"})\n`,
+  );
 
   await sandbox.stop();
   console.log("Done!");

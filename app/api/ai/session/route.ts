@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { createSession, updateSessionSandbox } from "@/lib/redis";
@@ -11,8 +10,7 @@ export async function POST(request: Request) {
     try {
       const body = await request.json();
       sandboxId = body.sandboxId;
-    } catch {
-    }
+    } catch {}
 
     const sessionId = nanoid(32);
 
@@ -26,7 +24,7 @@ export async function POST(request: Request) {
     console.error("[session] Error creating session:", error);
     return NextResponse.json(
       { error: "Failed to create session" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -39,7 +37,7 @@ export async function PATCH(request: Request) {
     if (!sessionId || !sandboxId) {
       return NextResponse.json(
         { error: "Missing sessionId or sandboxId" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -54,7 +52,7 @@ export async function PATCH(request: Request) {
     console.error("[session] Error updating session:", error);
     return NextResponse.json(
       { error: "Failed to update session" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

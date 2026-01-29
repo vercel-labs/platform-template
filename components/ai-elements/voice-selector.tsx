@@ -43,14 +43,14 @@ interface VoiceSelectorContextValue {
 }
 
 const VoiceSelectorContext = createContext<VoiceSelectorContextValue | null>(
-  null
+  null,
 );
 
 export const useVoiceSelector = () => {
   const context = useContext(VoiceSelectorContext);
   if (!context) {
     throw new Error(
-      "VoiceSelector components must be used within VoiceSelector"
+      "VoiceSelector components must be used within VoiceSelector",
     );
   }
   return context;
@@ -86,7 +86,7 @@ export const VoiceSelector = ({
 
   const voiceSelectorContext = useMemo(
     () => ({ value, setValue, open, setOpen }),
-    [value, setValue, open, setOpen]
+    [value, setValue, open, setOpen],
   );
 
   return (

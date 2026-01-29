@@ -1,4 +1,3 @@
-
 import type { NextRequest } from "next/server";
 import type { Session, SessionUserInfo } from "@/lib/auth";
 import { createSession, saveSession, getSessionFromRequest } from "@/lib/auth";

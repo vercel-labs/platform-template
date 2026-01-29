@@ -1,4 +1,3 @@
-
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
 
@@ -24,7 +23,10 @@ describe("Dev Server Auto-Start", () => {
     });
 
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/package.json", content: Buffer.from(packageJson) },
+      {
+        path: "/vercel/sandbox/package.json",
+        content: Buffer.from(packageJson),
+      },
     ]);
 
     const content = await sandbox.readFileToBuffer({
@@ -60,9 +62,18 @@ describe("Dev Server Auto-Start", () => {
     const layoutContent = `export default function Layout({ children }) { return <html><body>{children}</body></html>; }`;
 
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/package.json", content: Buffer.from(packageJson) },
-      { path: "/vercel/sandbox/app/page.tsx", content: Buffer.from(pageContent) },
-      { path: "/vercel/sandbox/app/layout.tsx", content: Buffer.from(layoutContent) },
+      {
+        path: "/vercel/sandbox/package.json",
+        content: Buffer.from(packageJson),
+      },
+      {
+        path: "/vercel/sandbox/app/page.tsx",
+        content: Buffer.from(pageContent),
+      },
+      {
+        path: "/vercel/sandbox/app/layout.tsx",
+        content: Buffer.from(layoutContent),
+      },
     ]);
 
     console.log("Installing dependencies...");
@@ -96,7 +107,14 @@ describe("Dev Server Auto-Start", () => {
 
     const curlResult = await sandbox.runCommand({
       cmd: "curl",
-      args: ["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:3000"],
+      args: [
+        "-s",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
+        "http://localhost:3000",
+      ],
       cwd: "/vercel/sandbox",
     });
 

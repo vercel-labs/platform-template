@@ -1,6 +1,5 @@
 "use client";
 
-
 import { useState, useCallback } from "react";
 import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
 import { Panel, PanelHeader, PanelContent } from "@/components/ui/panel";
@@ -114,7 +113,7 @@ export function Chat({ className }: ChatProps) {
                   }
 
                   return { ...m, parts };
-                })
+                }),
               );
               break;
 
@@ -133,7 +132,7 @@ export function Chat({ className }: ChatProps) {
                   });
 
                   return { ...m, parts };
-                })
+                }),
               );
               break;
 
@@ -144,7 +143,7 @@ export function Chat({ className }: ChatProps) {
 
                   const parts = [...m.parts];
                   const toolIdx = parts.findIndex(
-                    (p) => p.type === "tool" && p.id === streamChunk.toolCallId
+                    (p) => p.type === "tool" && p.id === streamChunk.toolCallId,
                   );
                   if (toolIdx !== -1) {
                     const tool = parts[toolIdx] as Extract<
@@ -158,7 +157,7 @@ export function Chat({ className }: ChatProps) {
                   }
 
                   return { ...m, parts };
-                })
+                }),
               );
               break;
 
@@ -169,7 +168,7 @@ export function Chat({ className }: ChatProps) {
 
                   const parts = [...m.parts];
                   const toolIdx = parts.findIndex(
-                    (p) => p.type === "tool" && p.id === streamChunk.toolCallId
+                    (p) => p.type === "tool" && p.id === streamChunk.toolCallId,
                   );
                   if (toolIdx !== -1) {
                     const tool = parts[toolIdx] as Extract<
@@ -185,12 +184,13 @@ export function Chat({ className }: ChatProps) {
                   }
 
                   return { ...m, parts };
-                })
+                }),
               );
               break;
 
             case "data": {
-              const dataType = `data-${streamChunk.dataType}` as (typeof UI_DATA_PART_TYPES)[keyof typeof UI_DATA_PART_TYPES];
+              const dataType =
+                `data-${streamChunk.dataType}` as (typeof UI_DATA_PART_TYPES)[keyof typeof UI_DATA_PART_TYPES];
               const store = useSandboxStore.getState();
               handleDataPart(store, dataType, streamChunk.data);
               break;
@@ -206,7 +206,7 @@ export function Chat({ className }: ChatProps) {
                     content: `\n\nError: ${streamChunk.message}`,
                   });
                   return { ...m, parts };
-                })
+                }),
               );
               break;
           }
@@ -221,13 +221,13 @@ export function Chat({ className }: ChatProps) {
               content: `Error: ${error instanceof Error ? error.message : String(error)}`,
             });
             return { ...m, parts };
-          })
+          }),
         );
       } finally {
         setStatus("ready");
       }
     },
-    [status, sandboxId, sessionId, agentId, setSandbox, setSessionId]
+    [status, sandboxId, sessionId, agentId, setSandbox, setSessionId],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -330,16 +330,14 @@ function MessageView({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
 
   return (
-    <div
-      className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}
-    >
+    <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
       {/* Avatar */}
       <div
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
           isUser
             ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-            : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+            : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100",
         )}
       >
         {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -349,7 +347,7 @@ function MessageView({ message }: { message: ChatMessage }) {
       <div
         className={cn(
           "min-w-0 flex-1 space-y-2",
-          isUser ? "text-right" : "text-left"
+          isUser ? "text-right" : "text-left",
         )}
       >
         {message.parts.map((part, index) => (
@@ -419,7 +417,7 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
               "mt-1 max-h-40 overflow-x-auto whitespace-pre-wrap break-all rounded p-2 font-mono text-xs",
               part.isError
                 ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
-                : "bg-zinc-100 dark:bg-zinc-800"
+                : "bg-zinc-100 dark:bg-zinc-800",
             )}
           >
             {part.output}

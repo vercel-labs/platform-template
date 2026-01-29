@@ -1,4 +1,3 @@
-
 import { Sandbox } from "@vercel/sandbox";
 
 const BASE_SNAPSHOT_ID = "snap_X1Uz65k4dG7MTcGld4ZQdcMHpqeW"; // minimal
@@ -22,11 +21,19 @@ async function main() {
 
   console.log("\n2️⃣  Warming up the sandbox (first command)...");
   start = Date.now();
-  await baseSandbox.runCommand({ cmd: "echo", args: ["warming up"], cwd: "/vercel/sandbox" });
+  await baseSandbox.runCommand({
+    cmd: "echo",
+    args: ["warming up"],
+    cwd: "/vercel/sandbox",
+  });
   console.log(`   Warmup complete: ${Date.now() - start}ms`);
 
   start = Date.now();
-  await baseSandbox.runCommand({ cmd: "echo", args: ["second"], cwd: "/vercel/sandbox" });
+  await baseSandbox.runCommand({
+    cmd: "echo",
+    args: ["second"],
+    cwd: "/vercel/sandbox",
+  });
   console.log(`   Second command: ${Date.now() - start}ms (should be fast)`);
 
   console.log("\n3️⃣  Snapshotting the WARM sandbox...");
@@ -37,10 +44,10 @@ async function main() {
   console.log(`   Warm Snapshot ID: ${warmSnapshot.snapshotId}`);
 
   console.log("\n4️⃣  Creating sandboxes from WARM snapshot...");
-  
+
   for (let i = 1; i <= 3; i++) {
     console.log(`\n   --- Run ${i} ---`);
-    
+
     start = Date.now();
     const newSandbox = await Sandbox.create({
       source: { type: "snapshot", snapshotId: warmSnapshot.snapshotId },
@@ -51,19 +58,29 @@ async function main() {
     console.log(`   Create: ${Date.now() - start}ms`);
 
     start = Date.now();
-    await newSandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
+    await newSandbox.runCommand({
+      cmd: "echo",
+      args: ["hello"],
+      cwd: "/vercel/sandbox",
+    });
     const firstCmd = Date.now() - start;
-    console.log(`   First command: ${firstCmd}ms ${firstCmd < 1000 ? "✅ FAST!" : "❌ Still slow"}`);
+    console.log(
+      `   First command: ${firstCmd}ms ${firstCmd < 1000 ? "✅ FAST!" : "❌ Still slow"}`,
+    );
 
     start = Date.now();
-    await newSandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
+    await newSandbox.runCommand({
+      cmd: "ls",
+      args: ["-la"],
+      cwd: "/vercel/sandbox",
+    });
     console.log(`   Second command: ${Date.now() - start}ms`);
 
     await newSandbox.stop();
   }
 
   console.log("\n5️⃣  Comparison: Creating from BASE snapshot...");
-  
+
   start = Date.now();
   const coldSandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: BASE_SNAPSHOT_ID },
@@ -74,9 +91,15 @@ async function main() {
   console.log(`   Create: ${Date.now() - start}ms`);
 
   start = Date.now();
-  await coldSandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
+  await coldSandbox.runCommand({
+    cmd: "echo",
+    args: ["hello"],
+    cwd: "/vercel/sandbox",
+  });
   const coldFirstCmd = Date.now() - start;
-  console.log(`   First command: ${coldFirstCmd}ms ${coldFirstCmd < 1000 ? "✅ FAST!" : "❌ Slow (expected)"}`);
+  console.log(
+    `   First command: ${coldFirstCmd}ms ${coldFirstCmd < 1000 ? "✅ FAST!" : "❌ Slow (expected)"}`,
+  );
 
   await coldSandbox.stop();
 

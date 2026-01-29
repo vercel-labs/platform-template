@@ -287,7 +287,7 @@ export const useAudioDevices = () => {
 
       const deviceList = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = deviceList.filter(
-        (device) => device.kind === "audioinput"
+        (device) => device.kind === "audioinput",
       );
 
       setDevices(audioInputs);
@@ -321,7 +321,7 @@ export const useAudioDevices = () => {
 
       const deviceList = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = deviceList.filter(
-        (device) => device.kind === "audioinput"
+        (device) => device.kind === "audioinput",
       );
 
       setDevices(audioInputs);
@@ -355,7 +355,7 @@ export const useAudioDevices = () => {
     return () => {
       navigator.mediaDevices.removeEventListener(
         "devicechange",
-        handleDeviceChange
+        handleDeviceChange,
       );
     };
   }, [hasPermission, loadDevicesWithPermission, loadDevicesWithoutPermission]);

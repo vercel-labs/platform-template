@@ -1,5 +1,3 @@
-
-
 export const SANDBOX_INSTRUCTIONS = `
 SANDBOX ENVIRONMENT:
 - You are in a Vercel Sandbox at /vercel/sandbox
@@ -27,7 +25,6 @@ CRITICAL RULES:
 - NEVER start the dev server - it's already running
 - Just edit files and the preview updates automatically
 `;
-
 
 export const SANDBOX_DEV_PORT = 3000;
 

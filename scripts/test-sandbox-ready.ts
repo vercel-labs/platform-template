@@ -1,4 +1,3 @@
-
 import { Sandbox } from "@vercel/sandbox";
 
 const SNAPSHOT_ID = "snap_X1Uz65k4dG7MTcGld4ZQdcMHpqeW";
@@ -8,8 +7,10 @@ async function main() {
   console.log("SANDBOX READY STATE INVESTIGATION");
   console.log("=".repeat(70));
 
-  console.log("\n1️⃣  Creating sandbox and polling status during first operation...");
-  
+  console.log(
+    "\n1️⃣  Creating sandbox and polling status during first operation...",
+  );
+
   const createStart = Date.now();
   const sandbox = await Sandbox.create({
     source: { type: "snapshot", snapshotId: SNAPSHOT_ID },
@@ -22,8 +23,12 @@ async function main() {
   console.log(`   Initial status: ${sandbox.status}`);
 
   const opStart = Date.now();
-  const opPromise = sandbox.runCommand({ cmd: "echo", args: ["hello"], cwd: "/vercel/sandbox" });
-  
+  const opPromise = sandbox.runCommand({
+    cmd: "echo",
+    args: ["hello"],
+    cwd: "/vercel/sandbox",
+  });
+
   const pollInterval = setInterval(async () => {
     try {
       const refreshed = await Sandbox.get({ sandboxId: sandbox.sandboxId });
@@ -41,7 +46,11 @@ async function main() {
   console.log(`   Final status: ${refreshedFinal.status}`);
 
   const cmd2Start = Date.now();
-  await sandbox.runCommand({ cmd: "ls", args: ["-la"], cwd: "/vercel/sandbox" });
+  await sandbox.runCommand({
+    cmd: "ls",
+    args: ["-la"],
+    cwd: "/vercel/sandbox",
+  });
   console.log(`   Second command: ${Date.now() - cmd2Start}ms`);
 
   await sandbox.stop();

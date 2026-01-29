@@ -1,6 +1,5 @@
 "use client";
 
-
 import {
   createContext,
   useContext,
@@ -12,13 +11,11 @@ import { Chat } from "@ai-sdk/react";
 import type { ChatMessage, ChatDataPart } from "@/lib/types";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
 
-
 interface ChatContextValue {
   chat: Chat<ChatMessage>;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
-
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const store = useSandboxStore();
@@ -35,14 +32,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           console.error("Chat error:", error);
         },
       }),
-    []
+    [],
   );
 
   return (
     <ChatContext.Provider value={{ chat }}>{children}</ChatContext.Provider>
   );
 }
-
 
 export function useSharedChat() {
   const context = useContext(ChatContext);

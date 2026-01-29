@@ -11,8 +11,10 @@ if (existsSync(envLocalPath)) {
       const [key, ...valueParts] = trimmed.split("=");
       if (key && valueParts.length > 0) {
         let value = valueParts.join("=").trim();
-        if ((value.startsWith('"') && value.endsWith('"')) ||
-            (value.startsWith("'") && value.endsWith("'"))) {
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
           value = value.slice(1, -1);
         }
         if (process.env[key] === undefined) {

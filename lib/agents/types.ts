@@ -1,15 +1,12 @@
-
 import type { Sandbox } from "@vercel/sandbox";
 import type { DataPartType, DataPartPayload } from "@/lib/types";
 
 export type { DataPartType, DataPartPayload } from "@/lib/types";
 
-
 export interface SandboxContext {
   sandboxId: string;
   sandbox: Sandbox;
 }
-
 
 export type StreamChunk =
   | { type: "message-start"; id: string; role: "assistant"; sessionId?: string }
@@ -34,7 +31,6 @@ export type StreamChunk =
     }
   | { type: "error"; message: string; code?: string };
 
-
 export interface ProxyConfig {
   baseUrl: string;
   sessionId: string;
@@ -55,27 +51,38 @@ export interface AgentProvider {
   execute(params: ExecuteParams): AsyncIterable<StreamChunk>;
 }
 
-
-export function isTextDelta(chunk: StreamChunk): chunk is Extract<StreamChunk, { type: "text-delta" }> {
+export function isTextDelta(
+  chunk: StreamChunk,
+): chunk is Extract<StreamChunk, { type: "text-delta" }> {
   return chunk.type === "text-delta";
 }
 
-export function isToolStart(chunk: StreamChunk): chunk is Extract<StreamChunk, { type: "tool-start" }> {
+export function isToolStart(
+  chunk: StreamChunk,
+): chunk is Extract<StreamChunk, { type: "tool-start" }> {
   return chunk.type === "tool-start";
 }
 
-export function isToolResult(chunk: StreamChunk): chunk is Extract<StreamChunk, { type: "tool-result" }> {
+export function isToolResult(
+  chunk: StreamChunk,
+): chunk is Extract<StreamChunk, { type: "tool-result" }> {
   return chunk.type === "tool-result";
 }
 
-export function isDataChunk(chunk: StreamChunk): chunk is Extract<StreamChunk, { type: "data" }> {
+export function isDataChunk(
+  chunk: StreamChunk,
+): chunk is Extract<StreamChunk, { type: "data" }> {
   return chunk.type === "data";
 }
 
-export function isMessageEnd(chunk: StreamChunk): chunk is Extract<StreamChunk, { type: "message-end" }> {
+export function isMessageEnd(
+  chunk: StreamChunk,
+): chunk is Extract<StreamChunk, { type: "message-end" }> {
   return chunk.type === "message-end";
 }
 
-export function isError(chunk: StreamChunk): chunk is Extract<StreamChunk, { type: "error" }> {
+export function isError(
+  chunk: StreamChunk,
+): chunk is Extract<StreamChunk, { type: "error" }> {
   return chunk.type === "error";
 }

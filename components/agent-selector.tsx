@@ -1,6 +1,5 @@
 "use client";
 
-
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,7 +41,7 @@ export function AgentSelector({ className, disabled }: AgentSelectorProps) {
         disabled={disabled}
         className={cn(
           "flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800",
-          className
+          className,
         )}
       >
         <AgentLogo provider={selectedAgent.logo} />
@@ -56,7 +55,7 @@ export function AgentSelector({ className, disabled }: AgentSelectorProps) {
             onClick={() => setAgentId(agent.id)}
             className={cn(
               "flex items-center gap-3 cursor-pointer",
-              agent.id === agentId && "bg-zinc-100 dark:bg-zinc-800"
+              agent.id === agentId && "bg-zinc-100 dark:bg-zinc-800",
             )}
           >
             <AgentLogo provider={agent.logo} className="h-5 w-5" />

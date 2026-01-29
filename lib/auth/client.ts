@@ -1,4 +1,3 @@
-
 "use client";
 
 export async function redirectToSignIn(): Promise<void> {
@@ -6,7 +5,7 @@ export async function redirectToSignIn(): Promise<void> {
     `/api/auth/signin/vercel?${new URLSearchParams({
       next: window.location.pathname,
     }).toString()}`,
-    { method: "POST" }
+    { method: "POST" },
   );
 
   const { url } = await response.json();
@@ -21,7 +20,7 @@ export async function redirectToSignOut(): Promise<void> {
   const response = await fetch(
     `/api/auth/signout?${new URLSearchParams({
       next: window.location.pathname,
-    }).toString()}`
+    }).toString()}`,
   );
 
   const { url } = await response.json();

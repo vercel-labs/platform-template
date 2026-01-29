@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { SessionUserInfo } from "@/lib/auth";

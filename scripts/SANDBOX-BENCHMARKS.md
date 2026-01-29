@@ -9,6 +9,7 @@ This document summarizes benchmarking done on Vercel Sandbox startup times and s
 Every new sandbox has an unavoidable ~11 second cold start on the **first I/O operation** (file read, write, or command execution).
 
 This cold start is **NOT** affected by:
+
 - Snapshot size (433MB vs 680MB - same ~11s)
 - vCPU count (2, 4, 8 vCPUs - same ~11s)
 - What's in the snapshot (minimal vs full with AI agents)
@@ -16,18 +17,19 @@ This cold start is **NOT** affected by:
 
 ### Timing Breakdown
 
-| Operation | Cold Sandbox | Warm Sandbox |
-|-----------|--------------|--------------|
-| `Sandbox.create()` | ~500ms | N/A |
-| `Sandbox.get()` | ~100ms | ~100ms |
-| First I/O operation | **~11,000ms** | **~200ms** |
-| Subsequent operations | ~200ms | ~200ms |
-| Dev server ready | ~1,700ms | ~230ms |
-| **Total to responsive** | **~12,000ms** | **~700ms** |
+| Operation               | Cold Sandbox  | Warm Sandbox |
+| ----------------------- | ------------- | ------------ |
+| `Sandbox.create()`      | ~500ms        | N/A          |
+| `Sandbox.get()`         | ~100ms        | ~100ms       |
+| First I/O operation     | **~11,000ms** | **~200ms**   |
+| Subsequent operations   | ~200ms        | ~200ms       |
+| Dev server ready        | ~1,700ms      | ~230ms       |
+| **Total to responsive** | **~12,000ms** | **~700ms**   |
 
 ### What Triggers Cold Start
 
 The ~11s penalty happens on the **first I/O to the sandbox**, which includes:
+
 - `sandbox.runCommand()` - any command
 - `sandbox.readFileToBuffer()` - reading files
 - `sandbox.writeFiles()` - writing files
@@ -40,12 +42,12 @@ If you fire multiple operations in parallel on a cold sandbox, they all complete
 
 ## Snapshot Configurations Tested
 
-| Config | Size | Cold Start | Notes |
-|--------|------|------------|-------|
-| Minimal (Next.js only) | 433MB | ~11s | Fastest subsequent commands |
-| With Turbopack cache | 498MB | ~11s | Faster dev server startup |
-| With AI agents (Claude+Codex) | 498MB | ~17s | Slower! |
-| Current (all agents + cache) | 680MB | ~21s | Slowest |
+| Config                        | Size  | Cold Start | Notes                       |
+| ----------------------------- | ----- | ---------- | --------------------------- |
+| Minimal (Next.js only)        | 433MB | ~11s       | Fastest subsequent commands |
+| With Turbopack cache          | 498MB | ~11s       | Faster dev server startup   |
+| With AI agents (Claude+Codex) | 498MB | ~17s       | Slower!                     |
+| Current (all agents + cache)  | 680MB | ~21s       | Slowest                     |
 
 **Recommendation:** Use minimal snapshot. AI agents add significant overhead to cold start.
 
@@ -53,7 +55,7 @@ If you fire multiple operations in parallel on a cold sandbox, they all complete
 
 ```bash
 MINIMAL_SNAPSHOT_ID=snap_X1Uz65k4dG7MTcGld4ZQdcMHpqeW  # 433MB
-CACHED_SNAPSHOT_ID=snap_htgd5PjGaQOyKOdIMGtiMXpFhSl6   # 498MB  
+CACHED_SNAPSHOT_ID=snap_htgd5PjGaQOyKOdIMGtiMXpFhSl6   # 498MB
 FULL_SNAPSHOT_ID=snap_ZSSVcGWxa8hcHBu0ogrdqThOgKVX     # 498MB (with agents)
 ```
 
@@ -141,40 +143,42 @@ if (needsSandbox) {
 ## Can Sandboxes Fork?
 
 **No.** The SDK only supports:
+
 - `Sandbox.create()` - Creates new sandbox (cold)
 - `Sandbox.get()` - Gets reference to existing sandbox
 - `sandbox.snapshot()` - Creates snapshot but **stops the sandbox**
 
 There is no way to:
+
 - Fork a running sandbox
-- Clone a warm sandbox  
+- Clone a warm sandbox
 - Create a sandbox that inherits runtime warmth
 
 Snapshotting a warm sandbox and creating from that snapshot does NOT preserve warmth - the new sandbox still has the ~11s cold start.
 
 ## Resource Configuration
 
-| vCPUs | RAM | Cold Start | Dev Server |
-|-------|-----|------------|------------|
-| 2 | 4GB | ~11s | ~1.7s |
-| 4 | 8GB | ~11s | ~1.7s |
-| 8 | 16GB | ~11s | ~1.7s |
+| vCPUs | RAM  | Cold Start | Dev Server |
+| ----- | ---- | ---------- | ---------- |
+| 2     | 4GB  | ~11s       | ~1.7s      |
+| 4     | 8GB  | ~11s       | ~1.7s      |
+| 8     | 16GB | ~11s       | ~1.7s      |
 
 More resources don't help with cold start. The bottleneck appears to be infrastructure-level (VM boot, network routing, filesystem mounting).
 
 ## Benchmark Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `benchmark-sandbox-comprehensive.ts` | Full benchmark suite |
-| `benchmark-resources.ts` | Test different vCPU configs |
-| `benchmark-warmup-strategies.ts` | Compare warmup approaches |
-| `benchmark-sandbox-pool.ts` | Test pool strategy |
-| `benchmark-e2e-startup.ts` | End-to-end timing |
-| `benchmark-snapshot-configs.ts` | Compare snapshot sizes |
-| `test-warm-snapshot.ts` | Test if warm snapshots help |
-| `investigate-cold-start.ts` | Diagnose cold start cause |
-| `inspect-snapshot.ts` | Show snapshot contents |
+| Script                               | Purpose                     |
+| ------------------------------------ | --------------------------- |
+| `benchmark-sandbox-comprehensive.ts` | Full benchmark suite        |
+| `benchmark-resources.ts`             | Test different vCPU configs |
+| `benchmark-warmup-strategies.ts`     | Compare warmup approaches   |
+| `benchmark-sandbox-pool.ts`          | Test pool strategy          |
+| `benchmark-e2e-startup.ts`           | End-to-end timing           |
+| `benchmark-snapshot-configs.ts`      | Compare snapshot sizes      |
+| `test-warm-snapshot.ts`              | Test if warm snapshots help |
+| `investigate-cold-start.ts`          | Diagnose cold start cause   |
+| `inspect-snapshot.ts`                | Show snapshot contents      |
 
 ### Running Benchmarks
 
@@ -202,6 +206,7 @@ The platform currently uses **Strategy 1** (accept cold start + show progress):
 5. Subsequent messages are fast (~200ms)
 
 Files modified:
+
 - `lib/store/sandbox-store.ts` - Added "warming" status
 - `lib/rpc/procedures/chat.ts` - Sends warming/ready status
 - `components/chat/chat.tsx` - Shows indicator during warming

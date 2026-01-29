@@ -1,4 +1,3 @@
-
 import { Sandbox } from "@vercel/sandbox";
 
 const SNAPSHOT_ID = process.env.NEXTJS_SNAPSHOT_ID!;
@@ -60,7 +59,10 @@ async function main() {
     console.log("-".repeat(50));
     const duTurbo = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "du -sh .next/dev/cache/turbopack 2>/dev/null || echo 'No Turbopack cache'"],
+      args: [
+        "-c",
+        "du -sh .next/dev/cache/turbopack 2>/dev/null || echo 'No Turbopack cache'",
+      ],
       cwd: "/vercel/sandbox",
     });
     console.log(await duTurbo.stdout());
@@ -79,21 +81,30 @@ async function main() {
 
     const claude = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "which claude 2>/dev/null && claude --version 2>/dev/null | head -1 || echo 'Claude not found'"],
+      args: [
+        "-c",
+        "which claude 2>/dev/null && claude --version 2>/dev/null | head -1 || echo 'Claude not found'",
+      ],
       cwd: "/vercel/sandbox",
     });
     console.log("Claude:", (await claude.stdout()).trim());
 
     const opencode = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "which opencode 2>/dev/null && opencode --version 2>/dev/null | head -1 || echo 'OpenCode not found'"],
+      args: [
+        "-c",
+        "which opencode 2>/dev/null && opencode --version 2>/dev/null | head -1 || echo 'OpenCode not found'",
+      ],
       cwd: "/vercel/sandbox",
     });
     console.log("OpenCode:", (await opencode.stdout()).trim());
 
     const codex = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "which codex 2>/dev/null && codex --version 2>/dev/null | head -1 || echo 'Codex not found'"],
+      args: [
+        "-c",
+        "which codex 2>/dev/null && codex --version 2>/dev/null | head -1 || echo 'Codex not found'",
+      ],
       cwd: "/vercel/sandbox",
     });
     console.log("Codex:", (await codex.stdout()).trim());
@@ -118,7 +129,10 @@ async function main() {
 
     const duNpmGlobal = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "du -sh $(npm root -g) 2>/dev/null || echo 'Cannot determine'"],
+      args: [
+        "-c",
+        "du -sh $(npm root -g) 2>/dev/null || echo 'Cannot determine'",
+      ],
       cwd: "/vercel/sandbox",
     });
     console.log("Global npm size:", (await duNpmGlobal.stdout()).trim());
@@ -128,7 +142,9 @@ async function main() {
     console.log("=".repeat(70));
     const breakdown = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", `
+      args: [
+        "-c",
+        `
         echo "Project (node_modules):"
         du -sh /vercel/sandbox/node_modules 2>/dev/null || echo "  N/A"
         echo ""
@@ -143,11 +159,11 @@ async function main() {
         echo ""
         echo "TOTAL /vercel/sandbox:"
         du -sh /vercel/sandbox 2>/dev/null
-      `],
+      `,
+      ],
       cwd: "/",
     });
     console.log(await breakdown.stdout());
-
   } finally {
     await sandbox.stop();
   }

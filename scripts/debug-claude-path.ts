@@ -24,7 +24,7 @@ async function main() {
 
   // Check various locations
   console.log("\nChecking locations...");
-  
+
   const checks = [
     "which claude",
     "ls -la ~/.claude/local/bin/ 2>/dev/null || echo 'not found'",

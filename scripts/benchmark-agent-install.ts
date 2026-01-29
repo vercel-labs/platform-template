@@ -28,17 +28,20 @@ async function benchmark() {
     sudo: true,
   });
   console.log(`Claude CLI: ${Date.now() - t}ms (exit: ${claude.exitCode})`);
-  
+
   // Verify claude works
   const claudeCheck = await sandbox.runCommand({
-    cmd: "sh", 
-    args: ["-c", "source ~/.bashrc 2>/dev/null; which claude && claude --version"],
+    cmd: "sh",
+    args: [
+      "-c",
+      "source ~/.bashrc 2>/dev/null; which claude && claude --version",
+    ],
     sudo: true,
   });
   console.log(`Claude check: ${await claudeCheck.stdout()}`);
   console.log();
 
-  // Codex CLI  
+  // Codex CLI
   console.log("Installing Codex CLI...");
   t = Date.now();
   const codex = await sandbox.runCommand({
@@ -69,10 +72,15 @@ async function benchmark() {
   t = Date.now();
   const codexBun = await sandbox.runCommand({
     cmd: "sh",
-    args: ["-c", "export BUN_INSTALL=/root/.bun && export PATH=$BUN_INSTALL/bin:$PATH && bun install -g @openai/codex"],
+    args: [
+      "-c",
+      "export BUN_INSTALL=/root/.bun && export PATH=$BUN_INSTALL/bin:$PATH && bun install -g @openai/codex",
+    ],
     sudo: true,
   });
-  console.log(`Codex CLI (bun): ${Date.now() - t}ms (exit: ${codexBun.exitCode})`);
+  console.log(
+    `Codex CLI (bun): ${Date.now() - t}ms (exit: ${codexBun.exitCode})`,
+  );
   if (codexBun.exitCode !== 0) {
     console.log(`stderr: ${await codexBun.stderr()}`);
   }

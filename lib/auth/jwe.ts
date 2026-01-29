@@ -7,7 +7,7 @@ function decodeSecret(secret: string): Uint8Array {
 export async function encryptJWE<T extends object>(
   payload: T,
   expirationTime: string,
-  secret: string | undefined = process.env.JWE_SECRET
+  secret: string | undefined = process.env.JWE_SECRET,
 ): Promise<string> {
   if (!secret) {
     throw new Error("Missing JWE_SECRET environment variable");
@@ -21,7 +21,7 @@ export async function encryptJWE<T extends object>(
 
 export async function decryptJWE<T extends object>(
   ciphertext: string,
-  secret: string | undefined = process.env.JWE_SECRET
+  secret: string | undefined = process.env.JWE_SECRET,
 ): Promise<T | undefined> {
   if (!secret) {
     throw new Error("Missing JWE_SECRET environment variable");

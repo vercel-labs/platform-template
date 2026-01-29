@@ -1,4 +1,3 @@
-
 import { Sandbox } from "@vercel/sandbox";
 import { writeFileSync } from "fs";
 
@@ -16,7 +15,7 @@ async function main() {
 
   try {
     console.log("1️⃣  Running create-next-app...");
-    
+
     const createApp = await sandbox.runCommand({
       cmd: "npx",
       args: [
@@ -25,7 +24,7 @@ async function main() {
         "/tmp/app",
         "--yes",
         "--typescript",
-        "--tailwind", 
+        "--tailwind",
         "--eslint",
         "--app",
         "--src-dir",
@@ -39,7 +38,7 @@ async function main() {
     if (createApp.exitCode !== 0) {
       throw new Error(`create-next-app failed: ${await createApp.stderr()}`);
     }
-    
+
     await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "cp -r /tmp/app/. /vercel/sandbox/"],
@@ -59,7 +58,10 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 `;
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/next.config.ts", content: Buffer.from(nextConfig) },
+      {
+        path: "/vercel/sandbox/next.config.ts",
+        content: Buffer.from(nextConfig),
+      },
     ]);
     console.log("   ✅ next.config.ts updated\n");
 
@@ -74,36 +76,48 @@ export default nextConfig;
 }
 `;
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/src/app/page.tsx", content: Buffer.from(minimalPage) },
+      {
+        path: "/vercel/sandbox/src/app/page.tsx",
+        content: Buffer.from(minimalPage),
+      },
     ]);
     console.log("   ✅ Starter page created\n");
 
     console.log("4️⃣  Building Turbopack cache...");
-    
-    sandbox.runCommand({
-      cmd: "npm",
-      args: ["run", "dev"],
-      cwd: "/vercel/sandbox",
-      detached: true,
-    }).catch(() => {});
-    
+
+    sandbox
+      .runCommand({
+        cmd: "npm",
+        args: ["run", "dev"],
+        cwd: "/vercel/sandbox",
+        detached: true,
+      })
+      .catch(() => {});
+
     console.log("   Waiting for compilation...");
     for (let i = 0; i < 60; i++) {
       const curl = await sandbox.runCommand({
         cmd: "curl",
-        args: ["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:3000"],
+        args: [
+          "-s",
+          "-o",
+          "/dev/null",
+          "-w",
+          "%{http_code}",
+          "http://localhost:3000",
+        ],
         cwd: "/vercel/sandbox",
       });
       if ((await curl.stdout()).trim() === "200") {
         console.log("   ✅ Server compiled");
         break;
       }
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
     }
-    
+
     console.log("   Waiting for cache flush (5s)...");
-    await new Promise(r => setTimeout(r, 5000));
-    
+    await new Promise((r) => setTimeout(r, 5000));
+
     await sandbox.runCommand({
       cmd: "sync",
       cwd: "/vercel/sandbox",
@@ -117,7 +131,7 @@ export default nextConfig;
       cwd: "/",
     });
     console.log("   Total: " + (await du1.stdout()).trim());
-    
+
     const du2 = await sandbox.runCommand({
       cmd: "du",
       args: ["-sh", ".next"],
@@ -135,9 +149,11 @@ export default nextConfig;
     console.log(`\nContents: Next.js + Tailwind + .next cache (NO AI agents)`);
     console.log("\n" + "=".repeat(60));
 
-    writeFileSync("scripts/cached-snapshot-id.txt", `CACHED_SNAPSHOT_ID=${snapshot.snapshotId}\n`);
+    writeFileSync(
+      "scripts/cached-snapshot-id.txt",
+      `CACHED_SNAPSHOT_ID=${snapshot.snapshotId}\n`,
+    );
     console.log("\n📄 Saved to scripts/cached-snapshot-id.txt\n");
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     try {

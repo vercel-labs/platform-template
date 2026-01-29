@@ -21,7 +21,9 @@ describe("SandboxStore", () => {
       const store = useSandboxStore.getState();
       store.setPreviewUrl("https://preview.vercel.app");
 
-      expect(useSandboxStore.getState().previewUrl).toBe("https://preview.vercel.app");
+      expect(useSandboxStore.getState().previewUrl).toBe(
+        "https://preview.vercel.app",
+      );
     });
 
     test("setStatus updates status", () => {
@@ -39,7 +41,9 @@ describe("SandboxStore", () => {
       const store = useSandboxStore.getState();
       store.addFile("/vercel/sandbox/index.ts");
 
-      expect(useSandboxStore.getState().files).toEqual(["/vercel/sandbox/index.ts"]);
+      expect(useSandboxStore.getState().files).toEqual([
+        "/vercel/sandbox/index.ts",
+      ]);
     });
 
     test("addFile deduplicates paths", () => {
@@ -47,7 +51,9 @@ describe("SandboxStore", () => {
       store.addFile("/vercel/sandbox/index.ts");
       store.addFile("/vercel/sandbox/index.ts");
 
-      expect(useSandboxStore.getState().files).toEqual(["/vercel/sandbox/index.ts"]);
+      expect(useSandboxStore.getState().files).toEqual([
+        "/vercel/sandbox/index.ts",
+      ]);
     });
 
     test("addFile sorts paths", () => {
@@ -185,9 +191,13 @@ describe("handleDataPart", () => {
 
   test("handles data-file-written", () => {
     const store = useSandboxStore.getState();
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/app.tsx" });
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/app.tsx",
+    });
 
-    expect(useSandboxStore.getState().files).toContain("/vercel/sandbox/app.tsx");
+    expect(useSandboxStore.getState().files).toContain(
+      "/vercel/sandbox/app.tsx",
+    );
   });
 
   test("handles data-preview-url", () => {
@@ -197,7 +207,9 @@ describe("handleDataPart", () => {
       port: 3000,
     });
 
-    expect(useSandboxStore.getState().previewUrl).toBe("https://my-app.vercel.run");
+    expect(useSandboxStore.getState().previewUrl).toBe(
+      "https://my-app.vercel.run",
+    );
   });
 
   test("handles data-command-output", () => {
@@ -236,10 +248,16 @@ describe("handleDataPart", () => {
 
   test("accumulates multiple file writes", () => {
     const store = useSandboxStore.getState();
-    
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/index.ts" });
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/app.tsx" });
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/styles.css" });
+
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/index.ts",
+    });
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/app.tsx",
+    });
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/styles.css",
+    });
 
     expect(useSandboxStore.getState().files).toHaveLength(3);
   });
@@ -286,9 +304,15 @@ describe("integration: simulated agent stream", () => {
       status: "ready",
     });
 
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/package.json" });
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/src/index.ts" });
-    handleDataPart(store, "data-file-written", { path: "/vercel/sandbox/src/App.tsx" });
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/package.json",
+    });
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/src/index.ts",
+    });
+    handleDataPart(store, "data-file-written", {
+      path: "/vercel/sandbox/src/App.tsx",
+    });
 
     handleDataPart(store, "data-command-output", {
       command: "npm install",

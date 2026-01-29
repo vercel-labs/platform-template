@@ -1,4 +1,3 @@
-
 import { type NextRequest } from "next/server";
 import { OAuth2Client, type OAuth2Tokens } from "arctic";
 import { cookies } from "next/headers";
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const client = new OAuth2Client(
     process.env.VERCEL_CLIENT_ID ?? "",
     process.env.VERCEL_CLIENT_SECRET ?? "",
-    `${req.nextUrl.origin}/api/auth/callback/vercel`
+    `${req.nextUrl.origin}/api/auth/callback/vercel`,
   );
 
   let tokens: OAuth2Tokens;
@@ -36,7 +35,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     tokens = await client.validateAuthorizationCode(
       VERCEL_OAUTH.token,
       code,
-      storedVerifier
+      storedVerifier,
     );
   } catch (error) {
     console.error("[auth] Failed to exchange code for tokens:", error);

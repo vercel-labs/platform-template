@@ -1,4 +1,3 @@
-
 import { Sandbox } from "@vercel/sandbox";
 import { writeFileSync, appendFileSync, existsSync, readFileSync } from "fs";
 
@@ -16,7 +15,7 @@ async function main() {
 
   try {
     console.log("1️⃣  Running create-next-app...");
-    
+
     const createApp = await sandbox.runCommand({
       cmd: "npx",
       args: [
@@ -25,7 +24,7 @@ async function main() {
         "/tmp/app",
         "--yes",
         "--typescript",
-        "--tailwind", 
+        "--tailwind",
         "--eslint",
         "--app",
         "--src-dir",
@@ -42,21 +41,23 @@ async function main() {
     if (createStderr) console.log("   stderr:", createStderr);
 
     if (createApp.exitCode !== 0) {
-      throw new Error(`create-next-app failed with exit code ${createApp.exitCode}`);
+      throw new Error(
+        `create-next-app failed with exit code ${createApp.exitCode}`,
+      );
     }
-    
+
     console.log("   Moving files to /vercel/sandbox...");
     const moveFiles = await sandbox.runCommand({
       cmd: "sh",
       args: ["-c", "cp -r /tmp/app/. /vercel/sandbox/"],
       cwd: "/vercel/sandbox",
     });
-    
+
     if (moveFiles.exitCode !== 0) {
       const stderr = await moveFiles.stderr();
       throw new Error(`Failed to move files: ${stderr}`);
     }
-    
+
     const verifyLs = await sandbox.runCommand({
       cmd: "ls",
       args: ["-la"],
@@ -64,8 +65,10 @@ async function main() {
     });
     console.log("   Files after setup:");
     console.log(await verifyLs.stdout());
-    
-    const pkgCheck = await sandbox.readFileToBuffer({ path: "/vercel/sandbox/package.json" });
+
+    const pkgCheck = await sandbox.readFileToBuffer({
+      path: "/vercel/sandbox/package.json",
+    });
     if (!pkgCheck) {
       throw new Error("package.json not found!");
     }
@@ -77,7 +80,7 @@ async function main() {
       args: ["shadcn@latest", "init", "-y", "-d"],
       cwd: "/vercel/sandbox",
     });
-    
+
     if (shadcnInit.exitCode !== 0) {
       console.log("   ⚠️  shadcn init had issues (non-fatal)");
     } else {
@@ -96,7 +99,10 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 `;
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/next.config.ts", content: Buffer.from(nextConfig) },
+      {
+        path: "/vercel/sandbox/next.config.ts",
+        content: Buffer.from(nextConfig),
+      },
     ]);
     console.log("   ✅ next.config.ts updated\n");
 
@@ -111,7 +117,10 @@ export default nextConfig;
 }
 `;
     await sandbox.writeFiles([
-      { path: "/vercel/sandbox/src/app/page.tsx", content: Buffer.from(minimalPage) },
+      {
+        path: "/vercel/sandbox/src/app/page.tsx",
+        content: Buffer.from(minimalPage),
+      },
     ]);
     console.log("   ✅ Starter page created\n");
 
@@ -127,7 +136,10 @@ export default nextConfig;
     if (claudeInstall.exitCode === 0) {
       console.log("   ✅ Claude Code installed");
     } else {
-      console.log("   ⚠️  Claude Code install had issues:", await claudeInstall.stderr());
+      console.log(
+        "   ⚠️  Claude Code install had issues:",
+        await claudeInstall.stderr(),
+      );
     }
 
     const claudeVersion = await sandbox.runCommand({
@@ -146,15 +158,23 @@ export default nextConfig;
     if (opencodeInstall.exitCode === 0) {
       console.log("   ✅ OpenCode installed");
     } else {
-      console.log("   ⚠️  OpenCode install had issues:", await opencodeInstall.stderr());
+      console.log(
+        "   ⚠️  OpenCode install had issues:",
+        await opencodeInstall.stderr(),
+      );
     }
 
     const opencodeVersion = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "source ~/.bashrc 2>/dev/null; opencode --version 2>/dev/null || echo 'version check skipped'"],
+      args: [
+        "-c",
+        "source ~/.bashrc 2>/dev/null; opencode --version 2>/dev/null || echo 'version check skipped'",
+      ],
       cwd: "/vercel/sandbox",
     });
-    console.log(`   OpenCode version: ${(await opencodeVersion.stdout()).trim()}`);
+    console.log(
+      `   OpenCode version: ${(await opencodeVersion.stdout()).trim()}`,
+    );
 
     console.log("\n   📦 Installing Codex...");
     const codexInstall = await sandbox.runCommand({
@@ -165,12 +185,18 @@ export default nextConfig;
     if (codexInstall.exitCode === 0) {
       console.log("   ✅ Codex installed");
     } else {
-      console.log("   ⚠️  Codex install had issues:", await codexInstall.stderr());
+      console.log(
+        "   ⚠️  Codex install had issues:",
+        await codexInstall.stderr(),
+      );
     }
 
     const codexVersion = await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", "codex --version 2>/dev/null || echo 'version check skipped'"],
+      args: [
+        "-c",
+        "codex --version 2>/dev/null || echo 'version check skipped'",
+      ],
       cwd: "/vercel/sandbox",
     });
     console.log(`   Codex version: ${(await codexVersion.stdout()).trim()}`);
@@ -178,19 +204,28 @@ export default nextConfig;
     console.log("\n   ✅ AI coding agents installed\n");
 
     console.log("5️⃣  Starting dev server to build Turbopack cache...\n");
-    
-    sandbox.runCommand({
-      cmd: "npm",
-      args: ["run", "dev"],
-      cwd: "/vercel/sandbox",
-      detached: true,
-    }).catch(() => {});
-    
+
+    sandbox
+      .runCommand({
+        cmd: "npm",
+        args: ["run", "dev"],
+        cwd: "/vercel/sandbox",
+        detached: true,
+      })
+      .catch(() => {});
+
     console.log("   Waiting for compilation...");
     for (let i = 0; i < 60; i++) {
       const curl = await sandbox.runCommand({
         cmd: "curl",
-        args: ["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:3000"],
+        args: [
+          "-s",
+          "-o",
+          "/dev/null",
+          "-w",
+          "%{http_code}",
+          "http://localhost:3000",
+        ],
         cwd: "/vercel/sandbox",
       });
       const status = (await curl.stdout()).trim();
@@ -201,34 +236,39 @@ export default nextConfig;
       if (i === 59) {
         console.log("   ⚠️  Server didn't respond in time, continuing anyway");
       }
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
     }
-    
+
     console.log("   Waiting for Turbopack cache to flush (5s)...");
-    await new Promise(r => setTimeout(r, 5000));
-    
+    await new Promise((r) => setTimeout(r, 5000));
+
     console.log("   Syncing filesystem...");
     await sandbox.runCommand({
       cmd: "sync",
       cwd: "/vercel/sandbox",
       sudo: true,
     });
-    
+
     const cacheSize = await sandbox.runCommand({
       cmd: "du",
       args: ["-sh", ".next/dev/cache/turbopack"],
       cwd: "/vercel/sandbox",
     });
     const cacheSizeStr = (await cacheSize.stdout()).trim();
-    console.log(`   Turbopack cache size: ${cacheSizeStr.split('\t')[0]}`);
-    
+    console.log(`   Turbopack cache size: ${cacheSizeStr.split("\t")[0]}`);
+
     const lsNext = await sandbox.runCommand({
       cmd: "ls",
       args: ["-la", ".next"],
       cwd: "/vercel/sandbox",
     });
     console.log("   .next contents:");
-    console.log((await lsNext.stdout()).split('\n').map(l => `      ${l}`).join('\n'));
+    console.log(
+      (await lsNext.stdout())
+        .split("\n")
+        .map((l) => `      ${l}`)
+        .join("\n"),
+    );
 
     const nextVersionResult = await sandbox.runCommand({
       cmd: "sh",
@@ -254,7 +294,7 @@ export default nextConfig;
 # Expires: ~7 days from creation
 #
 # Contents:
-# - Next.js (latest) + React 19 + TypeScript ${nextVersionLine ? `(${nextVersionLine})` : ''}
+# - Next.js (latest) + React 19 + TypeScript ${nextVersionLine ? `(${nextVersionLine})` : ""}
 # - Tailwind CSS
 # - shadcn/ui (initialized, add components with: npx shadcn@latest add <name>)
 # - ESLint configured
@@ -274,19 +314,22 @@ NEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}
     if (existsSync(envLocalPath)) {
       const envContent = readFileSync(envLocalPath, "utf-8");
       if (!envContent.includes("NEXTJS_SNAPSHOT_ID")) {
-        appendFileSync(envLocalPath, `\n# Next.js Sandbox Snapshot\nNEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}\n`);
+        appendFileSync(
+          envLocalPath,
+          `\n# Next.js Sandbox Snapshot\nNEXTJS_SNAPSHOT_ID=${snapshot.snapshotId}\n`,
+        );
         console.log("📄 Added NEXTJS_SNAPSHOT_ID to .env.local");
       } else {
-        console.log("⚠️  NEXTJS_SNAPSHOT_ID already in .env.local - update manually if needed");
+        console.log(
+          "⚠️  NEXTJS_SNAPSHOT_ID already in .env.local - update manually if needed",
+        );
       }
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     try {
       await sandbox.stop();
-    } catch {
-    }
+    } catch {}
     process.exit(1);
   }
 }

@@ -1,8 +1,6 @@
-
 import type { AgentProvider, ExecuteParams, StreamChunk } from "./types";
 import { SANDBOX_INSTRUCTIONS, SANDBOX_BASE_PATH } from "./constants";
 import { DATA_PART_TYPES } from "@/lib/types";
-
 
 interface CodexThreadStarted {
   type: "thread.started";
@@ -72,7 +70,6 @@ type CodexMessage =
   | CodexItemStarted
   | CodexItemCompleted
   | CodexError;
-
 
 export class CodexAgentProvider implements AgentProvider {
   id = "codex";
@@ -157,8 +154,7 @@ export class CodexAgentProvider implements AgentProvider {
                 totalUsage.outputTokens += message.usage.output_tokens;
                 gotResult = true;
               }
-            } catch {
-            }
+            } catch {}
           }
         }
       }
@@ -177,8 +173,7 @@ export class CodexAgentProvider implements AgentProvider {
             totalUsage.outputTokens += message.usage.output_tokens;
             gotResult = true;
           }
-        } catch {
-        }
+        } catch {}
       }
 
       const finished = await cmd.wait();
@@ -203,7 +198,6 @@ export class CodexAgentProvider implements AgentProvider {
       };
     }
   }
-
 
   private convertToStreamChunks(message: CodexMessage): StreamChunk[] {
     const chunks: StreamChunk[] = [];
@@ -269,7 +263,7 @@ export class CodexAgentProvider implements AgentProvider {
 
   private convertItemToChunks(
     item: CodexItem,
-    phase: "started" | "completed"
+    phase: "started" | "completed",
   ): StreamChunk[] {
     const chunks: StreamChunk[] = [];
 
@@ -395,6 +389,5 @@ export class CodexAgentProvider implements AgentProvider {
     return chunks;
   }
 }
-
 
 export const codexAgent = new CodexAgentProvider();

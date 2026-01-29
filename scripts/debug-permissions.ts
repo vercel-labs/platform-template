@@ -10,19 +10,19 @@ async function main() {
 
   // Check who we are with and without sudo
   console.log("=== Identity checks ===");
-  
+
   const whoami = await sandbox.runCommand({ cmd: "whoami" });
   console.log(`Without sudo: ${(await whoami.stdout()).trim()}`);
-  
+
   const whoamiSudo = await sandbox.runCommand({ cmd: "whoami", sudo: true });
   console.log(`With sudo: ${(await whoamiSudo.stdout()).trim()}`);
 
   // Check /vercel/sandbox permissions
   console.log("\n=== /vercel/sandbox permissions ===");
-  const ls = await sandbox.runCommand({ 
-    cmd: "ls", 
+  const ls = await sandbox.runCommand({
+    cmd: "ls",
     args: ["-la", "/vercel/sandbox"],
-    sudo: true 
+    sudo: true,
   });
   console.log(await ls.stdout());
 
@@ -33,7 +33,7 @@ async function main() {
     args: ["-c", "echo 'test' > /vercel/sandbox/test.txt"],
     sudo: true,
   });
-  
+
   const lsAfter = await sandbox.runCommand({
     cmd: "ls",
     args: ["-la", "/vercel/sandbox/test.txt"],

@@ -106,7 +106,7 @@ export const SpeechInput = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [mode, setMode] = useState<SpeechInputMode>("none");
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(
-    null
+    null,
   );
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -173,7 +173,7 @@ export const SpeechInput = ({
   const startMediaRecorder = useCallback(async () => {
     if (!onAudioRecorded) {
       console.warn(
-        "SpeechInput: onAudioRecorded callback is required for MediaRecorder fallback"
+        "SpeechInput: onAudioRecorded callback is required for MediaRecorder fallback",
       );
       return;
     }
@@ -285,7 +285,7 @@ export const SpeechInput = ({
           isListening
             ? "bg-destructive text-white hover:bg-destructive/80 hover:text-white"
             : "bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
-          className
+          className,
         )}
         disabled={isDisabled}
         onClick={toggleListening}

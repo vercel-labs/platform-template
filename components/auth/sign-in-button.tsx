@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -41,12 +40,7 @@ export function SignInButton({ className }: SignInButtonProps) {
 
 function VercelIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      fill="currentColor"
-      height={9}
-      viewBox="0 0 75 65"
-    >
+    <svg aria-hidden="true" fill="currentColor" height={9} viewBox="0 0 75 65">
       <title>Vercel Logo</title>
       <path d="M37.59.25l36.95 64H.64l36.95-64z" />
     </svg>

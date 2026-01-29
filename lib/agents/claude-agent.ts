@@ -1,8 +1,6 @@
-
 import type { AgentProvider, ExecuteParams, StreamChunk } from "./types";
 import { SANDBOX_INSTRUCTIONS, SANDBOX_BASE_PATH } from "./constants";
 import { DATA_PART_TYPES } from "@/lib/types";
-
 
 interface ClaudeSystemMessage {
   type: "system";
@@ -69,7 +67,6 @@ type ClaudeMessage =
   | ClaudeAssistantMessage
   | ClaudeUserMessage
   | ClaudeResultMessage;
-
 
 export class ClaudeAgentProvider implements AgentProvider {
   id = "claude";
@@ -140,8 +137,7 @@ export class ClaudeAgentProvider implements AgentProvider {
               if (message.type === "result") {
                 gotResult = true;
               }
-            } catch {
-            }
+            } catch {}
           }
         } else if (log.stream === "stderr") {
           stderrBuffer += log.data;
@@ -158,15 +154,18 @@ export class ClaudeAgentProvider implements AgentProvider {
           if (message.type === "result") {
             gotResult = true;
           }
-        } catch {
-        }
+        } catch {}
       }
 
       const finished = await cmd.wait();
 
       if (finished.exitCode !== 0 && !gotResult) {
-        const errorOutput = stderrBuffer || (await finished.stderr().catch(() => ""));
-        console.error(`[claude-agent] CLI exited with code ${finished.exitCode}:`, errorOutput);
+        const errorOutput =
+          stderrBuffer || (await finished.stderr().catch(() => ""));
+        console.error(
+          `[claude-agent] CLI exited with code ${finished.exitCode}:`,
+          errorOutput,
+        );
         yield {
           type: "error",
           message: `Claude CLI exited with code ${finished.exitCode}${errorOutput ? `: ${errorOutput.slice(0, 500)}` : ""}`,
@@ -181,7 +180,6 @@ export class ClaudeAgentProvider implements AgentProvider {
       };
     }
   }
-
 
   private convertToStreamChunks(message: ClaudeMessage): StreamChunk[] {
     const chunks: StreamChunk[] = [];
@@ -276,6 +274,5 @@ export class ClaudeAgentProvider implements AgentProvider {
     return chunks;
   }
 }
-
 
 export const claudeAgent = new ClaudeAgentProvider();

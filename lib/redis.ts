@@ -15,7 +15,7 @@ const SESSION_TTL = 60 * 60;
 
 export async function createSession(
   sessionId: string,
-  options?: { sandboxId?: string }
+  options?: { sandboxId?: string },
 ): Promise<SessionData> {
   const now = Date.now();
   const sessionData: SessionData = {
@@ -32,7 +32,7 @@ export async function createSession(
 }
 
 export async function getSession(
-  sessionId: string
+  sessionId: string,
 ): Promise<SessionData | null> {
   const data = await redis.get(`session:${sessionId}`);
   if (!data) return null;
@@ -54,7 +54,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function updateSessionSandbox(
   sessionId: string,
-  sandboxId: string
+  sandboxId: string,
 ): Promise<boolean> {
   const session = await getSession(sessionId);
   if (!session) return false;
@@ -63,7 +63,7 @@ export async function updateSessionSandbox(
 
   const remainingTtl = Math.max(
     1,
-    Math.floor((session.expiresAt - Date.now()) / 1000)
+    Math.floor((session.expiresAt - Date.now()) / 1000),
   );
 
   await redis.set(`session:${sessionId}`, JSON.stringify(session), {
