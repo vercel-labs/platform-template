@@ -1,6 +1,5 @@
 "use client";
 
-
 import { useState, useCallback, useMemo } from "react";
 import { FolderTree, TerminalIcon } from "lucide-react";
 import { Panel, PanelHeader } from "@/components/ui/panel";
@@ -26,7 +25,6 @@ import { cn } from "@/lib/utils";
 interface WorkspacePanelProps {
   className?: string;
 }
-
 
 interface TreeNode {
   name: string;
@@ -96,12 +94,11 @@ function TreeNodes({ nodes }: { nodes: TreeNode[] }) {
           </FileTreeFolder>
         ) : (
           <FileTreeFile key={node.path} path={node.path} name={node.name} />
-        )
+        ),
       )}
     </>
   );
 }
-
 
 export function WorkspacePanel({ className }: WorkspacePanelProps) {
   const { files, commands, sandboxId } = useSandboxStore();
@@ -134,20 +131,27 @@ export function WorkspacePanel({ className }: WorkspacePanelProps) {
   }, [commands]);
 
   const loadFile = useCallback(
-    (path: string) => {
+    async (path: string) => {
       if (!sandboxId) return;
 
       setSelectedPath(path);
       setLoading(true);
       setFileContent(null);
 
-      rpc.sandbox
-        .readFile({ sandboxId, path })
-        .then((result) => setFileContent(result.content))
-        .catch((err) => setFileContent(`Error loading file: ${err}`))
-        .finally(() => setLoading(false));
+      try {
+        const result = await rpc.sandbox.readFile({ sandboxId, path });
+        if (result.isOk()) {
+          setFileContent(result.value.content);
+        } else {
+          setFileContent(`Error loading file: ${result.error.message}`);
+        }
+      } catch (err) {
+        setFileContent(`Error loading file: ${err}`);
+      } finally {
+        setLoading(false);
+      }
     },
-    [sandboxId]
+    [sandboxId],
   );
 
   return (

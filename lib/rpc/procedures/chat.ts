@@ -1,7 +1,8 @@
-import { os, ORPCError } from "@orpc/server";
+import { os } from "@orpc/server";
 import { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
 import { nanoid } from "nanoid";
+import { Result } from "better-result";
 import {
   getAgent,
   isValidAgent,
@@ -9,41 +10,20 @@ import {
   SANDBOX_DEV_PORT,
 } from "@/lib/agents";
 import { createSession } from "@/lib/redis";
-import { DATA_PART_TYPES } from "@/lib/types";
-import { setupSandbox, SetupProgress } from "@/lib/sandbox/setup";
-import { tryCatch } from "@/lib/utils";
+import { events } from "@/lib/types";
+import { setupSandbox } from "@/lib/sandbox/setup";
+import { SandboxError, SetupError, errorMessage } from "@/lib/errors";
 import type { SandboxContext, ProxyConfig } from "@/lib/agents/types";
 
 const PROXY_BASE_URL =
   process.env.PROXY_BASE_URL ||
   "https://platform-template.labs.vercel.dev/api/ai/proxy";
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "object") return JSON.stringify(error);
-  return String(error);
-}
-
-function sandboxStatusEvent(sandboxId: string, progress: SetupProgress) {
-  return {
-    type: "data" as const,
-    dataType: DATA_PART_TYPES.SANDBOX_STATUS,
-    data: {
-      sandboxId,
-      status: progress.stage === "ready" ? "ready" : "creating",
-      message: progress.message,
-    },
-  };
-}
-
-function sandboxErrorEvent(sandboxId: string, error: string) {
-  return {
-    type: "data" as const,
-    dataType: DATA_PART_TYPES.SANDBOX_STATUS,
-    data: { sandboxId, status: "error", error },
-  };
-}
-
+/**
+ * Send a message to an AI agent in a sandbox.
+ * Creates a new sandbox if sandboxId is not provided.
+ * Streams responses as they are generated.
+ */
 export const sendMessage = os
   .input(
     z.object({
@@ -51,63 +31,88 @@ export const sendMessage = os
       agentId: z.string().optional(),
       sandboxId: z.string().optional(),
       sessionId: z.string().optional(),
-    })
+    }),
   )
-  .handler(async function* ({ input }) {
-    const { prompt, agentId, sandboxId, sessionId } = input;
-
+  .handler(async function* ({
+    input: { prompt, agentId, sandboxId, sessionId },
+  }) {
+    // Resolve agent (use default if not specified or invalid)
     const agent = isValidAgent(agentId ?? "")
       ? getAgent(agentId!)
       : getDefaultAgent();
 
-    // Get existing sandbox or create new one
-    const { data: sandbox, error: sandboxError } = await tryCatch(
-      sandboxId
-        ? Sandbox.get({ sandboxId })
-        : Sandbox.create({ ports: [SANDBOX_DEV_PORT], timeout: 600_000 })
-    );
+    // Get or create sandbox
+    const sandboxResult = await Result.tryPromise({
+      try: () =>
+        sandboxId
+          ? Sandbox.get({ sandboxId })
+          : Sandbox.create({ ports: [SANDBOX_DEV_PORT], timeout: 600_000 }),
+      catch: (err) =>
+        new SandboxError({ message: errorMessage(err), sandboxId }),
+    });
 
-    if (sandboxError || !sandbox) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: `Sandbox error: ${toErrorMessage(sandboxError)}`,
-      });
+    if (sandboxResult.isErr()) {
+      throw sandboxResult.error;
     }
+    const sandbox = sandboxResult.value;
 
-    const isNewSandbox = !sandboxId;
-
-    // Immediately yield sandbox ID so client can show preview
+    // Emit sandbox ID immediately so client can track it
     yield { type: "sandbox-id" as const, sandboxId: sandbox.sandboxId };
 
-    // Set up new sandboxes with Next.js + shadcn + agent CLI
-    if (isNewSandbox) {
+    // Setup new sandbox with agent-specific configuration
+    if (!sandboxId) {
       try {
-        for await (const progress of setupSandbox(sandbox, { agentId: agent.id })) {
-          if (progress) yield sandboxStatusEvent(sandbox.sandboxId, progress);
+        for await (const progress of setupSandbox(sandbox, {
+          agentId: agent.id,
+        })) {
+          if (progress) {
+            const status = progress.stage === "ready" ? "ready" : "creating";
+            yield events.sandboxStatus(
+              sandbox.sandboxId,
+              status,
+              progress.message,
+            );
+          }
         }
       } catch (error) {
-        const message = toErrorMessage(error);
+        const message = errorMessage(error);
         console.error("[chat] Setup failed:", message);
-        yield sandboxErrorEvent(sandbox.sandboxId, message);
-        throw new ORPCError("INTERNAL_SERVER_ERROR", { message: `Sandbox setup failed: ${message}` });
+        yield events.sandboxStatus(
+          sandbox.sandboxId,
+          "error",
+          undefined,
+          message,
+        );
+        throw new SetupError({
+          message: `Sandbox setup failed: ${message}`,
+          step: "setup",
+        });
       }
     }
 
-    // Create proxy session for agent API calls
+    // Create proxy session for secure communication
     const proxySessionId = nanoid(32);
     await createSession(proxySessionId, { sandboxId: sandbox.sandboxId });
 
-    const sandboxContext: SandboxContext = { sandboxId: sandbox.sandboxId, sandbox };
-    const proxyConfig: ProxyConfig = { sessionId: proxySessionId, baseUrl: PROXY_BASE_URL };
+    const sandboxContext: SandboxContext = {
+      sandboxId: sandbox.sandboxId,
+      sandbox,
+    };
+    const proxyConfig: ProxyConfig = {
+      sessionId: proxySessionId,
+      baseUrl: PROXY_BASE_URL,
+    };
 
-    // Stream agent output
-    for await (const chunk of agent.execute({ prompt, sandboxContext, sessionId, proxyConfig })) {
+    // Stream agent responses
+    for await (const chunk of agent.execute({
+      prompt,
+      sandboxContext,
+      sessionId,
+      proxyConfig,
+    })) {
       yield chunk;
     }
 
-    // Yield preview URL at the end
-    yield {
-      type: "data" as const,
-      dataType: DATA_PART_TYPES.PREVIEW_URL,
-      data: { url: sandbox.domain(SANDBOX_DEV_PORT), port: SANDBOX_DEV_PORT },
-    };
+    // Emit preview URL when complete
+    yield events.previewUrl(sandbox.domain(SANDBOX_DEV_PORT), SANDBOX_DEV_PORT);
   });

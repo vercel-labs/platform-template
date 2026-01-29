@@ -26,8 +26,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import useSWRMutation from "swr/mutation";
-import { deployFiles } from "@/actions/deploy-files";
+import { rpc } from "@/lib/rpc/client";
 
 interface LogEntry {
   type: "stdout" | "stderr" | "command" | "state" | "done" | "error";
@@ -58,80 +57,47 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [readyState, setReadyState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const abortRef = useRef(false);
 
-  const { trigger: deploy, isMutating: isDeploying } = useSWRMutation(
-    ["/api/deploy", sandboxId],
-    () =>
-      deployFiles({
-        sandboxId,
-        projectId,
-      })
-  );
-
+  // Stream deployment logs when we have a deploymentId
   useEffect(() => {
     if (!deploymentId) return;
 
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    abortRef.current = false;
 
     const streamLogs = async () => {
       try {
-        const response = await fetch(
-          `/api/deploy/logs?deploymentId=${deploymentId}`,
-          { signal: controller.signal }
-        );
+        const iterator = await rpc.deploy.logs({ deploymentId });
 
-        if (!response.ok || !response.body) {
-          throw new Error("Failed to connect to log stream");
-        }
+        for await (const entry of iterator) {
+          if (abortRef.current) break;
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const entry: LogEntry = JSON.parse(line);
-              
-              if (entry.type === "state" && entry.readyState) {
-                setReadyState(entry.readyState);
-              }
-              
-              if (entry.type === "done" && entry.readyState) {
-                setReadyState(entry.readyState);
-              }
-              
-              if (entry.type === "error") {
-                setError(entry.message || "Build failed");
-              }
-
-              setLogs((prev) => [...prev, entry]);
-            } catch {
-              // ignore parse errors
-            }
+          if (entry.type === "state" && entry.readyState) {
+            setReadyState(entry.readyState);
           }
+
+          if (entry.type === "done" && entry.readyState) {
+            setReadyState(entry.readyState);
+          }
+
+          if (entry.type === "error") {
+            setError(entry.message || "Build failed");
+          }
+
+          setLogs((prev) => [...prev, entry as LogEntry]);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-        console.error("Log stream error:", err);
+        if (!abortRef.current) {
+          console.error("Log stream error:", err);
+        }
       }
     };
 
     streamLogs();
 
     return () => {
-      controller.abort();
+      abortRef.current = true;
     };
   }, [deploymentId]);
 
@@ -139,25 +105,40 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
     setError(null);
     setLogs([]);
     setReadyState(null);
+    setIsDeploying(true);
 
     try {
-      const result = await deploy();
-      if (result) {
-        setDeploymentUrl(result.url);
-        setDeploymentId(result.id);
-        setProjectId(result.projectId);
+      const result = await rpc.deploy.files({
+        sandboxId,
+        projectId,
+      });
+
+      if (result.isOk()) {
+        setDeploymentUrl(result.value.url);
+        setDeploymentId(result.value.id);
+        setProjectId(result.value.projectId);
+        return result.value;
+      } else {
+        const message = result.error.message;
+        setError(message);
+        throw new Error(message);
       }
-      return result;
     } catch (e) {
       const message = e instanceof Error ? e.message : "Deployment failed";
       setError(message);
       throw e;
+    } finally {
+      setIsDeploying(false);
     }
-  }, [deploy]);
+  }, [sandboxId, projectId]);
 
   const getDeploymentState = useCallback((): DeploymentState => {
     if (error) {
-      return { status: "error", message: error };
+      return {
+        status: "error",
+        message: error,
+        logs: logs.length > 0 ? logs : undefined,
+      };
     }
 
     if (isDeploying) {
@@ -185,7 +166,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
   }, [isDeploying, deploymentId, deploymentUrl, readyState, logs, error]);
 
   const reset = useCallback(() => {
-    abortControllerRef.current?.abort();
+    abortRef.current = true;
     setDeploymentId(null);
     setDeploymentUrl(null);
     setLogs([]);
@@ -248,7 +229,11 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen && state.status !== "building" && state.status !== "deploying") {
+    if (
+      !newOpen &&
+      state.status !== "building" &&
+      state.status !== "deploying"
+    ) {
       reset();
     }
   };
@@ -505,7 +490,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                   window.open(
                     `https://${state.url}`,
                     "_blank",
-                    "noopener,noreferrer"
+                    "noopener,noreferrer",
                   )
                 }
               >

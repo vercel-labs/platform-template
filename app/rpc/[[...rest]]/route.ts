@@ -1,11 +1,12 @@
-
 import { RPCHandler } from "@orpc/server/fetch";
 import { onError } from "@orpc/server";
 import { router } from "@/lib/rpc/router";
+import { customJsonSerializers } from "@/lib/rpc/result-serializer";
 
 export const maxDuration = 300;
 
 const handler = new RPCHandler(router, {
+  customJsonSerializers,
   interceptors: [
     onError((error) => {
       console.error("RPC Error:", error);

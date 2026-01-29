@@ -1,8 +1,8 @@
-
 import type { RouterClient } from "@orpc/server";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { AppRouter } from "./router";
+import { customJsonSerializers } from "./result-serializer";
 
 const link = new RPCLink({
   url: () => {
@@ -11,6 +11,7 @@ const link = new RPCLink({
     }
     return `${window.location.origin}/rpc`;
   },
+  customJsonSerializers,
 });
 
 export const rpc: RouterClient<AppRouter> = createORPCClient(link);
