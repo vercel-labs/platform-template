@@ -27,21 +27,20 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { rpc } from "@/lib/rpc/client";
+import type { LogEvent } from "@/lib/rpc/procedures/deploy";
 
-interface LogEntry {
-  type: "stdout" | "stderr" | "command" | "state" | "done" | "error";
-  text?: string;
-  readyState?: string;
-  message?: string;
-  timestamp: number;
+type TextLogEvent = Extract<LogEvent, { text: string }>;
+
+function isTextLog(log: LogEvent): log is TextLogEvent {
+  return "text" in log;
 }
 
 type DeploymentState =
   | { status: "idle" }
   | { status: "deploying"; progress: string }
-  | { status: "building"; deploymentId: string; url?: string; logs: LogEntry[] }
+  | { status: "building"; deploymentId: string; url?: string; logs: LogEvent[] }
   | { status: "ready"; url: string }
-  | { status: "error"; message: string; logs?: LogEntry[] };
+  | { status: "error"; message: string; logs?: LogEvent[] };
 
 type ViewState = "main" | "domain" | "visibility";
 type VisibilityOption = "public" | "private";
@@ -54,7 +53,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [deploymentUrl, setDeploymentUrl] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<LogEvent[]>([]);
   const [readyState, setReadyState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
@@ -84,7 +83,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
             setError(entry.message || "Build failed");
           }
 
-          setLogs((prev) => [...prev, entry as LogEntry]);
+          setLogs((prev) => [...prev, entry]);
         }
       } catch (err) {
         if (!abortRef.current) {
@@ -424,11 +423,9 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                 Building...
               </div>
               <div className="h-48 overflow-y-auto rounded-md bg-zinc-950 p-3 font-mono text-xs">
-                {state.logs
-                  .filter((log) => log.text)
-                  .map((log) => (
+{state.logs.filter(isTextLog).map((log) => (
                     <div
-                      key={`${log.timestamp}-${log.text?.slice(0, 20)}`}
+                      key={`${log.timestamp}-${log.text.slice(0, 20)}`}
                       className={
                         log.type === "stderr"
                           ? "text-red-400"
@@ -453,22 +450,20 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
               </div>
               {state.logs && state.logs.length > 0 && (
                 <div className="h-48 overflow-y-auto rounded-md bg-zinc-950 p-3 font-mono text-xs">
-                  {state.logs
-                    .filter((log) => log.text)
-                    .map((log) => (
-                      <div
-                        key={`${log.timestamp}-${log.text?.slice(0, 20)}`}
-                        className={
-                          log.type === "stderr"
-                            ? "text-red-400"
-                            : log.type === "command"
-                              ? "text-blue-400"
-                              : "text-zinc-300"
-                        }
-                      >
-                        {log.text}
-                      </div>
-                    ))}
+                  {state.logs.filter(isTextLog).map((log) => (
+                    <div
+                      key={`${log.timestamp}-${log.text.slice(0, 20)}`}
+                      className={
+                        log.type === "stderr"
+                          ? "text-red-400"
+                          : log.type === "command"
+                            ? "text-blue-400"
+                            : "text-zinc-300"
+                      }
+                    >
+                      {log.text}
+                    </div>
+                  ))}
                 </div>
               )}
               <Button className="w-full" variant="outline" onClick={reset}>

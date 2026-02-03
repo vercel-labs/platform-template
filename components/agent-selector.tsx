@@ -8,22 +8,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { listAgents } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 
-const AGENTS = [
-  {
-    id: "claude",
-    name: "Claude",
-    description: "Anthropic's Claude Code",
-    logo: "anthropic",
-  },
-  {
-    id: "codex",
-    name: "Codex",
-    description: "OpenAI's Codex",
-    logo: "openai",
-  },
-] as const;
+const AGENTS = listAgents();
 
 interface AgentSelectorProps {
   className?: string;

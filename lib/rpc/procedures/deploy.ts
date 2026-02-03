@@ -159,7 +159,7 @@ export const getDeploymentStatus = os
     }),
   );
 
-type LogEvent =
+export type LogEvent =
   | { type: "stdout" | "stderr" | "command"; text: string; timestamp: number }
   | { type: "state"; readyState: string; timestamp: number }
   | { type: "done"; readyState: string; timestamp: number }

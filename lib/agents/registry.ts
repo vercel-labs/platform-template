@@ -20,12 +20,14 @@ export function getAgent(id: string): AgentProvider {
 export function listAgents(): Array<{
   id: string;
   name: string;
-  description?: string;
+  description: string;
+  logo: string;
 }> {
   return agents.map((a) => ({
     id: a.id,
     name: a.name,
     description: a.description,
+    logo: a.logo,
   }));
 }
 
@@ -36,10 +38,3 @@ export function getDefaultAgent(): AgentProvider {
 export function isValidAgent(id: string): boolean {
   return agents.some((a) => a.id === id);
 }
-
-export type {
-  AgentProvider,
-  StreamChunk,
-  ExecuteParams,
-  SandboxContext,
-} from "./types";

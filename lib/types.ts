@@ -17,9 +17,17 @@ export const AgentStatusSchema = z.object({
   message: z.string().optional(),
 });
 
+export const SandboxStatusEnum = z.enum([
+  "creating",
+  "warming",
+  "ready",
+  "error",
+]);
+export type SandboxStatus = z.infer<typeof SandboxStatusEnum>;
+
 export const SandboxStatusSchema = z.object({
   sandboxId: z.string().optional(),
-  status: z.enum(["creating", "warming", "ready", "error"]),
+  status: SandboxStatusEnum,
   message: z.string().optional(),
   error: z.string().optional(),
 });
@@ -28,10 +36,13 @@ export const FileWrittenSchema = z.object({
   path: z.string(),
 });
 
+export const StreamTypeEnum = z.enum(["stdout", "stderr"]);
+export type StreamType = z.infer<typeof StreamTypeEnum>;
+
 export const CommandOutputSchema = z.object({
   command: z.string(),
   output: z.string(),
-  stream: z.enum(["stdout", "stderr"]),
+  stream: StreamTypeEnum,
   exitCode: z.number().optional(),
 });
 

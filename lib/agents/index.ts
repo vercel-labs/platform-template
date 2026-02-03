@@ -3,9 +3,9 @@ export type {
   ExecuteParams,
   SandboxContext,
   StreamChunk,
-  DataPartType,
-  DataPartPayload,
 } from "./types";
+
+export type { DataPartType, DataPartPayload } from "@/lib/types";
 
 export {
   isTextDelta,

@@ -74,7 +74,8 @@ type CodexMessage =
 export class CodexAgentProvider implements AgentProvider {
   id = "codex";
   name = "Codex";
-  description = "OpenAI Codex running natively in the sandbox";
+  description = "OpenAI's Codex";
+  logo = "openai";
 
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
     const { prompt, sandboxContext, sessionId, proxyConfig } = params;

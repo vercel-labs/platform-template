@@ -1,8 +1,6 @@
 import type { Sandbox } from "@vercel/sandbox";
 import type { DataPartType, DataPartPayload } from "@/lib/types";
 
-export type { DataPartType, DataPartPayload } from "@/lib/types";
-
 export interface SandboxContext {
   sandboxId: string;
   sandbox: Sandbox;
@@ -47,6 +45,8 @@ export interface AgentProvider {
   id: string;
   name: string;
   description: string;
+  /** Logo identifier for UI (e.g., "anthropic", "openai") */
+  logo: string;
 
   execute(params: ExecuteParams): AsyncIterable<StreamChunk>;
 }

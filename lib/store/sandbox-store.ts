@@ -7,11 +7,13 @@ import {
   type FileWrittenData,
   type PreviewUrlData,
   type CommandOutputData,
+  type SandboxStatus,
+  type StreamType,
 } from "@/lib/types";
 
 export interface CommandLog {
   timestamp: number;
-  stream: "stdout" | "stderr";
+  stream: StreamType;
   data: string;
 }
 
@@ -27,7 +29,7 @@ export interface Command {
 export interface SandboxState {
   sandboxId: string | null;
   previewUrl: string | null;
-  status: "creating" | "warming" | "ready" | "error" | null;
+  status: SandboxStatus | null;
   statusMessage: string | null;
 
   sessionId: string | null;

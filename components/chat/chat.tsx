@@ -29,7 +29,8 @@ type MessagePart =
       state: "streaming" | "done";
     };
 
-interface ChatMessage {
+/** UI representation of a chat message, accumulated from StreamChunk events */
+interface ChatMessageUI {
   id: string;
   role: "user" | "assistant";
   parts: MessagePart[];
@@ -41,7 +42,7 @@ interface ChatProps {
 
 export function Chat({ className }: ChatProps) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessageUI[]>([]);
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
   const {
     sandboxId,
@@ -57,7 +58,7 @@ export function Chat({ className }: ChatProps) {
     async (text: string) => {
       if (!text.trim() || status === "streaming") return;
 
-      const userMessage: ChatMessage = {
+      const userMessage: ChatMessageUI = {
         id: crypto.randomUUID(),
         role: "user",
         parts: [{ type: "text", content: text }],
@@ -326,7 +327,7 @@ export function Chat({ className }: ChatProps) {
   );
 }
 
-function MessageView({ message }: { message: ChatMessage }) {
+function MessageView({ message }: { message: ChatMessageUI }) {
   const isUser = message.role === "user";
 
   return (

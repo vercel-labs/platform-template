@@ -70,8 +70,9 @@ type ClaudeMessage =
 
 export class ClaudeAgentProvider implements AgentProvider {
   id = "claude";
-  name = "Claude Code";
-  description = "Claude Code running natively in the sandbox";
+  name = "Claude";
+  description = "Anthropic's Claude Code";
+  logo = "anthropic";
 
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
     const { prompt, sandboxContext, sessionId, proxyConfig } = params;
