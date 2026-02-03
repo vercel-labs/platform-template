@@ -71,11 +71,15 @@ async function readFileForDeploy(
     );
   }
 
+  // Sandbox SDK returns a Node stream; Response expects a web ReadableStream
   const data = await new Response(stream as unknown as ReadableStream).text();
   return Result.ok({ file: toRelativePath(path), data });
 }
 
-/** Read multiple files, fails fast on first error */
+/**
+ * Read multiple files from sandbox.
+ * Reads sequentially to fail fast on first missing file.
+ */
 async function readFilesForDeploy(
   sandbox: Sandbox,
   paths: string[],

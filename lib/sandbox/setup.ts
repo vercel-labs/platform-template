@@ -1,5 +1,9 @@
 import type { Sandbox, CommandFinished } from "@vercel/sandbox";
-import { SANDBOX_BASE_PATH, SANDBOX_DEV_PORT } from "@/lib/agents/constants";
+import {
+  SANDBOX_BASE_PATH,
+  SANDBOX_DEV_PORT,
+  DEV_SERVER_READY_TIMEOUT_MS,
+} from "@/lib/agents/constants";
 import { Result } from "better-result";
 
 export type SetupStage =
@@ -181,7 +185,7 @@ export async function* setupSandbox(
 
   const agent = AGENTS[agentId];
 
-  // Start dev server (detached)
+  // Start dev server (detached - fire and forget)
   sandbox
     .runCommand({
       cmd: "bun",
@@ -190,7 +194,10 @@ export async function* setupSandbox(
       sudo: true,
       detached: true,
     })
-    .catch(() => {});
+    .catch((err) => {
+      // Log but don't fail - the dev server runs detached
+      console.error("[setup] Dev server command failed:", err);
+    });
 
   // Install agent CLI
   const agentInstallPromise = agent
@@ -233,7 +240,7 @@ export async function* setupSandbox(
 
 async function waitForDevServer(
   url: string,
-  timeoutMs = 30_000,
+  timeoutMs = DEV_SERVER_READY_TIMEOUT_MS,
 ): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -244,7 +251,7 @@ async function waitForDevServer(
       console.log("[setup] Dev server ready");
       return true;
     }
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
   console.warn("[setup] Dev server timeout");
   return false;

@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getVercelOidcToken } from "@vercel/oidc";
-import { redis, type SessionData } from "@/lib/redis";
+import { redis, type ProxySessionData } from "@/lib/redis";
 
 export const maxDuration = 300;
 
@@ -27,7 +27,7 @@ async function handleRequest(request: NextRequest) {
   }
 
   const data = await redis.get(`session:${sessionId}`);
-  const session = data as SessionData | null;
+  const session = data as ProxySessionData | null;
 
   if (!session) {
     return new Response(

@@ -8,16 +8,25 @@ import {
   isValidAgent,
   getDefaultAgent,
   SANDBOX_DEV_PORT,
+  SANDBOX_TIMEOUT_MS,
 } from "@/lib/agents";
-import { createSession } from "@/lib/redis";
+import { createProxySession } from "@/lib/redis";
 import { events } from "@/lib/types";
 import { setupSandbox } from "@/lib/sandbox/setup";
 import { SandboxError, SetupError, errorMessage } from "@/lib/errors";
 import type { SandboxContext, ProxyConfig } from "@/lib/agents/types";
 
+// Proxy URL for AI requests (routes through our API to add auth)
+// In development, defaults to localhost; in production, must be set via env
 const PROXY_BASE_URL =
   process.env.PROXY_BASE_URL ||
-  "https://platform-template.labs.vercel.dev/api/ai/proxy";
+  (process.env.NODE_ENV === "development"
+    ? "http://localhost:3000/api/ai/proxy"
+    : undefined);
+
+if (!PROXY_BASE_URL) {
+  throw new Error("PROXY_BASE_URL environment variable is required in production");
+}
 
 /**
  * Send a message to an AI agent in a sandbox.
@@ -37,8 +46,8 @@ export const sendMessage = os
     input: { prompt, agentId, sandboxId, sessionId },
   }) {
     // Resolve agent (use default if not specified or invalid)
-    const agent = isValidAgent(agentId ?? "")
-      ? getAgent(agentId!)
+    const agent = agentId && isValidAgent(agentId)
+      ? getAgent(agentId)
       : getDefaultAgent();
 
     // Get or create sandbox
@@ -46,7 +55,7 @@ export const sendMessage = os
       try: () =>
         sandboxId
           ? Sandbox.get({ sandboxId })
-          : Sandbox.create({ ports: [SANDBOX_DEV_PORT], timeout: 600_000 }),
+          : Sandbox.create({ ports: [SANDBOX_DEV_PORT], timeout: SANDBOX_TIMEOUT_MS }),
       catch: (err) =>
         new SandboxError({ message: errorMessage(err), sandboxId }),
     });
@@ -92,7 +101,7 @@ export const sendMessage = os
 
     // Create proxy session for secure communication
     const proxySessionId = nanoid(32);
-    await createSession(proxySessionId, { sandboxId: sandbox.sandboxId });
+    await createProxySession(proxySessionId, { sandboxId: sandbox.sandboxId });
 
     const sandboxContext: SandboxContext = {
       sandboxId: sandbox.sandboxId,

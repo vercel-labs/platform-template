@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
-import { createSession, updateSessionSandbox } from "@/lib/redis";
+import { createProxySession, updateProxySessionSandbox } from "@/lib/redis";
 
 export const maxDuration = 10;
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
     const sessionId = nanoid(32);
 
-    await createSession(sessionId, { sandboxId });
+    await createProxySession(sessionId, { sandboxId });
 
     return NextResponse.json({
       sessionId,
@@ -41,7 +41,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const updated = await updateSessionSandbox(sessionId, sandboxId);
+    const updated = await updateProxySessionSandbox(sessionId, sandboxId);
 
     if (!updated) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });

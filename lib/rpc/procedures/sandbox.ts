@@ -2,7 +2,12 @@ import { os } from "@orpc/server";
 import { z } from "zod";
 import { Result } from "better-result";
 import { Sandbox } from "@vercel/sandbox";
-import { SANDBOX_BASE_PATH, SANDBOX_DEV_PORT } from "@/lib/agents";
+import {
+  SANDBOX_BASE_PATH,
+  SANDBOX_DEV_PORT,
+  SANDBOX_VITE_PORT,
+  SANDBOX_TIMEOUT_MS,
+} from "@/lib/agents";
 import {
   SandboxError,
   FileNotFoundError,
@@ -108,8 +113,8 @@ export const getOrCreateSandbox = os
       try: async () => ({
         sandboxId: (
           await Sandbox.create({
-            ports: [SANDBOX_DEV_PORT, 5173],
-            timeout: 600_000,
+            ports: [SANDBOX_DEV_PORT, SANDBOX_VITE_PORT],
+            timeout: SANDBOX_TIMEOUT_MS,
           })
         ).sandboxId,
         isNew: true,

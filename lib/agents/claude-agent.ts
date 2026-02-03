@@ -137,7 +137,9 @@ export class ClaudeAgentProvider implements AgentProvider {
               if (message.type === "result") {
                 gotResult = true;
               }
-            } catch {}
+            } catch {
+              // Non-JSON lines are expected (progress indicators, blank lines)
+            }
           }
         } else if (log.stream === "stderr") {
           stderrBuffer += log.data;

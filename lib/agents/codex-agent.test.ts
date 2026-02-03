@@ -2,7 +2,7 @@ import { test, expect, describe, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
 import { nanoid } from "nanoid";
 import { CodexAgentProvider } from "./codex-agent";
-import { createSession } from "@/lib/redis";
+import { createProxySession } from "@/lib/redis";
 import type { StreamChunk, SandboxContext, ProxyConfig } from "./types";
 
 const PROXY_BASE_URL =

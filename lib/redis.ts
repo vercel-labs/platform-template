@@ -1,3 +1,11 @@
+/**
+ * Redis client and proxy session management.
+ *
+ * Proxy sessions are short-lived tokens used to authenticate
+ * sandbox-to-API communication through the proxy endpoint.
+ * Not to be confused with user auth sessions in lib/auth/session.ts.
+ */
+
 import { Redis } from "@upstash/redis";
 
 export const redis = new Redis({
@@ -5,58 +13,63 @@ export const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 });
 
-export interface SessionData {
+/** Data stored for each proxy session */
+export interface ProxySessionData {
   createdAt: number;
   expiresAt: number;
   sandboxId?: string;
 }
 
-const SESSION_TTL = 60 * 60;
+const PROXY_SESSION_TTL_SECONDS = 60 * 60; // 1 hour
 
-export async function createSession(
+/** Create a new proxy session for sandbox communication */
+export async function createProxySession(
   sessionId: string,
   options?: { sandboxId?: string },
-): Promise<SessionData> {
+): Promise<ProxySessionData> {
   const now = Date.now();
-  const sessionData: SessionData = {
+  const sessionData: ProxySessionData = {
     createdAt: now,
-    expiresAt: now + SESSION_TTL * 1000,
+    expiresAt: now + PROXY_SESSION_TTL_SECONDS * 1000,
     sandboxId: options?.sandboxId,
   };
 
   await redis.set(`session:${sessionId}`, JSON.stringify(sessionData), {
-    ex: SESSION_TTL,
+    ex: PROXY_SESSION_TTL_SECONDS,
   });
 
   return sessionData;
 }
 
-export async function getSession(
+/** Get an existing proxy session by ID */
+export async function getProxySession(
   sessionId: string,
-): Promise<SessionData | null> {
+): Promise<ProxySessionData | null> {
   const data = await redis.get(`session:${sessionId}`);
   if (!data) return null;
 
   try {
     if (typeof data === "string") {
-      return JSON.parse(data) as SessionData;
+      return JSON.parse(data) as ProxySessionData;
     }
-    return data as SessionData;
+    return data as ProxySessionData;
   } catch (error) {
     console.error("[redis] Failed to parse session data:", error);
     return null;
   }
 }
 
-export async function deleteSession(sessionId: string): Promise<void> {
+/** Delete a proxy session */
+export async function deleteProxySession(sessionId: string): Promise<void> {
   await redis.del(`session:${sessionId}`);
 }
 
-export async function updateSessionSandbox(
+/** Update the sandboxId for an existing proxy session */
+export async function updateProxySessionSandbox(
   sessionId: string,
   sandboxId: string,
 ): Promise<boolean> {
-  const session = await getSession(sessionId);
+  const session = await getProxySession(sessionId);
   if (!session) return false;
 
   session.sandboxId = sandboxId;
