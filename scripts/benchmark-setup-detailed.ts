@@ -13,12 +13,10 @@ async function benchmark() {
   });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   console.log("Warming up...");
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
   console.log("Warmed up\n");
 
-  // Check node/npm versions
   console.log("Checking versions...");
   const nodeV = await sandbox.runCommand({
     cmd: "node",
@@ -33,7 +31,6 @@ async function benchmark() {
   console.log(`Node: ${(await nodeV.stdout()).trim()}`);
   console.log(`NPM: ${(await npmV.stdout()).trim()}\n`);
 
-  // Check disk space
   console.log("Checking disk...");
   const df = await sandbox.runCommand({
     cmd: "df",
@@ -42,7 +39,6 @@ async function benchmark() {
   });
   console.log(await df.stdout());
 
-  // Try a simple npm install first
   console.log("Testing simple npm install (just next)...");
   let t = Date.now();
   await sandbox.runCommand({
@@ -55,7 +51,6 @@ async function benchmark() {
   });
   console.log(`Simple npm install: ${Date.now() - t}ms\n`);
 
-  // Try create-next-app with --use-npm explicitly
   console.log("Testing create-next-app with --use-npm...");
   t = Date.now();
   const cna = await sandbox.runCommand({
@@ -84,7 +79,6 @@ async function benchmark() {
   }
   console.log();
 
-  // Try without all the options
   console.log("Testing minimal create-next-app...");
   t = Date.now();
   const cna2 = await sandbox.runCommand({
@@ -100,7 +94,6 @@ async function benchmark() {
   }
   console.log();
 
-  // Check npm cache location
   console.log("NPM cache info...");
   const cache = await sandbox.runCommand({
     cmd: "npm",

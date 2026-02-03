@@ -9,8 +9,6 @@ import { Vercel } from "@vercel/sdk";
 import { Result } from "better-result";
 import { getSessionFromCookie, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { SandboxNotFoundError, ValidationError } from "@/lib/errors";
-
-/** Get sandbox by ID, returns Result with typed error */
 export function getSandbox(sandboxId: string) {
   return Result.tryPromise({
     try: () => Sandbox.get({ sandboxId }),
@@ -21,8 +19,6 @@ export function getSandbox(sandboxId: string) {
       }),
   });
 }
-
-/** Get authenticated Vercel SDK client from session cookie */
 export async function getVercelClient() {
   const cookieStore = await cookies();
   const session = await getSessionFromCookie(

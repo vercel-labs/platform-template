@@ -11,15 +11,11 @@ import {
   errorMessage,
 } from "@/lib/errors";
 import { getSandbox, getVercelClient } from "../utils";
-
-/** Strip sandbox base path prefix for deployment */
 function toRelativePath(filePath: string): string {
   return filePath
     .replace(new RegExp(`^${SANDBOX_BASE_PATH}/?`), "")
     .replace(/^\//, "");
 }
-
-/** List all deployable files in sandbox (excludes node_modules, .git, etc) */
 async function listDeployableFiles(
   sandbox: Sandbox,
   sandboxId: string,
@@ -58,8 +54,6 @@ async function listDeployableFiles(
 
   return Result.ok(files);
 }
-
-/** Read file contents from sandbox for deployment */
 async function readFileForDeploy(
   sandbox: Sandbox,
   path: string,
@@ -71,15 +65,9 @@ async function readFileForDeploy(
     );
   }
 
-  // Sandbox SDK returns a Node stream; Response expects a web ReadableStream
   const data = await new Response(stream as unknown as ReadableStream).text();
   return Result.ok({ file: toRelativePath(path), data });
 }
-
-/**
- * Read multiple files from sandbox.
- * Reads sequentially to fail fast on first missing file.
- */
 async function readFilesForDeploy(
   sandbox: Sandbox,
   paths: string[],
@@ -96,8 +84,6 @@ async function readFilesForDeploy(
 
   return Result.ok(files);
 }
-
-/** Deploy all files from a sandbox to Vercel */
 export const deployFiles = os
   .input(
     z.object({
@@ -111,13 +97,11 @@ export const deployFiles = os
       const vercel = yield* Result.await(getVercelClient());
       const sandbox = yield* Result.await(getSandbox(sandboxId));
 
-      // Gather files from sandbox
       const filePaths = yield* Result.await(
         listDeployableFiles(sandbox, sandboxId),
       );
       const files = yield* Result.await(readFilesForDeploy(sandbox, filePaths));
 
-      // Create deployment
       const name =
         deploymentName ||
         `platform-deploy-${Math.random().toString(36).slice(2, 6)}`;
@@ -141,7 +125,6 @@ export const deployFiles = os
         }),
       );
 
-      // Disable SSO protection for new projects
       if (!projectId) {
         await vercel.projects.updateProject({
           requestBody: { ssoProtection: null },
@@ -156,8 +139,6 @@ export const deployFiles = os
       });
     }),
   );
-
-/** Get current status of a deployment */
 export const getDeploymentStatus = os
   .input(z.object({ deploymentId: z.string() }))
   .handler(({ input: { deploymentId } }) =>
@@ -178,7 +159,6 @@ export const getDeploymentStatus = os
     }),
   );
 
-// Log event types for streaming
 type LogEvent =
   | { type: "stdout" | "stderr" | "command"; text: string; timestamp: number }
   | { type: "state"; readyState: string; timestamp: number }
@@ -187,8 +167,6 @@ type LogEvent =
 
 const TERMINAL_STATES = ["READY", "ERROR", "CANCELED"];
 const LOG_TYPES = ["stdout", "stderr", "command"];
-
-/** Stream deployment build logs in real-time */
 export const streamDeploymentLogs = os
   .input(z.object({ deploymentId: z.string() }))
   .handler(async function* ({
@@ -227,12 +205,10 @@ export const streamDeploymentLogs = os
         }>;
 
         for (const event of events ?? []) {
-          // Skip already-seen events
           const serial = event.serial ?? event.payload?.serial;
           if (serial && serial <= lastSerial) continue;
           if (serial) lastSerial = serial;
 
-          // Emit log output
           const text = event.text ?? event.payload?.text;
           if (text && LOG_TYPES.includes(event.type)) {
             yield {
@@ -242,7 +218,6 @@ export const streamDeploymentLogs = os
             };
           }
 
-          // Emit state changes
           const state =
             event.info?.readyState ?? event.payload?.info?.readyState;
           if (event.type === "deployment-state" && state) {
@@ -250,7 +225,6 @@ export const streamDeploymentLogs = os
           }
         }
 
-        // Check if deployment finished
         if (TERMINAL_STATES.includes(readyState as string)) {
           yield {
             type: "done",

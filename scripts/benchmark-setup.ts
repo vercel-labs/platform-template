@@ -12,7 +12,6 @@ async function benchmark() {
   const times: Record<string, number> = {};
   const start = Date.now();
 
-  // Step 1: Create sandbox
   console.log("1. Creating blank sandbox...");
   const t1 = Date.now();
   const sandbox = await Sandbox.create({
@@ -24,7 +23,6 @@ async function benchmark() {
     `   ✓ ${times["create_sandbox"]}ms - Sandbox: ${sandbox.sandboxId}\n`,
   );
 
-  // Step 2: First command (triggers cold start)
   console.log("2. First command (cold start)...");
   const t2 = Date.now();
   const warmup = await sandbox.runCommand({
@@ -35,7 +33,6 @@ async function benchmark() {
   times["cold_start"] = Date.now() - t2;
   console.log(`   ✓ ${times["cold_start"]}ms - Cold start complete\n`);
 
-  // Step 3: create-next-app
   console.log("3. Running create-next-app...");
   const t3 = Date.now();
   const createNextjs = await sandbox.runCommand({
@@ -65,7 +62,6 @@ async function benchmark() {
     console.log(`   ✓ ${times["create_next_app"]}ms - Next.js created\n`);
   }
 
-  // Step 4: shadcn init
   console.log("4. Running shadcn init...");
   const t4 = Date.now();
   const shadcn = await sandbox.runCommand({
@@ -77,7 +73,6 @@ async function benchmark() {
   times["shadcn_init"] = Date.now() - t4;
   console.log(`   ✓ ${times["shadcn_init"]}ms - shadcn initialized\n`);
 
-  // Step 5: Install claude CLI
   console.log("5. Installing Claude CLI...");
   const t5 = Date.now();
   const claude = await sandbox.runCommand({
@@ -89,7 +84,6 @@ async function benchmark() {
   times["claude_install"] = Date.now() - t5;
   console.log(`   ✓ ${times["claude_install"]}ms - Claude installed\n`);
 
-  // Step 6: Start dev server
   console.log("6. Starting dev server...");
   const t6 = Date.now();
   sandbox
@@ -102,7 +96,6 @@ async function benchmark() {
     })
     .catch(() => {});
 
-  // Wait for server
   const previewUrl = sandbox.domain(3000);
   let serverReady = false;
   while (Date.now() - t6 < 30000) {
@@ -123,7 +116,6 @@ async function benchmark() {
     `   ✓ ${times["dev_server"]}ms - Dev server ${serverReady ? "ready" : "timeout"}\n`,
   );
 
-  // Summary
   const total = Date.now() - start;
   console.log("=".repeat(50));
   console.log("SUMMARY");
@@ -150,7 +142,6 @@ async function benchmark() {
   console.log(`TOTAL:             ${total.toString().padStart(6)}ms`);
   console.log("=".repeat(50));
 
-  // Cleanup
   await sandbox.stop();
 }
 

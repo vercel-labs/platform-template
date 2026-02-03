@@ -99,13 +99,11 @@ async function benchmark() {
   });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   console.log("Warming up...");
   let t = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
   console.log(`Warmup: ${Date.now() - t}ms\n`);
 
-  // Check if bun exists
   const bunCheck = await sandbox.runCommand({
     cmd: "which",
     args: ["bun"],
@@ -125,7 +123,6 @@ async function benchmark() {
     console.log(`Bun install: ${Date.now() - t}ms\n`);
   }
 
-  // Write files
   console.log("Writing project files...");
   t = Date.now();
   const files = Object.entries(PROJECT_FILES).map(([path, content]) => ({
@@ -135,7 +132,6 @@ async function benchmark() {
   await sandbox.writeFiles(files);
   console.log(`Write files: ${Date.now() - t}ms\n`);
 
-  // bun install
   console.log("Running bun install...");
   t = Date.now();
   const install = await sandbox.runCommand({

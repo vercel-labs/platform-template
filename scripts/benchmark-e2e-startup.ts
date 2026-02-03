@@ -51,7 +51,6 @@ async function benchmarkSnapshot(
     let devServerReady = -1;
 
     for (let i = 0; i < 240; i++) {
-      // 60 seconds max
       try {
         const res = await fetch(url, {
           method: "HEAD",

@@ -23,7 +23,6 @@ async function benchmark(agentId: string) {
   const totalStart = Date.now();
   const times: Record<string, number> = {};
 
-  // Create sandbox
   let t = Date.now();
   const sandbox = await Sandbox.create({
     ports: [SANDBOX_DEV_PORT],
@@ -32,7 +31,6 @@ async function benchmark(agentId: string) {
   times["create_sandbox"] = Date.now() - t;
   console.log(`1. Create sandbox: ${times["create_sandbox"]}ms`);
 
-  // Install bun
   t = Date.now();
   await sandbox.runCommand({
     cmd: "sh",
@@ -42,7 +40,6 @@ async function benchmark(agentId: string) {
   times["install_bun"] = Date.now() - t;
   console.log(`2. Install bun: ${times["install_bun"]}ms`);
 
-  // bunx create-next-app
   t = Date.now();
   const createApp = await sandbox.runCommand({
     cmd: "sh",
@@ -58,10 +55,8 @@ async function benchmark(agentId: string) {
     `3. bunx create-next-app: ${times["create_next_app"]}ms (exit: ${createApp.exitCode})`,
   );
 
-  // Start dev server + install agent in parallel
   t = Date.now();
 
-  // Start dev server (detached)
   sandbox
     .runCommand({
       cmd: "sh",
@@ -72,7 +67,6 @@ async function benchmark(agentId: string) {
     })
     .catch(() => {});
 
-  // Install agent
   const agentInstallCmd = AGENT_INSTALL_COMMANDS[agentId];
   const agentPromise = sandbox.runCommand({
     cmd: "sh",
@@ -80,7 +74,6 @@ async function benchmark(agentId: string) {
     sudo: true,
   });
 
-  // Wait for dev server
   const previewUrl = sandbox.domain(SANDBOX_DEV_PORT);
   const devServerReady = (async () => {
     const maxWait = 30000;
@@ -107,7 +100,6 @@ async function benchmark(agentId: string) {
   console.log(`   - Agent install exit: ${agentResult.exitCode}`);
   console.log(`   - Dev server ready in: ${devTime}ms`);
 
-  // Verify agent works
   const verifyCmd =
     agentId === "claude"
       ? "source ~/.bashrc 2>/dev/null; which claude"

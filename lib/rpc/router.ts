@@ -12,17 +12,14 @@ import * as chat from "./procedures/chat";
 import * as deploy from "./procedures/deploy";
 
 export const router = {
-  /** Sandbox file operations */
   sandbox: {
     readFile: sandbox.readFile,
     listFiles: sandbox.listFiles,
     getOrCreate: sandbox.getOrCreateSandbox,
   },
-  /** AI chat with streaming responses */
   chat: {
     send: chat.sendMessage,
   },
-  /** Vercel deployment operations */
   deploy: {
     files: deploy.deployFiles,
     status: deploy.getDeploymentStatus,

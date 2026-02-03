@@ -60,7 +60,6 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
   const [isDeploying, setIsDeploying] = useState(false);
   const abortRef = useRef(false);
 
-  // Stream deployment logs when we have a deploymentId
   useEffect(() => {
     if (!deploymentId) return;
 

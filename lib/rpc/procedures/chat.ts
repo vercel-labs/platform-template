@@ -16,8 +16,6 @@ import { setupSandbox } from "@/lib/sandbox/setup";
 import { SandboxError, SetupError, errorMessage } from "@/lib/errors";
 import type { SandboxContext, ProxyConfig } from "@/lib/agents/types";
 
-// Proxy URL for AI requests (routes through our API to add auth)
-// In development, defaults to localhost; in production, must be set via env
 const PROXY_BASE_URL =
   process.env.PROXY_BASE_URL ||
   (process.env.NODE_ENV === "development"
@@ -27,12 +25,6 @@ const PROXY_BASE_URL =
 if (!PROXY_BASE_URL) {
   throw new Error("PROXY_BASE_URL environment variable is required in production");
 }
-
-/**
- * Send a message to an AI agent in a sandbox.
- * Creates a new sandbox if sandboxId is not provided.
- * Streams responses as they are generated.
- */
 export const sendMessage = os
   .input(
     z.object({
@@ -45,12 +37,10 @@ export const sendMessage = os
   .handler(async function* ({
     input: { prompt, agentId, sandboxId, sessionId },
   }) {
-    // Resolve agent (use default if not specified or invalid)
     const agent = agentId && isValidAgent(agentId)
       ? getAgent(agentId)
       : getDefaultAgent();
 
-    // Get or create sandbox
     const sandboxResult = await Result.tryPromise({
       try: () =>
         sandboxId
@@ -65,10 +55,8 @@ export const sendMessage = os
     }
     const sandbox = sandboxResult.value;
 
-    // Emit sandbox ID immediately so client can track it
     yield { type: "sandbox-id" as const, sandboxId: sandbox.sandboxId };
 
-    // Setup new sandbox with agent-specific configuration
     if (!sandboxId) {
       try {
         for await (const progress of setupSandbox(sandbox, {
@@ -99,7 +87,6 @@ export const sendMessage = os
       }
     }
 
-    // Create proxy session for secure communication
     const proxySessionId = nanoid(32);
     await createProxySession(proxySessionId, { sandboxId: sandbox.sandboxId });
 
@@ -112,7 +99,6 @@ export const sendMessage = os
       baseUrl: PROXY_BASE_URL,
     };
 
-    // Stream agent responses
     for await (const chunk of agent.execute({
       prompt,
       sandboxContext,
@@ -122,6 +108,5 @@ export const sendMessage = os
       yield chunk;
     }
 
-    // Emit preview URL when complete
     yield events.previewUrl(sandbox.domain(SANDBOX_DEV_PORT), SANDBOX_DEV_PORT);
   });

@@ -12,8 +12,6 @@ export const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
 });
-
-/** Data stored for each proxy session */
 export interface ProxySessionData {
   createdAt: number;
   expiresAt: number;
@@ -21,8 +19,6 @@ export interface ProxySessionData {
 }
 
 const PROXY_SESSION_TTL_SECONDS = 60 * 60; // 1 hour
-
-/** Create a new proxy session for sandbox communication */
 export async function createProxySession(
   sessionId: string,
   options?: { sandboxId?: string },
@@ -40,8 +36,6 @@ export async function createProxySession(
 
   return sessionData;
 }
-
-/** Get an existing proxy session by ID */
 export async function getProxySession(
   sessionId: string,
 ): Promise<ProxySessionData | null> {
@@ -58,13 +52,9 @@ export async function getProxySession(
     return null;
   }
 }
-
-/** Delete a proxy session */
 export async function deleteProxySession(sessionId: string): Promise<void> {
   await redis.del(`session:${sessionId}`);
 }
-
-/** Update the sandboxId for an existing proxy session */
 export async function updateProxySessionSandbox(
   sessionId: string,
   sandboxId: string,

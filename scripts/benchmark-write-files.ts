@@ -6,7 +6,6 @@ import { Sandbox } from "@vercel/sandbox";
 
 const SANDBOX_BASE_PATH = "/vercel/sandbox";
 
-// Minimal Next.js project files
 const PROJECT_FILES = {
   "package.json": JSON.stringify(
     {
@@ -122,13 +121,11 @@ async function benchmark() {
   });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   console.log("Warming up...");
   let t = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
   console.log(`Warmup: ${Date.now() - t}ms\n`);
 
-  // Write all files
   console.log("Writing project files...");
   t = Date.now();
 
@@ -140,7 +137,6 @@ async function benchmark() {
   await sandbox.writeFiles(files);
   console.log(`Write files: ${Date.now() - t}ms\n`);
 
-  // npm install
   console.log("Running npm install...");
   t = Date.now();
   const install = await sandbox.runCommand({
@@ -155,7 +151,6 @@ async function benchmark() {
   }
   console.log();
 
-  // Start dev server
   console.log("Starting dev server...");
   t = Date.now();
   sandbox

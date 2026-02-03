@@ -11,10 +11,8 @@ async function main() {
   const sandbox = await Sandbox.create({ timeout: 300_000 });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
 
-  // Install bun
   console.log("Installing bun...");
   await sandbox.runCommand({
     cmd: "sh",
@@ -22,7 +20,6 @@ async function main() {
     sudo: true,
   });
 
-  // Install claude
   console.log("Installing claude...");
   await sandbox.runCommand({
     cmd: "sh",
@@ -30,7 +27,6 @@ async function main() {
     sudo: true,
   });
 
-  // Install codex with bun
   console.log("Installing codex...");
   await sandbox.runCommand({
     cmd: "sh",
@@ -38,7 +34,6 @@ async function main() {
     sudo: true,
   });
 
-  // Test claude with new PATH
   console.log("\nTesting claude...");
   const claudeTest = await sandbox.runCommand({
     cmd: "sh",
@@ -52,7 +47,6 @@ async function main() {
     `Claude: ${(await claudeTest.stdout()).trim()} (exit: ${claudeTest.exitCode})`,
   );
 
-  // Test codex with new PATH
   console.log("\nTesting codex...");
   const codexTest = await sandbox.runCommand({
     cmd: "sh",

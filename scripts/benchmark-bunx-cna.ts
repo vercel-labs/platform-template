@@ -15,13 +15,11 @@ async function benchmark() {
   });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   console.log("Warming up...");
   let t = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
   console.log(`Warmup: ${Date.now() - t}ms\n`);
 
-  // Install bun
   console.log("Installing bun...");
   t = Date.now();
   await sandbox.runCommand({
@@ -31,7 +29,6 @@ async function benchmark() {
   });
   console.log(`Bun install: ${Date.now() - t}ms\n`);
 
-  // bunx create-next-app
   console.log("Running bunx create-next-app...");
   t = Date.now();
   const cna = await sandbox.runCommand({
@@ -52,7 +49,6 @@ async function benchmark() {
   }
   console.log();
 
-  // Start dev server
   console.log("Starting dev server...");
   t = Date.now();
   sandbox

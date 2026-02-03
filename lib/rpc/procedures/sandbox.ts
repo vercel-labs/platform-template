@@ -15,13 +15,10 @@ import {
   errorMessage,
 } from "@/lib/errors";
 import { getSandbox } from "../utils";
-
-/** Read a file from a sandbox */
 export const readFile = os
   .input(z.object({ sandboxId: z.string(), path: z.string() }))
   .handler(({ input: { sandboxId, path } }) =>
     Result.gen(async function* () {
-      // Validate path is within sandbox
       if (!path.startsWith(SANDBOX_BASE_PATH)) {
         return Result.err(
           new PathValidationError({
@@ -47,7 +44,6 @@ export const readFile = os
         );
       }
 
-      // Collect stream chunks
       const chunks: (string | Buffer)[] = [];
       for await (const chunk of stream) {
         chunks.push(chunk);
@@ -62,8 +58,6 @@ export const readFile = os
       return Result.ok({ content, path });
     }),
   );
-
-/** List files in a sandbox directory */
 export const listFiles = os
   .input(
     z.object({
@@ -91,13 +85,10 @@ export const listFiles = os
       return Result.ok({ files });
     }),
   );
-
-/** Get existing sandbox or create a new one */
 export const getOrCreateSandbox = os
   .input(z.object({ sandboxId: z.string().optional() }))
   .handler(async ({ input: { sandboxId } }) => {
     if (sandboxId) {
-      // Get existing sandbox
       return Result.tryPromise({
         try: async () => ({
           sandboxId: (await Sandbox.get({ sandboxId })).sandboxId,
@@ -108,7 +99,6 @@ export const getOrCreateSandbox = os
       });
     }
 
-    // Create new sandbox
     return Result.tryPromise({
       try: async () => ({
         sandboxId: (

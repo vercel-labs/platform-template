@@ -96,7 +96,6 @@ export type ChatDataPart = DataUIPart<DataPartPayload>;
 
 export type { UIMessage, DataUIPart } from "ai";
 
-// Stream event helpers
 type DataEvent<T extends DataPartType> = {
   type: "data";
   dataType: T;

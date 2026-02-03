@@ -101,7 +101,6 @@ export class ClaudeAgentProvider implements AgentProvider {
 
     cliArgs.push(`'${escapedPrompt}'`);
 
-    // Run without sudo because claude CLI refuses --dangerously-skip-permissions with root
     const command = `export PATH="$HOME/.local/bin:$PATH" && claude ${cliArgs.join(" ")}`;
 
     try {
@@ -138,7 +137,6 @@ export class ClaudeAgentProvider implements AgentProvider {
                 gotResult = true;
               }
             } catch {
-              // Non-JSON lines are expected (progress indicators, blank lines)
             }
           }
         } else if (log.stream === "stderr") {

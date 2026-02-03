@@ -8,10 +8,8 @@ async function main() {
   const sandbox = await Sandbox.create({ timeout: 300_000 });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
 
-  // Install claude
   console.log("Installing claude...");
   await sandbox.runCommand({
     cmd: "sh",
@@ -19,7 +17,6 @@ async function main() {
     sudo: true,
   });
 
-  // Check ~/.local/bin
   console.log("\nChecking ~/.local/bin...");
   const checks = [
     "ls -la ~/.local/bin/ 2>/dev/null || echo 'not found'",

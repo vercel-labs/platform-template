@@ -1,6 +1,4 @@
 import { TaggedError } from "better-result";
-
-/** Convert unknown error to a string message */
 export function errorMessage(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
@@ -11,7 +9,6 @@ export function errorMessage(err: unknown): string {
   return String(err);
 }
 
-// Sandbox errors
 export class SandboxError extends TaggedError("SandboxError")<{
   message: string;
   sandboxId?: string;
@@ -25,7 +22,6 @@ export class SetupError extends TaggedError("SetupError")<{
   step: string;
 }>() {}
 
-// File errors
 export class FileNotFoundError extends TaggedError("FileNotFoundError")<{
   message: string;
   path: string;
@@ -35,7 +31,6 @@ export class PathValidationError extends TaggedError("PathValidationError")<{
   path: string;
 }>() {}
 
-// General errors
 export class ValidationError extends TaggedError("ValidationError")<{
   message: string;
   field?: string;
@@ -46,7 +41,6 @@ export class NetworkError extends TaggedError("NetworkError")<{
   status?: number;
 }>() {}
 
-// Union of all application error types
 export type AppError =
   | SandboxError
   | SandboxNotFoundError
@@ -56,7 +50,6 @@ export type AppError =
   | ValidationError
   | NetworkError;
 
-// Registry for deserializing errors from RPC responses
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ERROR_REGISTRY: Record<string, new (props: any) => AppError> = {
   SandboxError,
@@ -67,11 +60,6 @@ const ERROR_REGISTRY: Record<string, new (props: any) => AppError> = {
   ValidationError,
   NetworkError,
 };
-
-/**
- * Reconstruct a TaggedError from a serialized object.
- * Used by the RPC client to restore proper error instances.
- */
 export function reconstructError(obj: { _tag: string }): AppError | null {
   const ErrorClass = ERROR_REGISTRY[obj._tag];
   if (!ErrorClass) return null;

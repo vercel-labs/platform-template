@@ -13,13 +13,11 @@ async function benchmark() {
   });
   console.log(`Sandbox: ${sandbox.sandboxId}\n`);
 
-  // Warm up
   console.log("Warming up...");
   let t = Date.now();
   await sandbox.runCommand({ cmd: "echo", args: ["warm"], sudo: true });
   console.log(`Warmup: ${Date.now() - t}ms\n`);
 
-  // Claude CLI
   console.log("Installing Claude CLI...");
   t = Date.now();
   const claude = await sandbox.runCommand({
@@ -29,7 +27,6 @@ async function benchmark() {
   });
   console.log(`Claude CLI: ${Date.now() - t}ms (exit: ${claude.exitCode})`);
 
-  // Verify claude works
   const claudeCheck = await sandbox.runCommand({
     cmd: "sh",
     args: [
@@ -41,7 +38,6 @@ async function benchmark() {
   console.log(`Claude check: ${await claudeCheck.stdout()}`);
   console.log();
 
-  // Codex CLI
   console.log("Installing Codex CLI...");
   t = Date.now();
   const codex = await sandbox.runCommand({
@@ -51,7 +47,6 @@ async function benchmark() {
   });
   console.log(`Codex CLI (npm): ${Date.now() - t}ms (exit: ${codex.exitCode})`);
 
-  // Verify codex works
   const codexCheck = await sandbox.runCommand({
     cmd: "sh",
     args: ["-c", "which codex && codex --version"],
@@ -60,7 +55,6 @@ async function benchmark() {
   console.log(`Codex check: ${await codexCheck.stdout()}`);
   console.log();
 
-  // Try codex with bun
   console.log("Installing bun first...");
   await sandbox.runCommand({
     cmd: "sh",

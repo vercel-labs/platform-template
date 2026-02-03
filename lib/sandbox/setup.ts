@@ -23,7 +23,6 @@ export interface SetupOptions {
   agentId: string;
 }
 
-// Agent CLI install commands and sudo requirements
 const AGENTS: Record<string, { install: string; sudo: boolean }> = {
   claude: {
     install: "curl -fsSL https://claude.ai/install.sh | bash",
@@ -36,7 +35,6 @@ const AGENTS: Record<string, { install: string; sudo: boolean }> = {
   },
 };
 
-// Helper to run command and log failures (non-fatal)
 async function run(
   sandbox: Sandbox,
   opts: Parameters<Sandbox["runCommand"]>[0],
@@ -52,7 +50,6 @@ async function run(
   return result;
 }
 
-// Helper to run command and throw on failure (fatal)
 async function runOrThrow(
   sandbox: Sandbox,
   opts: Parameters<Sandbox["runCommand"]>[0],
@@ -67,18 +64,12 @@ async function runOrThrow(
   }
   return result;
 }
-
-/**
- * Sets up a blank sandbox with Next.js, Tailwind, and shadcn/ui.
- * Uses bun for speed (~15s total vs ~77s with npm).
- */
 export async function* setupSandbox(
   sandbox: Sandbox,
   options: SetupOptions,
 ): AsyncGenerator<SetupProgress> {
   const { agentId } = options;
 
-  // Step 1: Install bun and symlink to system PATH
   yield { stage: "installing-bun", message: "Installing bun..." };
   await run(
     sandbox,
@@ -93,7 +84,6 @@ export async function* setupSandbox(
     "bun install",
   );
 
-  // Step 2: Create Next.js app (skip install - we'll do one combined install later)
   yield { stage: "creating-app", message: "Creating Next.js app..." };
   await runOrThrow(
     sandbox,
@@ -118,7 +108,6 @@ export async function* setupSandbox(
     "Failed to create Next.js app",
   );
 
-  // Step 3: Install dependencies (shadcn needs these to run)
   yield { stage: "installing-deps", message: "Installing dependencies..." };
   await run(
     sandbox,
@@ -126,7 +115,6 @@ export async function* setupSandbox(
     "bun install",
   );
 
-  // Step 4: Setup shadcn and add all components
   yield {
     stage: "installing-shadcn",
     message: "Adding shadcn/ui components...",
@@ -152,15 +140,12 @@ export async function* setupSandbox(
     "shadcn add --all",
   );
 
-  // Step 5: Cleanup and fix permissions
   await Promise.all([
-    // Remove corrupted favicon that breaks Turbopack builds
     sandbox.runCommand({
       cmd: "rm",
       args: ["-f", `${SANDBOX_BASE_PATH}/src/app/favicon.ico`],
       sudo: true,
     }),
-    // Add @ts-nocheck to shadcn components (some have type errors with latest deps)
     sandbox.runCommand({
       cmd: "sh",
       args: [
@@ -169,7 +154,6 @@ export async function* setupSandbox(
       ],
       sudo: true,
     }),
-    // Make project writable by non-root users (Claude runs without sudo)
     sandbox.runCommand({
       cmd: "chmod",
       args: ["-R", "777", SANDBOX_BASE_PATH],
@@ -177,7 +161,6 @@ export async function* setupSandbox(
     }),
   ]);
 
-  // Step 6: Start dev server and install agent CLI in parallel
   yield {
     stage: "installing-agent",
     message: "Installing agent & starting dev server...",
@@ -185,7 +168,6 @@ export async function* setupSandbox(
 
   const agent = AGENTS[agentId];
 
-  // Start dev server (detached - fire and forget)
   sandbox
     .runCommand({
       cmd: "bun",
@@ -195,11 +177,9 @@ export async function* setupSandbox(
       detached: true,
     })
     .catch((err) => {
-      // Log but don't fail - the dev server runs detached
       console.error("[setup] Dev server command failed:", err);
     });
 
-  // Install agent CLI
   const agentInstallPromise = agent
     ? run(
         sandbox,
@@ -208,12 +188,10 @@ export async function* setupSandbox(
       )
     : Promise.resolve(null);
 
-  // Wait for dev server to be ready
   const devServerPromise = waitForDevServer(sandbox.domain(SANDBOX_DEV_PORT));
 
   await Promise.all([agentInstallPromise, devServerPromise]);
 
-  // Verify agent binary exists
   if (agent) {
     const pathPrefix = agent.sudo
       ? ""
