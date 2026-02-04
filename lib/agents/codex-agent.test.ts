@@ -189,5 +189,61 @@ describe("Codex Agent", () => {
 
       expect(fullText).toContain("CODEX_TEST_SUCCESS");
     }, 120_000);
+
+    test("should stream tool-start before tool-result for file operations", async () => {
+      const chunks: { chunk: StreamChunk; timestamp: number }[] = [];
+
+      for await (const chunk of provider.execute({
+        prompt: "Create a file at /tmp/test.txt with the content 'Hello World'. Do not read it back.",
+        sandboxContext,
+        proxyConfig,
+      })) {
+        chunks.push({ chunk, timestamp: Date.now() });
+      }
+
+      // Find tool events
+      const toolStarts = chunks.filter((c) => c.chunk.type === "tool-start");
+      const toolResults = chunks.filter((c) => c.chunk.type === "tool-result");
+      const toolInputDeltas = chunks.filter((c) => c.chunk.type === "tool-input-delta");
+
+      console.log("Tool starts:", toolStarts.length);
+      console.log("Tool results:", toolResults.length);
+      console.log("Tool input deltas:", toolInputDeltas.length);
+      console.log("All chunk types:", chunks.map(c => c.chunk.type));
+
+      expect(toolStarts.length).toBeGreaterThan(0);
+      expect(toolResults.length).toBeGreaterThan(0);
+      
+      // Verify tool-input-delta chunks are emitted for file operations
+      expect(toolInputDeltas.length).toBeGreaterThan(0);
+      
+      // Verify tool-input-delta contains file path info
+      const fileInputDelta = toolInputDeltas.find(d => {
+        if (d.chunk.type === "tool-input-delta") {
+          const input = JSON.parse(d.chunk.input);
+          return input.file_path !== undefined;
+        }
+        return false;
+      });
+      expect(fileInputDelta).toBeDefined();
+
+      // Check timing - tool-start should come before tool-result
+      if (toolStarts.length > 0 && toolResults.length > 0) {
+        const firstStart = toolStarts[0];
+        const firstResult = toolResults.find(r => {
+          if (r.chunk.type === "tool-result" && firstStart.chunk.type === "tool-start") {
+            return r.chunk.toolCallId === firstStart.chunk.toolCallId;
+          }
+          return false;
+        });
+
+        if (firstResult) {
+          const timeDiff = firstResult.timestamp - firstStart.timestamp;
+          console.log(`Time between tool-start and tool-result: ${timeDiff}ms`);
+          // Should have some gap for UI to render
+          expect(timeDiff).toBeGreaterThan(10);
+        }
+      }
+    }, 180_000);
   });
 });

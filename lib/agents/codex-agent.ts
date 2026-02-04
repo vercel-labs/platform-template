@@ -189,10 +189,17 @@ export class CodexAgentProvider implements AgentProvider {
           usage: totalUsage,
         };
       } else if (finished.exitCode !== 0) {
+        const stderr = await finished.stderr();
         yield {
           type: "error",
-          message: `Codex CLI exited with code ${finished.exitCode}`,
+          message: `Codex CLI exited with code ${finished.exitCode}${stderr ? `: ${stderr.slice(0, 200)}` : ""}`,
           code: "cli_error",
+        };
+      } else {
+        // Exit code 0 but no result - might have been interrupted or incomplete
+        yield {
+          type: "message-end",
+          usage: totalUsage,
         };
       }
     } catch (error) {
@@ -292,6 +299,12 @@ export class CodexAgentProvider implements AgentProvider {
             toolCallId: item.id,
             toolName: "Bash",
           });
+          // Emit tool-input-delta so UI can show what command is running
+          chunks.push({
+            type: "tool-input-delta",
+            toolCallId: item.id,
+            input: JSON.stringify({ command: item.command }),
+          });
           chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.AGENT_STATUS,
@@ -326,6 +339,12 @@ export class CodexAgentProvider implements AgentProvider {
             toolCallId: item.id,
             toolName: item.change_type === "create" ? "Write" : "Edit",
           });
+          // Emit tool-input-delta so UI can show what file is being modified
+          chunks.push({
+            type: "tool-input-delta",
+            toolCallId: item.id,
+            input: JSON.stringify({ file_path: item.path }),
+          });
         } else if (phase === "completed") {
           chunks.push({
             type: "data",
@@ -347,6 +366,14 @@ export class CodexAgentProvider implements AgentProvider {
             toolCallId: item.id,
             toolName: "WebSearch",
           });
+          // Emit tool-input-delta so UI can show search query
+          if (item.query) {
+            chunks.push({
+              type: "tool-input-delta",
+              toolCallId: item.id,
+              input: JSON.stringify({ query: item.query }),
+            });
+          }
           chunks.push({
             type: "data",
             dataType: DATA_PART_TYPES.AGENT_STATUS,
@@ -370,6 +397,12 @@ export class CodexAgentProvider implements AgentProvider {
             type: "tool-start",
             toolCallId: item.id,
             toolName: item.tool_name,
+          });
+          // Emit tool-input-delta so UI can show tool name
+          chunks.push({
+            type: "tool-input-delta",
+            toolCallId: item.id,
+            input: JSON.stringify({ tool_name: item.tool_name }),
           });
         } else if (phase === "completed") {
           chunks.push({
