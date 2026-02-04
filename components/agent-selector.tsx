@@ -36,21 +36,18 @@ export function AgentSelector({ className, disabled }: AgentSelectorProps) {
         <span>{selectedAgent.name}</span>
         <ChevronDown className="h-4 w-4 text-zinc-500" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent align="start">
         {AGENTS.map((agent) => (
           <DropdownMenuItem
             key={agent.id}
             onClick={() => setAgentId(agent.id)}
             className={cn(
-              "flex items-center gap-3 cursor-pointer",
+              "flex items-center gap-2 cursor-pointer",
               agent.id === agentId && "bg-zinc-100 dark:bg-zinc-800",
             )}
           >
-            <AgentLogo provider={agent.logo} className="h-5 w-5" />
-            <div className="flex flex-col">
-              <span className="font-medium">{agent.name}</span>
-              <span className="text-xs text-zinc-500">{agent.description}</span>
-            </div>
+            <AgentLogo provider={agent.logo} />
+            <span className="font-medium">{agent.name}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -246,7 +246,7 @@ export function Chat({ className }: ChatProps) {
   const hasStartedChat = messages.length > 0;
 
   return (
-    <Panel className={cn("flex flex-col", className)}>
+    <Panel className={cn("flex min-h-0 flex-col", className)}>
       <PanelHeader>
         <div className="flex items-center gap-2 font-mono text-sm font-semibold uppercase">
           <MessageCircle className="h-4 w-4" />
@@ -257,16 +257,16 @@ export function Chat({ className }: ChatProps) {
 
       {/* Messages or Empty State */}
       {messages.length === 0 ? (
-        <PanelContent className="flex flex-col items-center justify-center">
-          <p className="mb-4 font-mono text-sm text-zinc-500">
+        <PanelContent className="flex min-h-0 flex-col items-center justify-center px-4">
+          <p className="mb-4 text-center text-sm text-zinc-500">
             Try one of these prompts:
           </p>
-          <ul className="space-y-2">
+          <ul className="w-full max-w-md space-y-2">
             {EXAMPLE_PROMPTS.map((prompt) => (
               <li key={prompt}>
                 <button
                   type="button"
-                  className="w-full rounded-md border border-dashed border-zinc-300 px-4 py-2 text-left font-mono text-sm transition-colors hover:border-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
+                  className="w-full rounded-md border border-dashed border-zinc-300 px-4 py-3 text-left text-sm transition-colors hover:border-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
                   onClick={() => sendMessage(prompt)}
                   disabled={isStreaming}
                 >
@@ -277,7 +277,7 @@ export function Chat({ className }: ChatProps) {
           </ul>
         </PanelContent>
       ) : (
-        <PanelContent className="space-y-4">
+        <PanelContent className="min-h-0 space-y-4">
           {messages.map((message) => (
             <MessageView key={message.id} message={message} />
           ))}
@@ -302,9 +302,9 @@ export function Chat({ className }: ChatProps) {
       )}
 
       {/* Input */}
-      <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="border-t border-zinc-200 p-3 dark:border-zinc-800 sm:p-4">
         <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <TemplateSelector disabled={isStreaming || hasStartedChat} />
             <AgentSelector disabled={isStreaming || hasStartedChat} />
           </div>
@@ -316,13 +316,13 @@ export function Chat({ className }: ChatProps) {
               placeholder="Type your message..."
               disabled={isStreaming}
               rows={1}
-              className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
+              className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
             />
             <button
               type="button"
               onClick={() => sendMessage(input)}
               disabled={isStreaming || !input.trim()}
-              className="flex h-10 w-10 items-center justify-center rounded-md bg-zinc-900 text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               {isStreaming ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
