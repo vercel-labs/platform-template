@@ -110,6 +110,19 @@ CRITICAL RULES:
       }),
     ]);
 
+    // Start dev server
+    sandbox
+      .runCommand({
+        cmd: "bun",
+        args: ["run", "dev"],
+        cwd: SANDBOX_BASE_PATH,
+        sudo: true,
+        detached: true,
+      })
+      .catch((err) => {
+        console.error("[nextjs] Dev server failed:", err);
+      });
+
     yield { stage: "ready", message: "Next.js ready" };
   },
 };

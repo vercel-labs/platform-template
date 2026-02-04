@@ -163,6 +163,7 @@ export const SchemaDisplayPath = ({
     <span
       className={cn("font-mono text-sm", className)}
       // biome-ignore lint/security/noDangerouslySetInnerHtml: "needed for parameter highlighting"
+      // @ts-expect-error children type mismatch with dangerouslySetInnerHTML
       dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
       {...props}
     />

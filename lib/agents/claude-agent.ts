@@ -63,17 +63,41 @@ interface ClaudeResultMessage {
   errors?: string[];
 }
 
+interface ClaudeStreamEvent {
+  type: "stream_event";
+  event:
+    | { type: "message_start"; message: { id: string } }
+    | { type: "content_block_start"; index: number; content_block: { type: "text"; text: string } | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> } }
+    | { type: "content_block_delta"; index: number; delta: { type: "text_delta"; text: string } | { type: "input_json_delta"; partial_json: string } }
+    | { type: "content_block_stop"; index: number }
+    | { type: "message_delta"; delta: { stop_reason: string } }
+    | { type: "message_stop" };
+  session_id: string;
+  parent_tool_use_id: string | null;
+  uuid: string;
+}
+
 type ClaudeMessage =
   | ClaudeSystemMessage
   | ClaudeAssistantMessage
   | ClaudeUserMessage
-  | ClaudeResultMessage;
+  | ClaudeResultMessage
+  | ClaudeStreamEvent;
 
 export class ClaudeAgentProvider implements AgentProvider {
   id = "claude";
   name = "Claude";
   description = "Anthropic's Claude Code";
   logo = "anthropic";
+
+  // Track current streaming tool state
+  private currentToolId: string | null = null;
+  private currentToolName: string | null = null;
+  private currentToolInput: string = "";
+  // Track tool IDs we've already emitted via stream_event to avoid duplicates
+  private emittedToolIds: Set<string> = new Set();
+  // Track if we've received stream events (to skip duplicate content in assistant message)
+  private hasStreamEvents: boolean = false;
 
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
     const { prompt, sandboxContext, sessionId, proxyConfig } = params;
@@ -95,6 +119,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       "--verbose",
       "--output-format",
       "stream-json",
+      "--include-partial-messages",
       "--dangerously-skip-permissions",
       "--append-system-prompt",
       `'${escapedInstructions}'`,
@@ -209,13 +234,32 @@ export class ClaudeAgentProvider implements AgentProvider {
       case "assistant":
         for (const block of message.message.content) {
           if (block.type === "text") {
-            chunks.push({ type: "text-delta", text: block.text });
+            // Skip text if we've been streaming via stream_event
+            // The assistant message contains the full text, but we already emitted deltas
+            // Only emit if we haven't seen any stream events (fallback for non-partial mode)
+            if (!this.hasStreamEvents) {
+              chunks.push({ type: "text-delta", text: block.text });
+            }
           } else if (block.type === "tool_use") {
+            // Skip if we already emitted this tool via stream_event
+            if (this.emittedToolIds.has(block.id)) {
+              continue;
+            }
+
             chunks.push({
               type: "tool-start",
               toolCallId: block.id,
               toolName: block.name,
             });
+
+            // Emit tool-input-delta so UI can show what the tool is doing
+            if (Object.keys(block.input).length > 0) {
+              chunks.push({
+                type: "tool-input-delta",
+                toolCallId: block.id,
+                input: JSON.stringify(block.input),
+              });
+            }
 
             if (block.name === "Write" || block.name === "Edit") {
               const filePath = block.input.file_path as string | undefined;
@@ -247,6 +291,10 @@ export class ClaudeAgentProvider implements AgentProvider {
         }
         break;
 
+      case "stream_event":
+        chunks.push(...this.handleStreamEvent(message));
+        break;
+
       case "result":
         if (message.subtype === "success") {
           chunks.push({
@@ -272,6 +320,73 @@ export class ClaudeAgentProvider implements AgentProvider {
               outputTokens: message.usage.output_tokens,
             },
           });
+        }
+        break;
+    }
+
+    return chunks;
+  }
+
+  private handleStreamEvent(message: ClaudeStreamEvent): StreamChunk[] {
+    const chunks: StreamChunk[] = [];
+    const event = message.event;
+    this.hasStreamEvents = true;
+
+    switch (event.type) {
+      case "content_block_start":
+        if (event.content_block.type === "tool_use") {
+          // Tool is starting - emit tool-start immediately
+          this.currentToolId = event.content_block.id;
+          this.currentToolName = event.content_block.name;
+          this.currentToolInput = "";
+          this.emittedToolIds.add(event.content_block.id);
+          
+          chunks.push({
+            type: "tool-start",
+            toolCallId: event.content_block.id,
+            toolName: event.content_block.name,
+          });
+        }
+        break;
+
+      case "content_block_delta":
+        if (event.delta.type === "text_delta") {
+          // Streaming text
+          chunks.push({ type: "text-delta", text: event.delta.text });
+        } else if (event.delta.type === "input_json_delta" && this.currentToolId) {
+          // Streaming tool input - accumulate and emit delta
+          this.currentToolInput += event.delta.partial_json;
+          chunks.push({
+            type: "tool-input-delta",
+            toolCallId: this.currentToolId,
+            input: event.delta.partial_json,
+          });
+        }
+        break;
+
+      case "content_block_stop":
+        if (this.currentToolId && this.currentToolName) {
+          // Tool input is complete - check if it's a Write/Edit for FILE_WRITTEN event
+          try {
+            const input = JSON.parse(this.currentToolInput);
+            if (
+              (this.currentToolName === "Write" || this.currentToolName === "Edit") &&
+              input.file_path
+            ) {
+              chunks.push({
+                type: "data",
+                dataType: DATA_PART_TYPES.FILE_WRITTEN,
+                data: { path: input.file_path },
+              });
+            }
+          } catch {
+            // Ignore JSON parse errors for incomplete input
+          }
+          
+          // Reset tool state
+          this.currentToolId = null;
+          this.currentToolName = null;
+          this.currentToolInput = "";
         }
         break;
     }

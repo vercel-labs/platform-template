@@ -92,26 +92,13 @@ export async function* setupSandbox(
     sudo: true,
   });
 
-  // Install agent and start dev server in parallel
+  // Install agent and wait for dev server (already started by template)
   yield {
     stage: "installing-agent",
-    message: "Installing agent & starting dev server...",
+    message: "Installing agent...",
   };
 
   const agent = AGENTS[agentId];
-
-  // Start dev server
-  sandbox
-    .runCommand({
-      cmd: "bun",
-      args: ["run", "dev", "--host"],
-      cwd: SANDBOX_BASE_PATH,
-      sudo: true,
-      detached: true,
-    })
-    .catch((err) => {
-      console.error("[setup] Dev server command failed:", err);
-    });
 
   const agentInstallPromise = agent
     ? run(

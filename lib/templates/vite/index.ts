@@ -95,6 +95,19 @@ export default defineConfig({
       { path: `${SANDBOX_BASE_PATH}/src/index.css`, content: Buffer.from(css) },
     ]);
 
+    // Start dev server
+    sandbox
+      .runCommand({
+        cmd: "bun",
+        args: ["run", "dev", "--host"],
+        cwd: SANDBOX_BASE_PATH,
+        sudo: true,
+        detached: true,
+      })
+      .catch((err) => {
+        console.error("[vite] Dev server failed:", err);
+      });
+
     yield { stage: "ready", message: "Vite ready" };
   },
 };

@@ -55,16 +55,14 @@ export const sendMessage = os
       ? (templateId as TemplateId)
       : DEFAULT_TEMPLATE_ID;
 
-    // Use template-specific port
+    // Expose template-specific port
     const devPort = template.devPort;
-    // Include both common ports to handle any template
-    const ports = [3000, 5173];
 
     const sandboxResult = await Result.tryPromise({
       try: () =>
         sandboxId
           ? Sandbox.get({ sandboxId })
-          : Sandbox.create({ ports, timeout: SANDBOX_TIMEOUT_MS }),
+          : Sandbox.create({ ports: [devPort], timeout: SANDBOX_TIMEOUT_MS }),
       catch: (err) =>
         new SandboxError({ message: errorMessage(err), sandboxId }),
     });

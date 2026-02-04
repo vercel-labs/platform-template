@@ -98,6 +98,19 @@ export default defineConfig({
       { path: `${SANDBOX_BASE_PATH}/vite.config.ts`, content: Buffer.from(viteConfig) },
     ]);
 
+    // Start dev server
+    sandbox
+      .runCommand({
+        cmd: "bun",
+        args: ["run", "dev", "--host"],
+        cwd: SANDBOX_BASE_PATH,
+        sudo: true,
+        detached: true,
+      })
+      .catch((err) => {
+        console.error("[tanstack-start] Dev server failed:", err);
+      });
+
     yield { stage: "ready", message: "TanStack Start ready" };
   },
 };
