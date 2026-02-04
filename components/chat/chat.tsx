@@ -10,6 +10,7 @@ import { UI_DATA_PART_TYPES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { AgentSelector } from "@/components/agent-selector";
+import { TemplateSelector } from "@/components/template-selector";
 
 const EXAMPLE_PROMPTS = [
   "Build a pomodoro timer with sound notifications",
@@ -48,6 +49,7 @@ export function Chat({ className }: ChatProps) {
     sandboxId,
     sessionId,
     agentId,
+    templateId,
     status: sandboxStatus,
     statusMessage,
     setSandbox,
@@ -77,6 +79,7 @@ export function Chat({ className }: ChatProps) {
         const iterator = await rpc.chat.send({
           prompt: text,
           agentId,
+          templateId,
           sandboxId: sandboxId ?? undefined,
           sessionId: sessionId ?? undefined,
         });
@@ -228,7 +231,7 @@ export function Chat({ className }: ChatProps) {
         setStatus("ready");
       }
     },
-    [status, sandboxId, sessionId, agentId, setSandbox, setSessionId],
+    [status, sandboxId, sessionId, agentId, templateId, setSandbox, setSessionId],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -239,6 +242,8 @@ export function Chat({ className }: ChatProps) {
   };
 
   const isStreaming = status === "streaming";
+  // Disable selectors once chat has started (has messages)
+  const hasStartedChat = messages.length > 0;
 
   return (
     <Panel className={cn("flex flex-col", className)}>
@@ -298,29 +303,34 @@ export function Chat({ className }: ChatProps) {
 
       {/* Input */}
       <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
-        <div className="flex gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            disabled={isStreaming}
-            rows={1}
-            className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
-          />
-          <AgentSelector disabled={isStreaming} />
-          <button
-            type="button"
-            onClick={() => sendMessage(input)}
-            disabled={isStreaming || !input.trim()}
-            className="flex h-10 w-10 items-center justify-center rounded-md bg-zinc-900 text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            {isStreaming ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <TemplateSelector disabled={isStreaming || hasStartedChat} />
+            <AgentSelector disabled={isStreaming || hasStartedChat} />
+          </div>
+          <div className="flex gap-2">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message..."
+              disabled={isStreaming}
+              rows={1}
+              className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
+            />
+            <button
+              type="button"
+              onClick={() => sendMessage(input)}
+              disabled={isStreaming || !input.trim()}
+              className="flex h-10 w-10 items-center justify-center rounded-md bg-zinc-900 text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              {isStreaming ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </Panel>

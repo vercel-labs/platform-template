@@ -1,9 +1,11 @@
 import type { Sandbox } from "@vercel/sandbox";
 import type { DataPartType, DataPartPayload } from "@/lib/types";
+import type { TemplateId } from "@/lib/templates";
 
 export interface SandboxContext {
   sandboxId: string;
   sandbox: Sandbox;
+  templateId: TemplateId;
 }
 
 export type StreamChunk =

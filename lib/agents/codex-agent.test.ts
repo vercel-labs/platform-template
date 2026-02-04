@@ -75,6 +75,7 @@ describe("Codex Agent", () => {
     sandboxContext = {
       sandboxId: sandbox.sandboxId,
       sandbox,
+      templateId: "nextjs",
     };
   }, 60_000);
 

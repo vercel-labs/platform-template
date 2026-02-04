@@ -7,9 +7,14 @@ import {
   getAgent,
   isValidAgent,
   getDefaultAgent,
-  SANDBOX_DEV_PORT,
   SANDBOX_TIMEOUT_MS,
 } from "@/lib/agents";
+import {
+  isValidTemplate,
+  getTemplate,
+  DEFAULT_TEMPLATE_ID,
+  type TemplateId,
+} from "@/lib/templates";
 import { createProxySession } from "@/lib/redis";
 import { events } from "@/lib/types";
 import { setupSandbox } from "@/lib/sandbox/setup";
@@ -30,22 +35,36 @@ export const sendMessage = os
     z.object({
       prompt: z.string().min(1),
       agentId: z.string().optional(),
+      templateId: z.string().optional(),
       sandboxId: z.string().optional(),
       sessionId: z.string().optional(),
     }),
   )
   .handler(async function* ({
-    input: { prompt, agentId, sandboxId, sessionId },
+    input: { prompt, agentId, templateId, sandboxId, sessionId },
   }) {
     const agent = agentId && isValidAgent(agentId)
       ? getAgent(agentId)
       : getDefaultAgent();
 
+    const template = templateId && isValidTemplate(templateId)
+      ? getTemplate(templateId)
+      : getTemplate(DEFAULT_TEMPLATE_ID);
+
+    const resolvedTemplateId: TemplateId = isValidTemplate(templateId ?? "")
+      ? (templateId as TemplateId)
+      : DEFAULT_TEMPLATE_ID;
+
+    // Use template-specific port
+    const devPort = template.devPort;
+    // Include both common ports to handle any template
+    const ports = [3000, 5173];
+
     const sandboxResult = await Result.tryPromise({
       try: () =>
         sandboxId
           ? Sandbox.get({ sandboxId })
-          : Sandbox.create({ ports: [SANDBOX_DEV_PORT], timeout: SANDBOX_TIMEOUT_MS }),
+          : Sandbox.create({ ports, timeout: SANDBOX_TIMEOUT_MS }),
       catch: (err) =>
         new SandboxError({ message: errorMessage(err), sandboxId }),
     });
@@ -61,6 +80,7 @@ export const sendMessage = os
       try {
         for await (const progress of setupSandbox(sandbox, {
           agentId: agent.id,
+          templateId: resolvedTemplateId,
         })) {
           if (progress) {
             const status = progress.stage === "ready" ? "ready" : "creating";
@@ -93,6 +113,7 @@ export const sendMessage = os
     const sandboxContext: SandboxContext = {
       sandboxId: sandbox.sandboxId,
       sandbox,
+      templateId: resolvedTemplateId,
     };
     const proxyConfig: ProxyConfig = {
       sessionId: proxySessionId,
@@ -108,5 +129,5 @@ export const sendMessage = os
       yield chunk;
     }
 
-    yield events.previewUrl(sandbox.domain(SANDBOX_DEV_PORT), SANDBOX_DEV_PORT);
+    yield events.previewUrl(sandbox.domain(devPort), devPort);
   });

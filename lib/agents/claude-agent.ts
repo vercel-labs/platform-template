@@ -1,5 +1,6 @@
 import type { AgentProvider, ExecuteParams, StreamChunk } from "./types";
-import { SANDBOX_INSTRUCTIONS, SANDBOX_BASE_PATH } from "./constants";
+import { SANDBOX_BASE_PATH } from "./constants";
+import { getTemplate } from "@/lib/templates";
 import { DATA_PART_TYPES } from "@/lib/types";
 
 interface ClaudeSystemMessage {
@@ -76,7 +77,10 @@ export class ClaudeAgentProvider implements AgentProvider {
 
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
     const { prompt, sandboxContext, sessionId, proxyConfig } = params;
-    const { sandbox } = sandboxContext;
+    const { sandbox, templateId } = sandboxContext;
+
+    const template = getTemplate(templateId);
+    const instructions = template.instructions;
 
     const env: Record<string, string> = {
       ANTHROPIC_BASE_URL: proxyConfig.baseUrl,
@@ -84,7 +88,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     };
 
     const escapedPrompt = prompt.replace(/'/g, "'\\''");
-    const escapedInstructions = SANDBOX_INSTRUCTIONS.replace(/'/g, "'\\''");
+    const escapedInstructions = instructions.replace(/'/g, "'\\''");
 
     const cliArgs = [
       "--print",

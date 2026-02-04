@@ -1,16 +1,20 @@
 import type { Sandbox, CommandFinished } from "@vercel/sandbox";
 import {
   SANDBOX_BASE_PATH,
-  SANDBOX_DEV_PORT,
   DEV_SERVER_READY_TIMEOUT_MS,
 } from "@/lib/agents/constants";
+import {
+  getTemplate,
+  type TemplateId,
+  DEFAULT_TEMPLATE_ID,
+} from "@/lib/templates";
 import { Result } from "better-result";
 
 export type SetupStage =
   | "installing-bun"
   | "creating-app"
   | "installing-deps"
-  | "installing-shadcn"
+  | "configuring"
   | "installing-agent"
   | "ready";
 
@@ -21,6 +25,7 @@ export interface SetupProgress {
 
 export interface SetupOptions {
   agentId: string;
+  templateId?: TemplateId;
 }
 
 const AGENTS: Record<string, { install: string; sudo: boolean }> = {
@@ -50,26 +55,14 @@ async function run(
   return result;
 }
 
-async function runOrThrow(
-  sandbox: Sandbox,
-  opts: Parameters<Sandbox["runCommand"]>[0],
-  errorMessage: string,
-): Promise<CommandFinished> {
-  const result = await sandbox.runCommand(opts);
-  if (!result || result.exitCode !== 0) {
-    const stderr = result
-      ? await result.stderr()
-      : "runCommand returned undefined";
-    throw new Error(`${errorMessage}: ${stderr}`);
-  }
-  return result;
-}
 export async function* setupSandbox(
   sandbox: Sandbox,
   options: SetupOptions,
 ): AsyncGenerator<SetupProgress> {
-  const { agentId } = options;
+  const { agentId, templateId = DEFAULT_TEMPLATE_ID } = options;
+  const template = getTemplate(templateId);
 
+  // Install bun
   yield { stage: "installing-bun", message: "Installing bun..." };
   await run(
     sandbox,
@@ -84,83 +77,22 @@ export async function* setupSandbox(
     "bun install",
   );
 
-  yield { stage: "creating-app", message: "Creating Next.js app..." };
-  await runOrThrow(
-    sandbox,
-    {
-      cmd: "bunx",
-      args: [
-        "create-next-app@latest",
-        SANDBOX_BASE_PATH,
-        "--yes",
-        "--typescript",
-        "--tailwind",
-        "--eslint",
-        "--app",
-        "--src-dir",
-        "--turbopack",
-        "--no-import-alias",
-        "--skip-install",
-      ],
-      env: { CI: "true" },
-      sudo: true,
-    },
-    "Failed to create Next.js app",
-  );
+  // Run template-specific setup
+  for await (const progress of template.setup(sandbox)) {
+    yield {
+      stage: progress.stage,
+      message: progress.message,
+    };
+  }
 
-  yield { stage: "installing-deps", message: "Installing dependencies..." };
-  await run(
-    sandbox,
-    { cmd: "bun", args: ["install"], cwd: SANDBOX_BASE_PATH, sudo: true },
-    "bun install",
-  );
+  // Make sure permissions are set
+  await sandbox.runCommand({
+    cmd: "chmod",
+    args: ["-R", "777", SANDBOX_BASE_PATH],
+    sudo: true,
+  });
 
-  yield {
-    stage: "installing-shadcn",
-    message: "Adding shadcn/ui components...",
-  };
-  await run(
-    sandbox,
-    {
-      cmd: "bunx",
-      args: ["shadcn@latest", "init", "-y", "-d"],
-      cwd: SANDBOX_BASE_PATH,
-      sudo: true,
-    },
-    "shadcn init",
-  );
-  await run(
-    sandbox,
-    {
-      cmd: "bunx",
-      args: ["shadcn@latest", "add", "--all", "-y", "-o"],
-      cwd: SANDBOX_BASE_PATH,
-      sudo: true,
-    },
-    "shadcn add --all",
-  );
-
-  await Promise.all([
-    sandbox.runCommand({
-      cmd: "rm",
-      args: ["-f", `${SANDBOX_BASE_PATH}/src/app/favicon.ico`],
-      sudo: true,
-    }),
-    sandbox.runCommand({
-      cmd: "sh",
-      args: [
-        "-c",
-        `for f in ${SANDBOX_BASE_PATH}/src/components/ui/*.tsx; do grep -q "@ts-nocheck" "$f" || sed -i '1s/^/\\/\\/ @ts-nocheck\\n/' "$f"; done`,
-      ],
-      sudo: true,
-    }),
-    sandbox.runCommand({
-      cmd: "chmod",
-      args: ["-R", "777", SANDBOX_BASE_PATH],
-      sudo: true,
-    }),
-  ]);
-
+  // Install agent and start dev server in parallel
   yield {
     stage: "installing-agent",
     message: "Installing agent & starting dev server...",
@@ -168,10 +100,11 @@ export async function* setupSandbox(
 
   const agent = AGENTS[agentId];
 
+  // Start dev server
   sandbox
     .runCommand({
       cmd: "bun",
-      args: ["run", "dev"],
+      args: ["run", "dev", "--host"],
       cwd: SANDBOX_BASE_PATH,
       sudo: true,
       detached: true,
@@ -188,7 +121,7 @@ export async function* setupSandbox(
       )
     : Promise.resolve(null);
 
-  const devServerPromise = waitForDevServer(sandbox.domain(SANDBOX_DEV_PORT));
+  const devServerPromise = waitForDevServer(sandbox.domain(template.devPort));
 
   await Promise.all([agentInstallPromise, devServerPromise]);
 

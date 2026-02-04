@@ -10,6 +10,7 @@ import {
   type SandboxStatus,
   type StreamType,
 } from "@/lib/types";
+import type { TemplateId } from "@/lib/templates";
 
 export interface CommandLog {
   timestamp: number;
@@ -35,6 +36,7 @@ export interface SandboxState {
   sessionId: string | null;
 
   agentId: string;
+  templateId: TemplateId;
 
   files: string[];
 
@@ -49,6 +51,7 @@ export interface SandboxActions {
   setSessionId: (sessionId: string) => void;
 
   setAgentId: (agentId: string) => void;
+  setTemplateId: (templateId: TemplateId) => void;
 
   addFile: (path: string) => void;
   addFiles: (paths: string[]) => void;
@@ -69,6 +72,7 @@ const initialState: SandboxState = {
   statusMessage: null,
   sessionId: null,
   agentId: "claude",
+  templateId: "nextjs",
   files: [],
   commands: [],
 };
@@ -92,6 +96,8 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
   setSessionId: (sessionId) => set({ sessionId }),
 
   setAgentId: (agentId) => set({ agentId }),
+
+  setTemplateId: (templateId) => set({ templateId }),
 
   addFile: (path) =>
     set((state) => {
