@@ -1,8 +1,6 @@
 import { test, expect, describe, beforeAll, afterAll } from "vitest";
 import { Sandbox } from "@vercel/sandbox";
-import { nanoid } from "nanoid";
 import { CodexAgentProvider } from "./codex-agent";
-import { createProxySession } from "@/lib/redis";
 import type { StreamChunk, SandboxContext, ProxyConfig } from "./types";
 
 const PROXY_BASE_URL =
@@ -31,81 +29,165 @@ function findChunks<T extends StreamChunk["type"]>(
 }
 
 describe("Codex Agent", () => {
-  let provider: CodexAgentProvider;
-  let sandbox: Sandbox;
-  let sandboxContext: SandboxContext;
-  let proxyConfig: ProxyConfig;
+  describe("installation", () => {
+    let sandbox: Sandbox;
 
-  beforeAll(async () => {
-    const snapshotId = process.env.NEXTJS_SNAPSHOT_ID;
-
-    if (!snapshotId) {
-      throw new Error("NEXTJS_SNAPSHOT_ID is required for sandbox tests");
-    }
-
-    provider = new CodexAgentProvider();
-
-    const response = await fetch(SESSION_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+    afterAll(async () => {
+      if (sandbox) {
+        await sandbox.stop();
+      }
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to create session: ${response.status}`);
-    }
+    test("should install codex CLI with bun", async () => {
+      sandbox = await Sandbox.create({
+        ports: [3000],
+        timeout: 300_000,
+      });
 
-    const data = await response.json();
-    console.log(`Created session: ${data.sessionId}`);
+      // Install bun first
+      const bunInstall = await sandbox.runCommand({
+        cmd: "sh",
+        args: [
+          "-c",
+          "curl -fsSL https://bun.sh/install | bash && ln -sf /root/.bun/bin/bun /usr/local/bin/bun && ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx",
+        ],
+        sudo: true,
+      });
+      expect(bunInstall.exitCode).toBe(0);
 
-    proxyConfig = {
-      sessionId: data.sessionId,
-      baseUrl: PROXY_BASE_URL,
-    };
+      // Install codex (pin to 0.94.0, last version that supports wire_api="chat")
+      const codexInstall = await sandbox.runCommand({
+        cmd: "bun",
+        args: ["i", "-g", "@openai/codex@0.94.0"],
+        sudo: true,
+      });
+      expect(codexInstall.exitCode).toBe(0);
 
-    console.log("Creating sandbox from snapshot...");
-    sandbox = await Sandbox.create({
-      source: { type: "snapshot", snapshotId },
-      ports: [3000],
-      timeout: 300_000,
-      resources: { vcpus: 2 },
-    });
-    console.log(`Sandbox created: ${sandbox.sandboxId}`);
+      // Verify codex is available in PATH
+      const codexVersion = await sandbox.runCommand({
+        cmd: "sh",
+        args: ["-c", "export PATH=\"$PATH:/root/.bun/bin\" && codex --version"],
+        sudo: true,
+      });
+      expect(codexVersion.exitCode).toBe(0);
+      expect(await codexVersion.stdout()).toContain("codex-cli");
+    }, 120_000);
 
-    sandboxContext = {
-      sandboxId: sandbox.sandboxId,
-      sandbox,
-      templateId: "nextjs",
-    };
-  }, 60_000);
 
-  afterAll(async () => {
-    if (sandbox) {
-      console.log("Stopping sandbox...");
-      await sandbox.stop();
-    }
   });
 
-  test("should execute a simple prompt through the proxy", async () => {
-    const chunks = await collectChunks(
-      provider.execute({
-        prompt: "Say 'CODEX_TEST_SUCCESS' and nothing else.",
-        sandboxContext,
-        proxyConfig,
-      }),
-    );
+  describe("execution", () => {
+    let provider: CodexAgentProvider;
+    let sandbox: Sandbox;
+    let sandboxContext: SandboxContext;
+    let proxyConfig: ProxyConfig;
 
-    const errors = findChunks(chunks, "error");
-    if (errors.length > 0) {
-      console.error("Errors:", errors);
-    }
+    beforeAll(async () => {
+      provider = new CodexAgentProvider();
 
-    const textDeltas = findChunks(chunks, "text-delta");
-    expect(textDeltas.length).toBeGreaterThan(0);
+      // Create session for proxy
+      const response = await fetch(SESSION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
 
-    const fullText = textDeltas.map((c) => c.text).join("");
-    console.log("Response through proxy:", fullText);
+      if (!response.ok) {
+        throw new Error(`Failed to create session: ${response.status}`);
+      }
 
-    expect(fullText).toContain("CODEX_TEST_SUCCESS");
-  }, 120_000);
+      const data = await response.json();
+
+      proxyConfig = {
+        sessionId: data.sessionId,
+        baseUrl: PROXY_BASE_URL,
+      };
+
+      // Create a fresh sandbox and install codex
+      sandbox = await Sandbox.create({
+        ports: [3000],
+        timeout: 300_000,
+      });
+
+      // Install bun
+      await sandbox.runCommand({
+        cmd: "sh",
+        args: [
+          "-c",
+          "curl -fsSL https://bun.sh/install | bash && ln -sf /root/.bun/bin/bun /usr/local/bin/bun && ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx",
+        ],
+        sudo: true,
+      });
+
+      // Install codex (pin to 0.94.0, last version that supports wire_api="chat")
+      await sandbox.runCommand({
+        cmd: "bun",
+        args: ["i", "-g", "@openai/codex@0.94.0"],
+        sudo: true,
+      });
+
+      sandboxContext = {
+        sandboxId: sandbox.sandboxId,
+        sandbox,
+        templateId: "nextjs",
+      };
+    }, 120_000);
+
+    afterAll(async () => {
+      if (sandbox) {
+        await sandbox.stop();
+      }
+    });
+
+    test("should run codex CLI directly", async () => {
+      // Test the exact command the provider runs
+      const cliArgs = [
+        "exec",
+        "--json",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--skip-git-repo-check",
+        "-C", "/vercel/sandbox",
+        "-c", `'model_providers.vercel.name="Vercel AI Gateway Proxy"'`,
+        "-c", `'model_providers.vercel.base_url="${proxyConfig.baseUrl}/v1"'`,
+        "-c", `'model_providers.vercel.env_key="AI_GATEWAY_API_KEY"'`,
+        "-c", `'model_providers.vercel.wire_api="chat"'`,
+        "-c", `'model_provider="vercel"'`,
+        "-m", "openai/gpt-5.2-codex",
+        `'Say hello'`,
+      ];
+
+      const command = `export PATH="$PATH:/root/.local/bin:/root/.bun/bin" && export AI_GATEWAY_API_KEY="${proxyConfig.sessionId}" && codex ${cliArgs.join(" ")}`;
+
+      const result = await sandbox.runCommand({
+        cmd: "sh",
+        args: ["-c", command],
+        cwd: "/vercel/sandbox",
+        sudo: true,
+      });
+
+      expect(result.exitCode).toBe(0);
+    }, 120_000);
+
+    test("should execute a simple prompt through the provider", async () => {
+      const chunks = await collectChunks(
+        provider.execute({
+          prompt: "Say 'CODEX_TEST_SUCCESS' and nothing else.",
+          sandboxContext,
+          proxyConfig,
+        }),
+      );
+
+      const errors = findChunks(chunks, "error");
+      if (errors.length > 0) {
+        console.error("Errors:", errors);
+      }
+
+      const textDeltas = findChunks(chunks, "text-delta");
+      expect(textDeltas.length).toBeGreaterThan(0);
+
+      const fullText = textDeltas.map((c) => c.text).join("");
+
+      expect(fullText).toContain("CODEX_TEST_SUCCESS");
+    }, 120_000);
+  });
 });

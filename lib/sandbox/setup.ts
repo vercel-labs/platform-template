@@ -33,7 +33,7 @@ const AGENTS: Record<string, { install: string; sudo: boolean }> = {
     install: "curl -fsSL https://claude.ai/install.sh | bash",
     sudo: false,
   },
-  codex: { install: "bun i -g @openai/codex", sudo: true },
+  codex: { install: "bun i -g @openai/codex@0.94.0", sudo: true },
   opencode: {
     install: "curl -fsSL https://opencode.ai/install | bash",
     sudo: false,
@@ -113,14 +113,13 @@ export async function* setupSandbox(
   await Promise.all([agentInstallPromise, devServerPromise]);
 
   if (agent) {
-    const pathPrefix = agent.sudo
-      ? ""
-      : 'export PATH="$HOME/.local/bin:$PATH" && ';
+    // Always include common binary paths when checking for the installed agent
+    const pathExport = 'export PATH="$PATH:/root/.local/bin:/root/.bun/bin:$HOME/.local/bin" && ';
     const result = await Result.tryPromise(() =>
       sandbox
         .runCommand({
           cmd: "sh",
-          args: ["-c", `${pathPrefix}which ${agentId}`],
+          args: ["-c", `${pathExport}which ${agentId}`],
           sudo: agent.sudo,
         })
         .then((r) => r.stdout())
