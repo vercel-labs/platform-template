@@ -6,11 +6,15 @@ import { Chat } from "@/components/chat/chat";
 import { Preview } from "@/components/preview";
 import { WorkspacePanel } from "@/components/workspace-panel";
 import { cn } from "@/lib/utils";
+import { useSandboxFromUrl } from "@/lib/hooks/use-sandbox-from-url";
 
 type MobileTab = "chat" | "preview";
 
 export function MainLayout() {
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+
+  // Restore sandboxId from URL if present (e.g., after redirect)
+  useSandboxFromUrl();
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">

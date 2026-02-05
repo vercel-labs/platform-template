@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { AgentSelector } from "@/components/agent-selector";
 import { TemplateSelector } from "@/components/template-selector";
+import { usePersistedChat, type ChatMessage } from "@/lib/hooks/use-persisted-chat";
 
 const EXAMPLE_PROMPTS = [
   "Build a pomodoro timer with sound notifications",
@@ -18,24 +19,7 @@ const EXAMPLE_PROMPTS = [
   "Make a password generator with strength indicator",
 ];
 
-type MessagePart =
-  | { type: "text"; content: string }
-  | {
-      type: "tool";
-      id: string;
-      name: string;
-      input: string;
-      output?: string;
-      isError?: boolean;
-      state: "streaming" | "done";
-    };
-
-/** UI representation of a chat message, accumulated from StreamChunk events */
-interface ChatMessageUI {
-  id: string;
-  role: "user" | "assistant";
-  parts: MessagePart[];
-}
+type MessagePart = ChatMessage["parts"][number];
 
 interface ChatProps {
   className?: string;
@@ -43,8 +27,11 @@ interface ChatProps {
 
 export function Chat({ className }: ChatProps) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessageUI[]>([]);
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
+
+  const { messages, setMessages, isLoading: isLoadingHistory } =
+    usePersistedChat();
+
   const {
     sandboxId,
     sessionId,
@@ -60,7 +47,7 @@ export function Chat({ className }: ChatProps) {
     async (text: string) => {
       if (!text.trim() || status === "streaming") return;
 
-      const userMessage: ChatMessageUI = {
+      const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
         parts: [{ type: "text", content: text }],
@@ -337,7 +324,7 @@ export function Chat({ className }: ChatProps) {
   );
 }
 
-function MessageView({ message }: { message: ChatMessageUI }) {
+function MessageView({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
 
   return (
@@ -361,7 +348,7 @@ function MessageView({ message }: { message: ChatMessageUI }) {
           isUser ? "text-right" : "text-left",
         )}
       >
-        {message.parts.map((part, index) => (
+        {message.parts.map((part: MessagePart, index: number) => (
           <PartView
             key={`${message.id}-${index}`}
             part={part}

@@ -15,6 +15,7 @@ import {
   errorMessage,
 } from "@/lib/errors";
 import { getSandbox } from "../utils";
+import { getSandboxSession } from "@/lib/chat-history";
 export const readFile = os
   .input(z.object({ sandboxId: z.string(), path: z.string() }))
   .handler(({ input: { sandboxId, path } }) =>
@@ -111,4 +112,15 @@ export const getOrCreateSandbox = os
       }),
       catch: (err) => new SandboxError({ message: errorMessage(err) }),
     });
+  });
+
+/**
+ * Get full sandbox session (messages + metadata like previewUrl)
+ * This is a read-only endpoint - persistence is handled server-side in chat.send
+ */
+export const getSessionRpc = os
+  .input(z.object({ sandboxId: z.string() }))
+  .handler(async ({ input: { sandboxId } }) => {
+    const session = await getSandboxSession(sandboxId);
+    return Result.ok({ session });
   });

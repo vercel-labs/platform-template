@@ -16,6 +16,8 @@ export const router = {
     readFile: sandbox.readFile,
     listFiles: sandbox.listFiles,
     getOrCreate: sandbox.getOrCreateSandbox,
+    // Read-only session access - persistence is handled server-side in chat.send
+    getSession: sandbox.getSessionRpc,
   },
   chat: {
     send: chat.sendMessage,
