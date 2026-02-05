@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import useSWR from "swr";
 import { rpc } from "@/lib/rpc/client";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
@@ -43,14 +43,17 @@ async function fetchSession(sandboxId: string): Promise<SessionData | null> {
  * but does NOT save them. Persistence is handled server-side in the
  * chat RPC procedure after streaming completes.
  *
- * The setMessages function only updates the local SWR cache for
- * optimistic UI updates during streaming.
+ * The setMessages function updates local state for optimistic UI updates.
+ * When a sandboxId exists, it also syncs with SWR cache.
  */
 export function usePersistedChat() {
   const sandboxId = useSandboxStore((s) => s.sandboxId);
   const setPreviewUrl = useSandboxStore((s) => s.setPreviewUrl);
 
-  // Fetch session from Redis
+  // Local state for messages (used when no sandboxId or during streaming)
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+
+  // Fetch session from Redis when sandboxId exists
   const { data, isLoading, mutate } = useSWR(
     sandboxId ? ["sandbox-session", sandboxId] : null,
     ([, id]) => fetchSession(id),
@@ -69,32 +72,55 @@ export function usePersistedChat() {
     }
   }, [data?.previewUrl, setPreviewUrl]);
 
-  // Reset restore flag when sandboxId changes
+  // When sandboxId changes, reset local state and restore flag
   const prevSandboxId = useRef(sandboxId);
-  if (sandboxId !== prevSandboxId.current) {
-    hasRestoredPreview.current = false;
-    prevSandboxId.current = sandboxId;
-  }
+  useEffect(() => {
+    if (sandboxId !== prevSandboxId.current) {
+      hasRestoredPreview.current = false;
+      prevSandboxId.current = sandboxId;
+      // Reset local messages when sandbox changes (will be replaced by SWR data)
+      if (sandboxId && data?.messages) {
+        setLocalMessages(data.messages);
+      }
+    }
+  }, [sandboxId, data?.messages]);
 
-  const messages = data?.messages ?? [];
+  // Sync local messages with SWR data when it loads
+  useEffect(() => {
+    if (data?.messages && data.messages.length > 0) {
+      setLocalMessages(data.messages);
+    }
+  }, [data?.messages]);
+
+  // Use local messages as source of truth (includes optimistic updates)
+  const messages = localMessages;
 
   /**
-   * Update messages in the local SWR cache.
-   * Does NOT persist to Redis - that's handled server-side.
+   * Update messages in local state.
+   * Also syncs to SWR cache if sandboxId exists.
    */
   const setMessages = useCallback(
     (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
-      mutate(
-        (current) => {
-          const prevMessages = current?.messages ?? [];
-          const newMessages =
-            typeof updater === "function" ? updater(prevMessages) : updater;
-          return { ...current, messages: newMessages };
-        },
-        { revalidate: false },
-      );
+      setLocalMessages((prev) => {
+        const newMessages =
+          typeof updater === "function" ? updater(prev) : updater;
+        return newMessages;
+      });
+
+      // Also update SWR cache if we have a sandboxId
+      if (sandboxId) {
+        mutate(
+          (current) => {
+            const prevMessages = current?.messages ?? localMessages;
+            const newMessages =
+              typeof updater === "function" ? updater(prevMessages) : updater;
+            return { ...current, messages: newMessages };
+          },
+          { revalidate: false },
+        );
+      }
     },
-    [mutate],
+    [sandboxId, mutate, localMessages],
   );
 
   return {
