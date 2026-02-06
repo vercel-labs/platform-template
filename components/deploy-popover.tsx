@@ -24,10 +24,12 @@ import {
   Globe,
   Lock,
   Rocket,
+  UserPlus,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { rpc } from "@/lib/rpc/client";
-import type { LogEvent } from "@/lib/rpc/procedures/deploy";
+import type { LogEvent, ProjectOwnership } from "@/lib/rpc/procedures/deploy";
+import { useSandboxStore } from "@/lib/store/sandbox-store";
 
 type TextLogEvent = Extract<LogEvent, { text: string }>;
 
@@ -39,7 +41,7 @@ type DeploymentState =
   | { status: "idle" }
   | { status: "deploying"; progress: string }
   | { status: "building"; deploymentId: string; url?: string; logs: LogEvent[] }
-  | { status: "ready"; url: string }
+  | { status: "ready"; url: string; ownership: ProjectOwnership }
   | { status: "error"; message: string; logs?: LogEvent[] };
 
 type ViewState = "main" | "domain" | "visibility";
@@ -47,26 +49,44 @@ type VisibilityOption = "public" | "private";
 
 interface UseDeploymentOptions {
   sandboxId: string;
+  initialProjectId?: string | null;
+  onDeploymentComplete?: (
+    projectId: string,
+    ownership: ProjectOwnership,
+    url: string,
+  ) => void;
 }
 
-function useDeployment({ sandboxId }: UseDeploymentOptions) {
+function useDeployment({
+  sandboxId,
+  initialProjectId,
+  onDeploymentComplete,
+}: UseDeploymentOptions) {
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [deploymentUrl, setDeploymentUrl] = useState<string | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(initialProjectId ?? null);
+  const [ownership, setOwnership] = useState<ProjectOwnership>("partner");
   const [logs, setLogs] = useState<LogEvent[]>([]);
   const [readyState, setReadyState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
   const abortRef = useRef(false);
 
+  // Sync initial project ID
   useEffect(() => {
-    if (!deploymentId) return;
+    if (initialProjectId !== undefined) {
+      setProjectId(initialProjectId);
+    }
+  }, [initialProjectId]);
+
+  useEffect(() => {
+    if (!deploymentId || !projectId) return;
 
     abortRef.current = false;
 
     const streamLogs = async () => {
       try {
-        const iterator = await rpc.deploy.logs({ deploymentId });
+        const iterator = await rpc.deploy.logs({ deploymentId, projectId });
 
         for await (const entry of iterator) {
           if (abortRef.current) break;
@@ -97,7 +117,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
     return () => {
       abortRef.current = true;
     };
-  }, [deploymentId]);
+  }, [deploymentId, projectId]);
 
   const startDeployment = useCallback(async () => {
     setError(null);
@@ -115,6 +135,17 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
         setDeploymentUrl(result.value.url);
         setDeploymentId(result.value.id);
         setProjectId(result.value.projectId);
+        setOwnership(result.value.ownership);
+
+        // Notify parent about deployment completion
+        if (onDeploymentComplete) {
+          onDeploymentComplete(
+            result.value.projectId,
+            result.value.ownership,
+            result.value.url,
+          );
+        }
+
         return result.value;
       } else {
         const message = result.error.message;
@@ -128,7 +159,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
     } finally {
       setIsDeploying(false);
     }
-  }, [sandboxId, projectId]);
+  }, [sandboxId, projectId, onDeploymentComplete]);
 
   const getDeploymentState = useCallback((): DeploymentState => {
     if (error) {
@@ -144,7 +175,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
     }
 
     if (deploymentId && readyState === "READY" && deploymentUrl) {
-      return { status: "ready", url: deploymentUrl };
+      return { status: "ready", url: deploymentUrl, ownership };
     }
 
     if (deploymentId && (readyState === "ERROR" || readyState === "CANCELED")) {
@@ -161,7 +192,7 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
     }
 
     return { status: "idle" };
-  }, [isDeploying, deploymentId, deploymentUrl, readyState, logs, error]);
+  }, [isDeploying, deploymentId, deploymentUrl, readyState, logs, error, ownership]);
 
   const reset = useCallback(() => {
     abortRef.current = true;
@@ -172,7 +203,13 @@ function useDeployment({ sandboxId }: UseDeploymentOptions) {
     setError(null);
   }, []);
 
-  return { state: getDeploymentState(), startDeployment, reset };
+  return {
+    state: getDeploymentState(),
+    startDeployment,
+    reset,
+    projectId,
+    ownership,
+  };
 }
 
 interface DeployPopoverProps {
@@ -187,12 +224,57 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   const [tempVisibility, setTempVisibility] =
     useState<VisibilityOption>("public");
   const [open, setOpen] = useState(false);
+  const [isClaimLoading, setIsClaimLoading] = useState(false);
   const visibilityId = useId();
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  const { state, startDeployment, reset } = useDeployment({
+  // Get project state from store
+  const storeProjectId = useSandboxStore((s) => s.projectId);
+  const storeOwnership = useSandboxStore((s) => s.projectOwnership);
+  const setProject = useSandboxStore((s) => s.setProject);
+
+  const handleDeploymentComplete = useCallback(
+    (projectId: string, ownership: ProjectOwnership, url: string) => {
+      setProject(projectId, ownership, url);
+    },
+    [setProject],
+  );
+
+  const { state, startDeployment, reset, projectId, ownership } = useDeployment({
     sandboxId: sandboxId || "",
+    initialProjectId: storeProjectId,
+    onDeploymentComplete: handleDeploymentComplete,
   });
+
+  // Handle claim button click - redirect to OAuth with transfer code
+  const handleClaim = useCallback(async () => {
+    const currentProjectId = projectId || storeProjectId;
+    if (!currentProjectId || !sandboxId) return;
+
+    setIsClaimLoading(true);
+    try {
+      // Build redirect URL that includes sandboxId to restore state after OAuth
+      const redirectUrl = new URL(window.location.origin);
+      redirectUrl.searchParams.set("sandboxId", sandboxId);
+
+      const result = await rpc.claim.getClaimUrl({
+        projectId: currentProjectId,
+        redirectTo: redirectUrl.pathname + redirectUrl.search,
+      });
+
+      if (result.isOk()) {
+        // Redirect to OAuth flow with transfer code
+        const value = result.value as { url: string; transferCode: string; projectId: string };
+        window.location.href = value.url;
+      } else {
+        console.error("Failed to get claim URL:", result.error);
+      }
+    } catch (err) {
+      console.error("Claim error:", err);
+    } finally {
+      setIsClaimLoading(false);
+    }
+  }, [projectId, storeProjectId, sandboxId]);
 
   useEffect(() => {
     if (state.status === "building") {
@@ -491,6 +573,25 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                 View Deployment
                 <ExternalLink className="h-4 w-4" />
               </Button>
+
+              {/* Show claim button for partner-owned projects */}
+              {state.ownership === "partner" && (
+                <div className="border-t pt-3">
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Claim this project to your Vercel account to manage it
+                    directly and make future updates.
+                  </p>
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    onClick={handleClaim}
+                    disabled={isClaimLoading}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    {isClaimLoading ? "Loading..." : "Claim to Your Account"}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : state.status === "idle" ? (
             <Button className="w-full" onClick={handleDeploy}>

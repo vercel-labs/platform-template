@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { MessageCircle, Monitor } from "lucide-react";
 import { Chat } from "@/components/chat/chat";
 import { Preview } from "@/components/preview";
@@ -10,14 +10,24 @@ import { useSandboxFromUrl } from "@/lib/hooks/use-sandbox-from-url";
 
 type MobileTab = "chat" | "preview";
 
+/**
+ * Restores sandboxId from URL params.
+ * Wrapped in Suspense because useSearchParams requires it for static rendering.
+ */
+function SandboxFromUrl() {
+  useSandboxFromUrl();
+  return null;
+}
+
 export function MainLayout() {
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
-  // Restore sandboxId from URL if present (e.g., after redirect)
-  useSandboxFromUrl();
-
   return (
     <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+      {/* Restore sandboxId from URL if present (e.g., after OAuth redirect) */}
+      <Suspense fallback={null}>
+        <SandboxFromUrl />
+      </Suspense>
       {/* Mobile Tab Switcher */}
       <div className="flex shrink-0 border-b border-zinc-200 lg:hidden dark:border-zinc-800">
         <button

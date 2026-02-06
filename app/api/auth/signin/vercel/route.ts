@@ -13,7 +13,18 @@ import {
   isRelativeUrl,
 } from "@/lib/auth";
 
-export async function POST(req: NextRequest): Promise<Response> {
+/**
+ * OAuth Sign-in Route
+ *
+ * Supports the combined claim deployment flow by accepting:
+ * - transfer_code: Transfer code from createTransferRequest (triggers project claim)
+ * - project_id: Project being claimed (stored for callback to link tokens)
+ * - next: Redirect URL after sign-in
+ *
+ * GET: Redirects directly to Vercel OAuth (used for claim flow)
+ * POST: Returns JSON with OAuth URL (used by AuthButton)
+ */
+async function handleSignIn(req: NextRequest, returnRedirect: boolean): Promise<Response> {
   const client = new OAuth2Client(
     process.env.VERCEL_CLIENT_ID ?? "",
     process.env.VERCEL_CLIENT_SECRET ?? "",
@@ -22,6 +33,8 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const state = generateState();
   const verifier = generateCodeVerifier();
+
+  // Create the base authorization URL
   const url = client.createAuthorizationURLWithPKCE(
     VERCEL_OAUTH.authorize,
     state,
@@ -30,15 +43,32 @@ export async function POST(req: NextRequest): Promise<Response> {
     [...OAUTH_SCOPES],
   );
 
+  // Check for transfer_code (claim deployment flow)
+  const transferCode = req.nextUrl.searchParams.get("transfer_code");
+  const projectId = req.nextUrl.searchParams.get("project_id");
+
+  if (transferCode) {
+    // Add transfer_code to the OAuth URL to trigger claim during authorization
+    url.searchParams.set("transfer_code", transferCode);
+  }
+
   const store = await cookies();
   const next = req.nextUrl.searchParams.get("next") ?? "/";
   const redirectTo = isRelativeUrl(next) ? next : "/";
 
-  for (const [key, value] of [
+  // Store OAuth state cookies
+  const cookiesToSet: [string, string][] = [
     ["vercel_oauth_redirect_to", redirectTo],
     ["vercel_oauth_state", state],
     ["vercel_oauth_code_verifier", verifier],
-  ]) {
+  ];
+
+  // Store project_id if this is a claim flow (used in callback to link tokens)
+  if (projectId) {
+    cookiesToSet.push(["vercel_oauth_project_id", projectId]);
+  }
+
+  for (const [key, value] of cookiesToSet) {
     store.set(key, value, {
       path: "/",
       secure: process.env.NODE_ENV === "production",
@@ -48,5 +78,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   }
 
-  return Response.json({ url });
+  if (returnRedirect) {
+    // GET request - redirect directly to OAuth
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: url.toString(),
+      },
+    });
+  }
+
+  // POST request - return JSON with URL
+  return Response.json({ url: url.toString() });
+}
+
+// GET: Direct redirect (for claim flow via browser navigation)
+export async function GET(req: NextRequest): Promise<Response> {
+  return handleSignIn(req, true);
+}
+
+// POST: Return JSON (for AuthButton component)
+export async function POST(req: NextRequest): Promise<Response> {
+  return handleSignIn(req, false);
 }
