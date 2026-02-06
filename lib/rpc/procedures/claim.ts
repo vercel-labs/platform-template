@@ -43,6 +43,7 @@ async function createTransferRequestInternal(projectId: string) {
       client.projects.createProjectTransferRequest({
         idOrName: projectId,
         teamId,
+        requestBody: {},
       }),
     catch: (err) =>
       new NetworkError({
