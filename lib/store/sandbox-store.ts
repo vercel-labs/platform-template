@@ -27,6 +27,14 @@ export interface Command {
   startedAt: number;
 }
 
+/**
+ * Project ownership indicates who currently owns the deployed project:
+ * - 'partner': Project is on the partner team (not yet claimed)
+ * - 'user': Project has been claimed by a user
+ * - null: No project deployed yet
+ */
+export type ProjectOwnership = "partner" | "user" | null;
+
 export interface SandboxState {
   sandboxId: string | null;
   previewUrl: string | null;
@@ -41,6 +49,11 @@ export interface SandboxState {
   files: string[];
 
   commands: Command[];
+
+  // Deployment state
+  projectId: string | null;
+  projectOwnership: ProjectOwnership;
+  deploymentUrl: string | null;
 }
 
 export interface SandboxActions {
@@ -60,6 +73,14 @@ export interface SandboxActions {
   addCommandLog: (cmdId: string, log: Omit<CommandLog, "timestamp">) => void;
   setCommandExitCode: (cmdId: string, exitCode: number) => void;
 
+  // Deployment actions
+  setProject: (
+    projectId: string,
+    ownership: ProjectOwnership,
+    deploymentUrl?: string,
+  ) => void;
+  setProjectOwnership: (ownership: ProjectOwnership) => void;
+
   reset: () => void;
 }
 
@@ -75,6 +96,9 @@ const initialState: SandboxState = {
   templateId: "nextjs",
   files: [],
   commands: [],
+  projectId: null,
+  projectOwnership: null,
+  deploymentUrl: null,
 };
 
 export const useSandboxStore = create<SandboxStore>()((set, get) => ({
@@ -85,7 +109,17 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
       if (state.sandboxId === sandboxId) {
         return { sandboxId, status };
       }
-      return { sandboxId, status, files: [], commands: [], previewUrl: null };
+      // Reset deployment state when switching sandboxes
+      return {
+        sandboxId,
+        status,
+        files: [],
+        commands: [],
+        previewUrl: null,
+        projectId: null,
+        projectOwnership: null,
+        deploymentUrl: null,
+      };
     }),
 
   setPreviewUrl: (previewUrl) => set({ previewUrl }),
@@ -145,6 +179,15 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
       commands[idx] = { ...commands[idx], exitCode };
       return { commands };
     }),
+
+  setProject: (projectId, ownership, deploymentUrl) =>
+    set({
+      projectId,
+      projectOwnership: ownership,
+      deploymentUrl: deploymentUrl ?? null,
+    }),
+
+  setProjectOwnership: (ownership) => set({ projectOwnership: ownership }),
 
   reset: () => set(initialState),
 }));

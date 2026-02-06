@@ -10,6 +10,7 @@
 import * as sandbox from "./procedures/sandbox";
 import * as chat from "./procedures/chat";
 import * as deploy from "./procedures/deploy";
+import * as claim from "./procedures/claim";
 
 export const router = {
   sandbox: {
@@ -26,6 +27,11 @@ export const router = {
     files: deploy.deployFiles,
     status: deploy.getDeploymentStatus,
     logs: deploy.streamDeploymentLogs,
+  },
+  claim: {
+    createTransferRequest: claim.createTransferRequest,
+    getProjectStatus: claim.getProjectStatus,
+    getClaimUrl: claim.getClaimUrl,
   },
 };
 

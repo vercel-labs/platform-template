@@ -1,5 +1,6 @@
 import { os } from "@orpc/server";
 import type { Sandbox } from "@vercel/sandbox";
+import { Vercel } from "@vercel/sdk";
 import { SkipAutoDetectionConfirmation } from "@vercel/sdk/models/createdeploymentop.js";
 import { z } from "zod";
 import { Result } from "better-result";
@@ -8,9 +9,24 @@ import {
   SandboxError,
   FileNotFoundError,
   NetworkError,
+  ValidationError,
   errorMessage,
 } from "@/lib/errors";
-import { getSandbox, getVercelClient } from "../utils";
+import {
+  getSandbox,
+  getVercelClient,
+  getPartnerClient,
+  getProjectClient,
+  isUserSignedIn,
+} from "../utils";
+import { isProjectClaimed } from "@/lib/project-tokens";
+
+/**
+ * Project ownership indicates who currently owns the deployed project:
+ * - 'partner': Project is on the partner team (not yet claimed)
+ * - 'user': Project has been claimed by a user
+ */
+export type ProjectOwnership = "partner" | "user";
 function toRelativePath(filePath: string): string {
   return filePath
     .replace(new RegExp(`^${SANDBOX_BASE_PATH}/?`), "")
@@ -84,6 +100,62 @@ async function readFilesForDeploy(
 
   return Result.ok(files);
 }
+/**
+ * Get the appropriate Vercel client based on project state and user authentication.
+ *
+ * Priority:
+ * 1. If projectId exists and is claimed -> use stored project tokens
+ * 2. If user is signed in -> use user's OAuth token
+ * 3. Otherwise -> use partner token (for initial deploys)
+ */
+async function getDeploymentClient(projectId: string | null | undefined): Promise<
+  Result<{ client: Vercel; teamId?: string; ownership: ProjectOwnership }, ValidationError>
+> {
+  // If we have a project ID, check if it's been claimed
+  if (projectId) {
+    const claimed = await isProjectClaimed(projectId);
+    if (claimed) {
+      const clientResult = await getProjectClient(projectId);
+      if (clientResult.isOk()) {
+        return Result.ok({
+          client: clientResult.value,
+          ownership: "user",
+        });
+      }
+      // If project tokens are invalid, fall through to try user session
+      console.warn("[deploy] Project tokens invalid, trying user session");
+    }
+  }
+
+  // Check if user is signed in
+  const signedIn = await isUserSignedIn();
+  if (signedIn) {
+    const clientResult = await getVercelClient();
+    if (clientResult.isOk()) {
+      return Result.ok({
+        client: clientResult.value,
+        ownership: "user",
+      });
+    }
+  }
+
+  // Fall back to partner client for signed-out users
+  const partnerResult = getPartnerClient();
+  if (partnerResult.isErr()) {
+    return Result.err(
+      new ValidationError({
+        message: "Unable to deploy: please sign in or contact support",
+      }),
+    );
+  }
+
+  return Result.ok({
+    client: partnerResult.value.client,
+    teamId: partnerResult.value.teamId,
+    ownership: "partner",
+  });
+}
+
 export const deployFiles = os
   .input(
     z.object({
@@ -94,7 +166,9 @@ export const deployFiles = os
   )
   .handler(({ input: { sandboxId, deploymentName, projectId } }) =>
     Result.gen(async function* () {
-      const vercel = yield* Result.await(getVercelClient());
+      const { client: vercel, teamId, ownership } = yield* Result.await(
+        getDeploymentClient(projectId),
+      );
       const sandbox = yield* Result.await(getSandbox(sandboxId));
 
       const filePaths = yield* Result.await(
@@ -116,6 +190,8 @@ export const deployFiles = os
                 target: "production",
                 project: projectId ?? undefined,
               },
+              // Include teamId for partner deployments
+              teamId,
               skipAutoDetectionConfirmation: SkipAutoDetectionConfirmation.One,
             }),
           catch: (err) =>
@@ -125,10 +201,12 @@ export const deployFiles = os
         }),
       );
 
+      // Disable SSO protection for new projects
       if (!projectId) {
         await vercel.projects.updateProject({
           requestBody: { ssoProtection: null },
           idOrName: deployment.projectId,
+          teamId,
         });
       }
 
@@ -136,18 +214,26 @@ export const deployFiles = os
         url: deployment.url,
         id: deployment.id,
         projectId: deployment.projectId,
+        ownership,
       });
     }),
   );
 export const getDeploymentStatus = os
-  .input(z.object({ deploymentId: z.string() }))
-  .handler(({ input: { deploymentId } }) =>
+  .input(
+    z.object({
+      deploymentId: z.string(),
+      projectId: z.string().nullable().optional(),
+    }),
+  )
+  .handler(({ input: { deploymentId, projectId } }) =>
     Result.gen(async function* () {
-      const vercel = yield* Result.await(getVercelClient());
+      const { client: vercel, teamId } = yield* Result.await(
+        getDeploymentClient(projectId),
+      );
       const deployment = yield* Result.await(
         Result.tryPromise({
           try: () =>
-            vercel.deployments.getDeployment({ idOrUrl: deploymentId }),
+            vercel.deployments.getDeployment({ idOrUrl: deploymentId, teamId }),
           catch: (err) => new NetworkError({ message: errorMessage(err) }),
         }),
       );
@@ -168,16 +254,21 @@ export type LogEvent =
 const TERMINAL_STATES = ["READY", "ERROR", "CANCELED"];
 const LOG_TYPES = ["stdout", "stderr", "command"];
 export const streamDeploymentLogs = os
-  .input(z.object({ deploymentId: z.string() }))
+  .input(
+    z.object({
+      deploymentId: z.string(),
+      projectId: z.string().nullable().optional(),
+    }),
+  )
   .handler(async function* ({
-    input: { deploymentId },
+    input: { deploymentId, projectId },
   }): AsyncGenerator<LogEvent> {
-    const vercelResult = await getVercelClient();
-    if (vercelResult.isErr()) {
-      yield { type: "error", message: "Unauthorized", timestamp: Date.now() };
+    const clientResult = await getDeploymentClient(projectId);
+    if (clientResult.isErr()) {
+      yield { type: "error", message: clientResult.error.message, timestamp: Date.now() };
       return;
     }
-    const vercel = vercelResult.value;
+    const { client: vercel, teamId } = clientResult.value;
 
     let lastSerial = "";
 
@@ -185,10 +276,12 @@ export const streamDeploymentLogs = os
       try {
         const { readyState } = await vercel.deployments.getDeployment({
           idOrUrl: deploymentId,
+          teamId,
         });
 
         const events = (await vercel.deployments.getDeploymentEvents({
           idOrUrl: deploymentId,
+          teamId,
           direction: "forward",
           limit: -1,
           builds: 1,
