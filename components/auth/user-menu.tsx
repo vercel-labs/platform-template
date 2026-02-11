@@ -6,7 +6,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
 import { redirectToSignOut } from "@/lib/auth/client";
 import { useSession } from "./session-store";
 import { ExternalLink, LogOut } from "lucide-react";
@@ -43,9 +42,6 @@ export function UserMenu({ user }: UserMenuProps) {
         <header className="p-2 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between text-sm font-medium">
             <span className="truncate">{user.name ?? user.username}</span>
-            <Badge variant="secondary" className="ml-2 capitalize text-xs">
-              {user.plan}
-            </Badge>
           </div>
           {user.email && (
             <div className="text-xs text-zinc-500 truncate">{user.email}</div>

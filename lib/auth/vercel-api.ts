@@ -1,5 +1,4 @@
 import { Vercel } from "@vercel/sdk";
-import type { BillingPlan } from "./types";
 
 function createClient(accessToken: string): Vercel {
   return new Vercel({ bearerToken: accessToken });
@@ -73,23 +72,4 @@ export async function fetchTeams(
     console.error("[auth] Failed to fetch teams:", error);
     return undefined;
   }
-}
-
-interface PlanInfo {
-  plan: BillingPlan;
-  teamId: string | null;
-}
-
-export function getHighestAccountLevel(teams: VercelTeamData[]): PlanInfo {
-  if (!teams?.length) {
-    return { plan: "hobby", teamId: null };
-  }
-
-  const ownedTeam = teams.find((t) => t.membership.role === "OWNER");
-
-  if (ownedTeam) {
-    return { plan: "pro", teamId: ownedTeam.id };
-  }
-
-  return { plan: "hobby", teamId: teams[0]?.id ?? null };
 }
