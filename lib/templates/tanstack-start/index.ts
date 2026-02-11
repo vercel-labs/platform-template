@@ -43,14 +43,15 @@ CRITICAL RULES:
   async *setup(sandbox: Sandbox): AsyncGenerator<SetupProgress> {
     yield { stage: "creating-app", message: "Creating TanStack Start app..." };
     
-    // Download tarball from GitHub and extract the start-basic example
+    // Download tarball from GitHub and extract the start-basic example,
+    // then fix ownership so writeFiles (runs as vercel-sandbox) can modify them
     await runOrThrow(
       sandbox,
       {
         cmd: "sh",
         args: [
           "-c",
-          `mkdir -p ${SANDBOX_BASE_PATH} && curl -sL https://codeload.github.com/tanstack/router/tar.gz/main | tar -xz --strip-components=4 -C ${SANDBOX_BASE_PATH} router-main/examples/react/start-basic`,
+          `mkdir -p ${SANDBOX_BASE_PATH} && curl -sL https://codeload.github.com/tanstack/router/tar.gz/main | tar -xz --strip-components=4 -C ${SANDBOX_BASE_PATH} router-main/examples/react/start-basic && chown -R vercel-sandbox:vercel-sandbox ${SANDBOX_BASE_PATH}`,
         ],
         sudo: true,
       },
@@ -65,6 +66,39 @@ CRITICAL RULES:
     );
 
     yield { stage: "configuring", message: "Configuring Vite..." };
+
+    // Remove demo routes, components, and utils from the start-basic template
+    await run(
+      sandbox,
+      {
+        cmd: "sh",
+        args: [
+          "-c",
+          [
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/posts.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/posts.index.tsx`,
+            `rm -rf "${SANDBOX_BASE_PATH}/src/routes/posts.\\$postId.tsx"`,
+            `rm -rf "${SANDBOX_BASE_PATH}/src/routes/posts_.\\$postId.deep.tsx"`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/users.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/users.index.tsx`,
+            `rm -rf "${SANDBOX_BASE_PATH}/src/routes/users.\\$userId.tsx"`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/deferred.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/redirect.tsx`,
+            `rm -rf "${SANDBOX_BASE_PATH}/src/routes/customScript[.]js.ts"`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/_pathlessLayout.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/_pathlessLayout`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/routes/api`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/utils/posts.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/utils/users.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/utils/loggingMiddleware.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/components/PostError.tsx`,
+            `rm -rf ${SANDBOX_BASE_PATH}/src/components/UserError.tsx`,
+          ].join(" && "),
+        ],
+        sudo: true,
+      },
+      "cleanup demo files",
+    );
 
     // Update vite.config.ts to allow all hosts for sandbox access
     const viteConfig = `import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -94,8 +128,71 @@ export default defineConfig({
 })
 `;
 
+    // Minimal root layout (no devtools, no demo nav)
+    const rootRoute = `/// <reference types="vite/client" />
+import {
+  HeadContent,
+  Outlet,
+  Scripts,
+  createRootRoute,
+} from '@tanstack/react-router'
+import * as React from 'react'
+import appCss from '~/styles/app.css?url'
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+    ],
+    links: [{ rel: 'stylesheet', href: appCss }],
+  }),
+  component: RootComponent,
+})
+
+function RootComponent() {
+  return (
+    <RootDocument>
+      <Outlet />
+    </RootDocument>
+  )
+}
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  )
+}
+`;
+
+    // Minimal index route
+    const indexRoute = `import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/')({
+  component: Home,
+})
+
+function Home() {
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">Hello World</h1>
+    </div>
+  )
+}
+`;
+
     await sandbox.writeFiles([
       { path: `${SANDBOX_BASE_PATH}/vite.config.ts`, content: Buffer.from(viteConfig) },
+      { path: `${SANDBOX_BASE_PATH}/src/routes/__root.tsx`, content: Buffer.from(rootRoute) },
+      { path: `${SANDBOX_BASE_PATH}/src/routes/index.tsx`, content: Buffer.from(indexRoute) },
     ]);
 
     // Start dev server
