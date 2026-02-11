@@ -2,7 +2,6 @@ export type {
   Session,
   Tokens,
   User,
-  BillingPlan,
   SessionUserInfo,
 } from "./types";
 
@@ -26,6 +25,6 @@ export {
   getSessionFromRequest,
 } from "./session";
 
-export { fetchUser, fetchTeams, getHighestAccountLevel } from "./vercel-api";
+export { fetchUser, fetchTeams } from "./vercel-api";
 
 export { isRelativeUrl } from "./utils";

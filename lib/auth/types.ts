@@ -16,11 +16,7 @@ export interface User {
   email: string;
   avatar: string;
   name?: string;
-  plan: BillingPlan;
-  highestTeamId?: string;
 }
-
-export type BillingPlan = "hobby" | "pro" | "enterprise";
 
 export interface SessionUserInfo {
   user: User | undefined;

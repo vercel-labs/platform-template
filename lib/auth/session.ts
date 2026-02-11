@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import type { Session, Tokens } from "./types";
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_TTL_MS } from "./constants";
 import { encryptJWE, decryptJWE } from "./jwe";
-import { fetchUser, fetchTeams, getHighestAccountLevel } from "./vercel-api";
+import { fetchUser, fetchTeams } from "./vercel-api";
 
 export async function createSession(
   tokens: Tokens,
@@ -19,17 +19,13 @@ export async function createSession(
     return undefined;
   }
 
-  const plan = getHighestAccountLevel(teams);
-
   return {
     created: Date.now(),
     user: {
       avatar: `https://vercel.com/api/www/avatar/?u=${user.username}`,
       email: user.email,
-      highestTeamId: plan.teamId ?? undefined,
       id: user.id,
       name: user.name ?? undefined,
-      plan: plan.plan,
       username: user.username,
     },
     tokens,
