@@ -1,7 +1,6 @@
 "use client";
 
 import { useSession } from "./session-store";
-import { SignInButton } from "./sign-in-button";
 import { UserMenu } from "./user-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -22,5 +21,5 @@ export function AuthButton({ initialUser }: AuthButtonProps) {
     return <UserMenu user={currentUser} />;
   }
 
-  return <SignInButton />;
+  return null;
 }

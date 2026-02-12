@@ -14,17 +14,16 @@ import {
 } from "@/lib/auth";
 
 /**
- * OAuth Sign-in Route
+ * OAuth Sign-in Route (Claim Flow)
  *
- * Supports the combined claim deployment flow by accepting:
+ * Sign-in is only triggered via the claim deployment flow which accepts:
  * - transfer_code: Transfer code from createTransferRequest (triggers project claim)
  * - project_id: Project being claimed (stored for callback to link tokens)
  * - next: Redirect URL after sign-in
  *
- * GET: Redirects directly to Vercel OAuth (used for claim flow)
- * POST: Returns JSON with OAuth URL (used by AuthButton)
+ * GET: Redirects directly to Vercel OAuth
  */
-async function handleSignIn(req: NextRequest, returnRedirect: boolean): Promise<Response> {
+export async function GET(req: NextRequest): Promise<Response> {
   const client = new OAuth2Client(
     process.env.VERCEL_CLIENT_ID ?? "",
     process.env.VERCEL_CLIENT_SECRET ?? "",
@@ -78,26 +77,10 @@ async function handleSignIn(req: NextRequest, returnRedirect: boolean): Promise<
     });
   }
 
-  if (returnRedirect) {
-    // GET request - redirect directly to OAuth
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: url.toString(),
-      },
-    });
-  }
-
-  // POST request - return JSON with URL
-  return Response.json({ url: url.toString() });
-}
-
-// GET: Direct redirect (for claim flow via browser navigation)
-export async function GET(req: NextRequest): Promise<Response> {
-  return handleSignIn(req, true);
-}
-
-// POST: Return JSON (for AuthButton component)
-export async function POST(req: NextRequest): Promise<Response> {
-  return handleSignIn(req, false);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: url.toString(),
+    },
+  });
 }
