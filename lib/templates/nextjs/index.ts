@@ -15,7 +15,7 @@ export const nextjsTemplate: Template = {
 SANDBOX ENVIRONMENT:
 - You are in a Vercel Sandbox at /vercel/sandbox
 - Next.js (latest), React 19, Tailwind CSS, TypeScript are pre-installed
-- The dev server is ALREADY RUNNING on port 3000 - the preview updates automatically
+ - The setup process starts the dev server on port 3000; the preview updates automatically once ready
 - ALL shadcn/ui components are pre-installed in src/components/ui/
 
 PROJECT STRUCTURE:
@@ -35,7 +35,7 @@ CRITICAL RULES:
 - NEVER run npm install, npm run dev, or create-next-app
 - NEVER run npx shadcn add - all components are already installed
 - NEVER create package.json - it exists
-- NEVER start the dev server - it's already running
+ - Do not start a second dev server manually; setup handles it
 - Just edit files and the preview updates automatically
 `,
 

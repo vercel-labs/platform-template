@@ -176,7 +176,7 @@ function TemplateIcon({
     case "tanstack-start":
       return (
         <img
-          src="https://tanstack.com/images/logos/logo-color-100.png"
+          src="/tanstack-start.png"
           alt="TanStack Start"
           className={cn("h-4 w-4", className)}
           width={16}

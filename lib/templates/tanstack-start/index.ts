@@ -15,7 +15,7 @@ export const tanstackStartTemplate: Template = {
 SANDBOX ENVIRONMENT:
 - You are in a Vercel Sandbox at /vercel/sandbox
 - TanStack Start with React 19, TypeScript, Vite, and Tailwind CSS are pre-installed
-- The dev server is ALREADY RUNNING on port 3000 - the preview updates automatically
+ - The setup process starts the dev server on port 3000; the preview updates automatically once ready
 
 PROJECT STRUCTURE:
 /vercel/sandbox/
@@ -36,7 +36,7 @@ WORKFLOW:
 CRITICAL RULES:
 - NEVER run npm install, npm run dev, or create new projects
 - NEVER create package.json - it exists
-- NEVER start the dev server - it's already running
+ - Do not start a second dev server manually; setup handles it
 - Just edit files and the preview updates automatically
 `,
 
