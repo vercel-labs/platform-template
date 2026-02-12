@@ -394,5 +394,3 @@ export class ClaudeAgentProvider implements AgentProvider {
     return chunks;
   }
 }
-
-export const claudeAgent = new ClaudeAgentProvider();

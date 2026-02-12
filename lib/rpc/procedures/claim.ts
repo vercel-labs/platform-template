@@ -19,6 +19,37 @@ import { getProjectTokens, isProjectClaimed } from "@/lib/project-tokens";
  * Internal function to create a transfer request.
  * Reused by both the RPC handler and getClaimUrl.
  */
+/**
+ * Wait for all in-progress deployments to complete before transferring.
+ * Vercel rejects transfer requests while deployments are in progress.
+ */
+async function waitForDeploymentsToSettle(
+  client: import("@vercel/sdk").Vercel,
+  projectId: string,
+  teamId?: string,
+  maxWaitMs = 60_000,
+): Promise<void> {
+  const POLL_INTERVAL = 2_000;
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    const deployments = await client.deployments.getDeployments({
+      projectId,
+      teamId,
+      limit: 5,
+      state: "building" as never,
+    });
+
+    const inProgress = (deployments.deployments ?? []).filter(
+      (d) => d.readyState === "BUILDING" || d.readyState === "QUEUED" || d.readyState === "INITIALIZING",
+    );
+
+    if (inProgress.length === 0) return;
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+  }
+}
+
 async function createTransferRequestInternal(projectId: string) {
   // Get partner client (only partner can create transfer requests)
   const partnerResult = getPartnerClient();
@@ -36,6 +67,9 @@ async function createTransferRequestInternal(projectId: string) {
       }),
     );
   }
+
+  // Wait for any in-progress deployments to finish before transferring
+  await waitForDeploymentsToSettle(client, projectId, teamId);
 
   // Create the transfer request via Vercel SDK
   const transferResult = await Result.tryPromise({

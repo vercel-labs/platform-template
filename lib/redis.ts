@@ -36,7 +36,7 @@ export async function createProxySession(
 
   return sessionData;
 }
-export async function getProxySession(
+async function getProxySession(
   sessionId: string,
 ): Promise<ProxySessionData | null> {
   const data = await redis.get(`session:${sessionId}`);
@@ -51,9 +51,6 @@ export async function getProxySession(
     console.error("[redis] Failed to parse session data:", error);
     return null;
   }
-}
-export async function deleteProxySession(sessionId: string): Promise<void> {
-  await redis.del(`session:${sessionId}`);
 }
 export async function updateProxySessionSandbox(
   sessionId: string,

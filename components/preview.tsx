@@ -80,7 +80,7 @@ export function Preview({ className }: PreviewProps) {
               </p>
               {sandboxId && (
                 <p className="mt-2 font-mono text-xs text-zinc-400">
-                  Ask the agent to run &quot;npm run dev&quot;
+                  Ask the agent to start the dev server if needed
                 </p>
               )}
             </div>

@@ -12,6 +12,7 @@ import {
   ValidationError,
   errorMessage,
 } from "@/lib/errors";
+import { getSandboxSession, saveSandboxSession } from "@/lib/chat-history";
 import {
   getSandbox,
   getVercelClient,
@@ -176,8 +177,20 @@ export const deployFiles = os
       );
       const files = yield* Result.await(readFilesForDeploy(sandbox, filePaths));
 
+      // Sanitize deployment name to meet Vercel project name requirements:
+      // lowercase, up to 100 chars, only letters/digits/'.'/'-'/'_', no '---'
+      const sanitizedName = deploymentName
+        ? deploymentName
+            .toLowerCase()
+            .replace(/\.vercel\.app$/i, "")  // strip .vercel.app suffix if user included it
+            .replace(/[^a-z0-9._-]/g, "-")  // replace invalid chars with hyphens
+            .replace(/---+/g, "--")          // collapse --- sequences
+            .replace(/^-+|-+$/g, "")         // trim leading/trailing hyphens
+            .slice(0, 100)
+        : undefined;
+
       const name =
-        deploymentName ||
+        sanitizedName ||
         `platform-deploy-${Math.random().toString(36).slice(2, 6)}`;
 
       const deployment = yield* Result.await(
@@ -201,14 +214,46 @@ export const deployFiles = os
         }),
       );
 
-      // Disable SSO protection for new projects
+      // For new projects: disable SSO protection and add custom domain if specified
       if (!projectId) {
-        await vercel.projects.updateProject({
-          requestBody: { ssoProtection: null },
-          idOrName: deployment.projectId,
-          teamId,
-        });
+        const postDeployOps: Promise<unknown>[] = [
+          vercel.projects.updateProject({
+            requestBody: { ssoProtection: null },
+            idOrName: deployment.projectId,
+            teamId,
+          }),
+        ];
+
+        // Add custom .vercel.app domain if a custom name was provided
+        if (sanitizedName) {
+          postDeployOps.push(
+            vercel.projects.addProjectDomain({
+              idOrName: deployment.projectId,
+              teamId,
+              requestBody: { name: `${sanitizedName}.vercel.app` },
+            }).catch((err) => {
+              // Non-fatal: domain might already be taken or invalid
+              console.warn(`[deploy] Failed to add custom domain: ${errorMessage(err)}`);
+            }),
+          );
+        }
+
+        await Promise.all(postDeployOps);
       }
+
+      // Persist deployment state to Redis so it survives page reloads (e.g. after claim flow)
+      const sandboxIdForSession = sandboxId;
+      getSandboxSession(sandboxIdForSession).then((existing) => {
+        saveSandboxSession(sandboxIdForSession, {
+          ...existing,
+          messages: existing?.messages ?? [],
+          projectId: deployment.projectId,
+          projectOwnership: ownership,
+          deploymentUrl: deployment.url,
+        });
+      }).catch((err) => {
+        console.warn("[deploy] Failed to persist deployment state:", err);
+      });
 
       return Result.ok({
         url: deployment.url,

@@ -50,6 +50,9 @@ type VisibilityOption = "public" | "private";
 interface UseDeploymentOptions {
   sandboxId: string;
   initialProjectId?: string | null;
+  initialDeploymentUrl?: string | null;
+  initialOwnership?: ProjectOwnership;
+  customDomain?: string;
   onDeploymentComplete?: (
     projectId: string,
     ownership: ProjectOwnership,
@@ -60,24 +63,41 @@ interface UseDeploymentOptions {
 function useDeployment({
   sandboxId,
   initialProjectId,
+  initialDeploymentUrl,
+  initialOwnership,
+  customDomain,
   onDeploymentComplete,
 }: UseDeploymentOptions) {
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
-  const [deploymentUrl, setDeploymentUrl] = useState<string | null>(null);
+  const [deploymentUrl, setDeploymentUrl] = useState<string | null>(
+    initialDeploymentUrl ?? null,
+  );
   const [projectId, setProjectId] = useState<string | null>(initialProjectId ?? null);
-  const [ownership, setOwnership] = useState<ProjectOwnership>("partner");
+  const [ownership, setOwnership] = useState<ProjectOwnership>(
+    initialOwnership ?? "partner",
+  );
   const [logs, setLogs] = useState<LogEvent[]>([]);
-  const [readyState, setReadyState] = useState<string | null>(null);
+  const [readyState, setReadyState] = useState<string | null>(
+    // If we already have a completed deployment from the store, start in READY state
+    initialDeploymentUrl && initialProjectId ? "READY" : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
   const abortRef = useRef(false);
 
-  // Sync initial project ID
+  // Sync from store when it changes (e.g. after session restore from Redis)
   useEffect(() => {
     if (initialProjectId !== undefined) {
       setProjectId(initialProjectId);
     }
-  }, [initialProjectId]);
+    if (initialDeploymentUrl) {
+      setDeploymentUrl(initialDeploymentUrl);
+      setReadyState("READY");
+    }
+    if (initialOwnership) {
+      setOwnership(initialOwnership);
+    }
+  }, [initialProjectId, initialDeploymentUrl, initialOwnership]);
 
   useEffect(() => {
     if (!deploymentId || !projectId) return;
@@ -129,6 +149,7 @@ function useDeployment({
       const result = await rpc.deploy.files({
         sandboxId,
         projectId,
+        deploymentName: customDomain || undefined,
       });
 
       if (result.isOk()) {
@@ -159,7 +180,7 @@ function useDeployment({
     } finally {
       setIsDeploying(false);
     }
-  }, [sandboxId, projectId, onDeploymentComplete]);
+  }, [sandboxId, projectId, customDomain, onDeploymentComplete]);
 
   const getDeploymentState = useCallback((): DeploymentState => {
     if (error) {
@@ -174,7 +195,7 @@ function useDeployment({
       return { status: "deploying", progress: "Starting deployment..." };
     }
 
-    if (deploymentId && readyState === "READY" && deploymentUrl) {
+    if (readyState === "READY" && deploymentUrl) {
       return { status: "ready", url: deploymentUrl, ownership };
     }
 
@@ -231,6 +252,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   // Get project state from store
   const storeProjectId = useSandboxStore((s) => s.projectId);
   const storeOwnership = useSandboxStore((s) => s.projectOwnership);
+  const storeDeploymentUrl = useSandboxStore((s) => s.deploymentUrl);
   const setProject = useSandboxStore((s) => s.setProject);
 
   const handleDeploymentComplete = useCallback(
@@ -243,6 +265,9 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   const { state, startDeployment, reset, projectId, ownership } = useDeployment({
     sandboxId: sandboxId || "",
     initialProjectId: storeProjectId,
+    initialDeploymentUrl: storeDeploymentUrl,
+    initialOwnership: storeOwnership ?? undefined,
+    customDomain: customDomain || undefined,
     onDeploymentComplete: handleDeploymentComplete,
   });
 
@@ -312,7 +337,8 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     if (
       !newOpen &&
       state.status !== "building" &&
-      state.status !== "deploying"
+      state.status !== "deploying" &&
+      state.status !== "ready"
     ) {
       reset();
     }
@@ -572,6 +598,15 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
               >
                 View Deployment
                 <ExternalLink className="h-4 w-4" />
+              </Button>
+
+              {/* Allow re-deploying with latest changes */}
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={handleDeploy}
+              >
+                Update Deployment
               </Button>
 
               {/* Show claim button for partner-owned projects */}

@@ -79,34 +79,3 @@ export async function getSandboxSession(
 
   return parseResult.value;
 }
-
-/**
- * Save chat messages for a sandbox (convenience wrapper)
- */
-export async function saveChatHistory(
-  sandboxId: string,
-  messages: ChatMessage[],
-): Promise<void> {
-  const existing = await getSandboxSession(sandboxId);
-  await saveSandboxSession(sandboxId, {
-    ...existing,
-    messages,
-  });
-}
-
-/**
- * Get chat messages for a sandbox (convenience wrapper)
- */
-export async function getChatHistory(
-  sandboxId: string,
-): Promise<ChatMessage[]> {
-  const session = await getSandboxSession(sandboxId);
-  return session?.messages ?? [];
-}
-
-/**
- * Delete sandbox session
- */
-export async function deleteSandboxSession(sandboxId: string): Promise<void> {
-  await redis.del(`${SANDBOX_SESSION_PREFIX}${sandboxId}`);
-}

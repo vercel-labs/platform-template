@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { Result } from "better-result";
 import { VERCEL_OAUTH, createSession, saveSession } from "@/lib/auth";
 import { storeProjectTokens } from "@/lib/project-tokens";
+import { getSandboxSession, saveSandboxSession } from "@/lib/chat-history";
 
 /**
  * OAuth Callback Route
@@ -101,6 +102,23 @@ export async function GET(req: NextRequest): Promise<Response> {
       console.log(
         `[auth] Stored project tokens for project ${storedProjectId}, user ${session.user.id}`,
       );
+
+      // Update the Redis session ownership so the UI reflects the claim
+      try {
+        const redirectUrl = new URL(storedRedirectTo, req.nextUrl.origin);
+        const sandboxId = redirectUrl.searchParams.get("sandboxId");
+        if (sandboxId) {
+          const existing = await getSandboxSession(sandboxId);
+          if (existing && existing.projectId === storedProjectId) {
+            await saveSandboxSession(sandboxId, {
+              ...existing,
+              projectOwnership: "user",
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("[auth] Failed to update session ownership:", err);
+      }
     }
   }
 

@@ -4,28 +4,16 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import useSWR from "swr";
 import { rpc } from "@/lib/rpc/client";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
+import type { ChatMessage } from "@/lib/chat-history";
 
-type MessagePart =
-  | { type: "text"; content: string }
-  | {
-      type: "tool";
-      id: string;
-      name: string;
-      input: string;
-      output?: string;
-      isError?: boolean;
-      state: "streaming" | "done";
-    };
-
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  parts: MessagePart[];
-}
+export type { ChatMessage, MessagePart } from "@/lib/chat-history";
 
 interface SessionData {
   messages: ChatMessage[];
   previewUrl?: string;
+  projectId?: string;
+  projectOwnership?: "partner" | "user";
+  deploymentUrl?: string;
 }
 
 async function fetchSession(sandboxId: string): Promise<SessionData | null> {
@@ -49,6 +37,7 @@ async function fetchSession(sandboxId: string): Promise<SessionData | null> {
 export function usePersistedChat() {
   const sandboxId = useSandboxStore((s) => s.sandboxId);
   const setPreviewUrl = useSandboxStore((s) => s.setPreviewUrl);
+  const setProject = useSandboxStore((s) => s.setProject);
 
   // Local state for messages (used when no sandboxId or during streaming)
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
@@ -63,20 +52,29 @@ export function usePersistedChat() {
     },
   );
 
-  // Restore previewUrl when session loads
-  const hasRestoredPreview = useRef(false);
+  // Restore previewUrl and deployment state when session loads
+  const hasRestoredSession = useRef(false);
   useEffect(() => {
-    if (data?.previewUrl && !hasRestoredPreview.current) {
-      setPreviewUrl(data.previewUrl);
-      hasRestoredPreview.current = true;
+    if (data && !hasRestoredSession.current) {
+      if (data.previewUrl) {
+        setPreviewUrl(data.previewUrl);
+      }
+      if (data.projectId) {
+        setProject(
+          data.projectId,
+          data.projectOwnership ?? "partner",
+          data.deploymentUrl,
+        );
+      }
+      hasRestoredSession.current = true;
     }
-  }, [data?.previewUrl, setPreviewUrl]);
+  }, [data, setPreviewUrl, setProject]);
 
   // When sandboxId changes, reset local state and restore flag
   const prevSandboxId = useRef(sandboxId);
   useEffect(() => {
     if (sandboxId !== prevSandboxId.current) {
-      hasRestoredPreview.current = false;
+      hasRestoredSession.current = false;
       prevSandboxId.current = sandboxId;
       // Reset local messages when sandbox changes (will be replaced by SWR data)
       if (sandboxId && data?.messages) {

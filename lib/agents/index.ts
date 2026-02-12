@@ -19,7 +19,6 @@ export {
 export { createAgentStream, toUIMessageChunk } from "./stream";
 
 export {
-  SANDBOX_INSTRUCTIONS,
   SANDBOX_BASE_PATH,
   SANDBOX_DEV_PORT,
   SANDBOX_VITE_PORT,
@@ -34,5 +33,5 @@ export {
   isValidAgent,
 } from "./registry";
 
-export { ClaudeAgentProvider, claudeAgent } from "./claude-agent";
-export { CodexAgentProvider, codexAgent } from "./codex-agent";
+export { ClaudeAgentProvider } from "./claude-agent";
+export { CodexAgentProvider } from "./codex-agent";

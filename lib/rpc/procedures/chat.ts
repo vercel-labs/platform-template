@@ -268,6 +268,10 @@ export const sendMessage = os
         saveSandboxSession(sandbox.sandboxId, {
           messages: [...existingMessages, ...newMessages],
           previewUrl: previewUrl ?? existingSession?.previewUrl,
+          // Preserve deployment state across follow-up messages
+          projectId: existingSession?.projectId,
+          projectOwnership: existingSession?.projectOwnership,
+          deploymentUrl: existingSession?.deploymentUrl,
         }),
       catch: (err) => errorMessage(err),
     });

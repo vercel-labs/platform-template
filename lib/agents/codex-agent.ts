@@ -427,5 +427,3 @@ export class CodexAgentProvider implements AgentProvider {
     return chunks;
   }
 }
-
-export const codexAgent = new CodexAgentProvider();
