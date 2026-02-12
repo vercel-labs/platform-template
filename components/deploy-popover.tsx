@@ -348,13 +348,13 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     return (
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" disabled={!canDeploy}>
-            <Rocket className="h-4 w-4" />
-            Deploy
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-96 p-0">
-          <div className="flex items-center gap-2 border-b p-2">
+        <Button size="sm" disabled={!canDeploy}>
+          <Rocket className="h-4 w-4" />
+          Deploy
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-96 p-0">
+        <div className="flex items-center gap-2 border-b p-2">
             <Button
               aria-label="Back"
               className="size-8"
@@ -398,7 +398,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     return (
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" disabled={!canDeploy}>
+          <Button size="sm" disabled={!canDeploy}>
             <Rocket className="h-4 w-4" />
             Deploy
           </Button>
@@ -474,7 +474,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" disabled={!canDeploy}>
+        <Button size="sm" disabled={!canDeploy}>
           <Rocket className="h-4 w-4" />
           Deploy
         </Button>

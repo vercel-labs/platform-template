@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
 import { Panel, PanelHeader, PanelContent } from "@/components/ui/panel";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
@@ -23,11 +23,14 @@ type MessagePart = ChatMessage["parts"][number];
 
 interface ChatProps {
   className?: string;
+  /** When true, the chat is centered on the page with no sidebar — hides internal divider borders */
+  standalone?: boolean;
 }
 
-export function Chat({ className }: ChatProps) {
+export function Chat({ className, standalone }: ChatProps) {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { messages, setMessages, isLoading: isLoadingHistory } =
     usePersistedChat();
@@ -221,6 +224,14 @@ export function Chat({ className }: ChatProps) {
     [status, sandboxId, sessionId, agentId, templateId, setSandbox, setSessionId],
   );
 
+  // Auto-resize textarea as content changes
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  }, [input]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -234,13 +245,19 @@ export function Chat({ className }: ChatProps) {
 
   return (
     <Panel className={cn("flex min-h-0 flex-col", className)}>
-      <PanelHeader>
-        <div className="flex items-center gap-2 font-mono text-sm font-semibold uppercase">
-          <MessageCircle className="h-4 w-4" />
-          Chat
-        </div>
-        <div className="font-mono text-xs text-zinc-500">[{status}]</div>
-      </PanelHeader>
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-500 ease-in-out",
+          standalone ? "max-h-0 opacity-0" : "max-h-12 opacity-100",
+        )}
+      >
+        <PanelHeader>
+          <div className="flex items-center gap-2 font-mono text-sm font-semibold uppercase">
+            <MessageCircle className="h-4 w-4" />
+            Chat
+          </div>
+        </PanelHeader>
+      </div>
 
       {/* Messages or Empty State */}
       {messages.length === 0 ? (
@@ -264,7 +281,7 @@ export function Chat({ className }: ChatProps) {
           </ul>
         </PanelContent>
       ) : (
-        <PanelContent className="min-h-0 space-y-4">
+        <PanelContent className="mx-auto min-h-0 w-full max-w-2xl space-y-4">
           {messages.map((message) => (
             <MessageView key={message.id} message={message} />
           ))}
@@ -289,20 +306,28 @@ export function Chat({ className }: ChatProps) {
       )}
 
       {/* Input */}
-      <div className="border-t border-zinc-200 p-3 dark:border-zinc-800 sm:p-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-2">
-            <TemplateSelector disabled={isStreaming || hasStartedChat} />
-            <AgentSelector disabled={isStreaming || hasStartedChat} />
-          </div>
+      <div className="p-3 sm:p-4">
+        <div className={cn(
+          "mx-auto flex w-full max-w-2xl flex-col gap-2 transition-[border-color,padding] duration-500 ease-in-out",
+          standalone
+            ? "border-transparent pt-0"
+            : "border-t border-zinc-200 pt-3 dark:border-zinc-800",
+        )}>
+          {!hasStartedChat && (
+            <div className="flex flex-wrap gap-2">
+              <TemplateSelector disabled={isStreaming} />
+              <AgentSelector disabled={isStreaming} />
+            </div>
+          )}
           <div className="flex gap-2">
             <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type your message..."
               disabled={isStreaming}
-              rows={1}
+              rows={3}
               className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
             />
             <button

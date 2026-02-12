@@ -18,7 +18,7 @@ interface PreviewProps {
 }
 
 export function Preview({ className }: PreviewProps) {
-  const { previewUrl, sandboxId, status } = useSandboxStore();
+  const { previewUrl } = useSandboxStore();
   const [key, setKey] = useState(0);
 
   const refresh = useCallback(() => {
@@ -38,13 +38,6 @@ export function Preview({ className }: PreviewProps) {
           <Globe className="h-4 w-4" />
           Preview
         </div>
-        <span className="font-mono text-xs text-zinc-500">
-          {status === "creating"
-            ? "[creating...]"
-            : sandboxId
-              ? `[${sandboxId.slice(0, 8)}...]`
-              : "[no sandbox]"}
-        </span>
       </PanelHeader>
 
       <div className="flex-1 min-h-0">
@@ -72,17 +65,8 @@ export function Preview({ className }: PreviewProps) {
             <div className="text-center">
               <Globe className="mx-auto mb-2 h-8 w-8 text-zinc-400" />
               <p className="font-mono text-sm text-zinc-500">
-                {status === "creating"
-                  ? "Creating sandbox..."
-                  : sandboxId
-                    ? "Start a dev server to see preview"
-                    : "No sandbox active"}
+                Loading preview...
               </p>
-              {sandboxId && (
-                <p className="mt-2 font-mono text-xs text-zinc-400">
-                  Ask the agent to start the dev server if needed
-                </p>
-              )}
             </div>
           </div>
         )}
