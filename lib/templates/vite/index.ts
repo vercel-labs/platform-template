@@ -44,10 +44,11 @@ CRITICAL RULES:
         cmd: "bunx",
         args: [
           "create-vite@latest",
-          SANDBOX_BASE_PATH,
+          ".",
           "--template",
           "react-ts",
         ],
+        cwd: SANDBOX_BASE_PATH,
         sudo: true,
       },
       "Failed to create Vite app",
@@ -90,9 +91,17 @@ export default defineConfig({
     const css = `@import "tailwindcss";
 `;
 
-    await sandbox.writeFiles([
-      { path: `${SANDBOX_BASE_PATH}/vite.config.ts`, content: Buffer.from(viteConfig) },
-      { path: `${SANDBOX_BASE_PATH}/src/index.css`, content: Buffer.from(css) },
+    await Promise.all([
+      sandbox.runCommand({
+        cmd: "sh",
+        args: ["-c", `cat > ${SANDBOX_BASE_PATH}/vite.config.ts << 'VITEEOF'\n${viteConfig}VITEEOF`],
+        sudo: true,
+      }),
+      sandbox.runCommand({
+        cmd: "sh",
+        args: ["-c", `cat > ${SANDBOX_BASE_PATH}/src/index.css << 'CSSEOF'\n${css}CSSEOF`],
+        sudo: true,
+      }),
     ]);
 
     // Start dev server

@@ -220,6 +220,10 @@ export const sendMessage = os
       }
     }
 
+    // Yield preview URL immediately so the preview iframe loads while the agent works
+    const previewUrlEvent = events.previewUrl(sandbox.domain(devPort), devPort);
+    yield previewUrlEvent;
+
     const proxySessionId = nanoid(32);
     await createProxySession(proxySessionId, { sandboxId: sandbox.sandboxId });
 
@@ -236,6 +240,11 @@ export const sendMessage = os
     // Accumulate messages for persistence
     const accumulator = new MessageAccumulator();
     accumulator.setUserMessage(prompt);
+    accumulator.processChunk({
+      type: "data",
+      dataType: "preview-url",
+      data: previewUrlEvent.data,
+    });
 
     for await (const chunk of agent.execute({
       prompt,
@@ -246,15 +255,6 @@ export const sendMessage = os
       accumulator.processChunk(chunk);
       yield chunk;
     }
-
-    // Yield preview URL
-    const previewUrlEvent = events.previewUrl(sandbox.domain(devPort), devPort);
-    accumulator.processChunk({
-      type: "data",
-      dataType: "preview-url",
-      data: previewUrlEvent.data,
-    });
-    yield previewUrlEvent;
 
     // Persist the session (messages + metadata) to Redis
     const { messages: newMessages, previewUrl } = accumulator.finalize();
