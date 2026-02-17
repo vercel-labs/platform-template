@@ -10,8 +10,8 @@
  * - `user-projects:{userId}` - Index of projects a user has claimed
  */
 
-import { Result } from "better-result";
 import { redis } from "./redis";
+import { decryptJWE, encryptJWE } from "./auth";
 
 export interface ProjectTokens {
   projectId: string;
@@ -43,10 +43,13 @@ export async function storeProjectTokens(
     updatedAt: now,
   };
 
+  let storedValue: string;
+  storedValue = await encryptJWE(data, "1y");
+
   // Store the tokens keyed by project
   await redis.set(
     `${PROJECT_TOKENS_PREFIX}${tokens.projectId}`,
-    JSON.stringify(data),
+    storedValue,
     { ex: TOKEN_TTL_SECONDS },
   );
 
@@ -67,18 +70,12 @@ export async function getProjectTokens(
     return data as ProjectTokens;
   }
 
-  const parseResult = Result.try({
-    try: () => JSON.parse(data) as ProjectTokens,
-    catch: (err) =>
-      err instanceof Error ? err.message : "Failed to parse token data",
-  });
-
-  if (parseResult.isErr()) {
-    console.error("[project-tokens] Failed to parse token data:", parseResult.error);
-    return null;
+  const decrypted = await decryptJWE<ProjectTokens>(data);
+  if (decrypted) {
+    return decrypted;
   }
 
-  return parseResult.value;
+  return null;
 }
 
 /**
@@ -99,9 +96,12 @@ export async function updateProjectTokens(
     updatedAt: Date.now(),
   };
 
+  let storedValue: string;
+  storedValue = await encryptJWE(updated, "1y");
+
   await redis.set(
     `${PROJECT_TOKENS_PREFIX}${projectId}`,
-    JSON.stringify(updated),
+    storedValue,
     { ex: TOKEN_TTL_SECONDS },
   );
 
@@ -151,9 +151,12 @@ export async function markProjectTransferred(projectId: string): Promise<boolean
     updatedAt: Date.now(),
   };
 
+  let storedValue: string;
+  storedValue = await encryptJWE(updated, "1y");
+
   await redis.set(
     `${PROJECT_TOKENS_PREFIX}${projectId}`,
-    JSON.stringify(updated),
+    storedValue,
     { ex: TOKEN_TTL_SECONDS },
   );
 
