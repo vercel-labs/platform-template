@@ -100,6 +100,13 @@ export class ClaudeAgentProvider implements AgentProvider {
   private hasStreamEvents: boolean = false;
 
   async *execute(params: ExecuteParams): AsyncIterable<StreamChunk> {
+    // Reset mutable state from previous calls (singleton instance is reused)
+    this.currentToolId = null;
+    this.currentToolName = null;
+    this.currentToolInput = "";
+    this.emittedToolIds = new Set();
+    this.hasStreamEvents = false;
+
     const { prompt, sandboxContext, sessionId, proxyConfig } = params;
     const { sandbox, templateId } = sandboxContext;
 
