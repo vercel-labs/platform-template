@@ -206,13 +206,17 @@ export function Chat({ className, standalone }: ChatProps) {
           }
         }
       } catch (error) {
+        console.error("[chat] RPC error:", error);
+        const errorDetail = error instanceof Error
+          ? `${error.message}${(error as { code?: string }).code ? ` (code: ${(error as { code?: string }).code})` : ""}${error.cause ? ` | cause: ${error.cause}` : ""}`
+          : String(error);
         setMessages((prev) =>
           prev.map((m) => {
             if (m.id !== assistantId) return m;
             const parts = [...m.parts];
             parts.push({
               type: "text",
-              content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              content: `Error: ${errorDetail}`,
             });
             return { ...m, parts };
           }),
