@@ -32,6 +32,8 @@ export interface SandboxSessionData {
   projectId?: string;
   projectOwnership?: "partner" | "user";
   deploymentUrl?: string;
+  /** Agent session ID (e.g. Claude --resume ID) for conversation continuity */
+  agentSessionId?: string;
 }
 
 const SANDBOX_SESSION_PREFIX = "sandbox-session:";

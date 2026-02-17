@@ -14,6 +14,7 @@ interface SessionData {
   projectId?: string;
   projectOwnership?: "partner" | "user";
   deploymentUrl?: string;
+  agentSessionId?: string;
 }
 
 async function fetchSession(sandboxId: string): Promise<SessionData | null> {
@@ -38,6 +39,7 @@ export function usePersistedChat() {
   const sandboxId = useSandboxStore((s) => s.sandboxId);
   const setPreviewUrl = useSandboxStore((s) => s.setPreviewUrl);
   const setProject = useSandboxStore((s) => s.setProject);
+  const setSessionId = useSandboxStore((s) => s.setSessionId);
 
   // Local state for messages (used when no sandboxId or during streaming)
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
@@ -52,7 +54,7 @@ export function usePersistedChat() {
     },
   );
 
-  // Restore previewUrl and deployment state when session loads
+  // Restore previewUrl, deployment state, and agent session when session loads
   const hasRestoredSession = useRef(false);
   useEffect(() => {
     if (data && !hasRestoredSession.current) {
@@ -66,9 +68,12 @@ export function usePersistedChat() {
           data.deploymentUrl,
         );
       }
+      if (data.agentSessionId) {
+        setSessionId(data.agentSessionId);
+      }
       hasRestoredSession.current = true;
     }
-  }, [data, setPreviewUrl, setProject]);
+  }, [data, setPreviewUrl, setProject, setSessionId]);
 
   // When sandboxId changes, reset local state and restore flag
   const prevSandboxId = useRef(sandboxId);

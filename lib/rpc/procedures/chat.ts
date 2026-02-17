@@ -18,7 +18,7 @@ import {
 import { createProxySession } from "@/lib/redis";
 import { events } from "@/lib/types";
 import { setupSandbox } from "@/lib/sandbox/setup";
-import { SandboxError, SetupError, errorMessage } from "@/lib/errors";
+import { SandboxError, errorMessage } from "@/lib/errors";
 import type {
   SandboxContext,
   ProxyConfig,
@@ -54,6 +54,7 @@ class MessageAccumulator {
     { name: string; input: string; output?: string; isError?: boolean }
   > = new Map();
   private previewUrl: string | undefined;
+  private agentSessionId: string | undefined;
 
   setUserMessage(prompt: string): void {
     this.userMessage = {
@@ -71,6 +72,9 @@ class MessageAccumulator {
           role: "assistant",
           parts: [],
         };
+        if (chunk.sessionId) {
+          this.agentSessionId = chunk.sessionId;
+        }
         break;
 
       case "text-delta":
@@ -109,7 +113,7 @@ class MessageAccumulator {
     }
   }
 
-  finalize(): { messages: ChatMessage[]; previewUrl?: string } {
+  finalize(): { messages: ChatMessage[]; previewUrl?: string; agentSessionId?: string } {
     const messages: ChatMessage[] = [];
 
     if (this.userMessage) {
@@ -141,7 +145,11 @@ class MessageAccumulator {
       messages.push(this.assistantMessage);
     }
 
-    return { messages, previewUrl: this.previewUrl };
+    return {
+      messages,
+      previewUrl: this.previewUrl,
+      agentSessionId: this.agentSessionId,
+    };
   }
 }
 
@@ -183,7 +191,10 @@ export const sendMessage = os
     });
 
     if (sandboxResult.isErr()) {
-      throw sandboxResult.error;
+      const msg = sandboxResult.error.message;
+      console.error("[chat] Sandbox error:", msg);
+      yield { type: "error" as const, message: msg, code: "sandbox_error" };
+      return;
     }
     const sandbox = sandboxResult.value;
 
@@ -213,71 +224,77 @@ export const sendMessage = os
           undefined,
           message,
         );
-        throw new SetupError({
-          message: `Sandbox setup failed: ${message}`,
-          step: "setup",
-        });
+        yield { type: "error" as const, message: `Sandbox setup failed: ${message}`, code: "setup_error" };
+        return;
       }
     }
 
-    // Yield preview URL immediately so the preview iframe loads while the agent works
-    const previewUrlEvent = events.previewUrl(sandbox.domain(devPort), devPort);
-    yield previewUrlEvent;
+    try {
+      // Yield preview URL immediately so the preview iframe loads while the agent works
+      const previewUrlEvent = events.previewUrl(sandbox.domain(devPort), devPort);
+      yield previewUrlEvent;
 
-    const proxySessionId = nanoid(32);
-    await createProxySession(proxySessionId, { sandboxId: sandbox.sandboxId });
+      const proxySessionId = nanoid(32);
+      await createProxySession(proxySessionId, { sandboxId: sandbox.sandboxId });
 
-    const sandboxContext: SandboxContext = {
-      sandboxId: sandbox.sandboxId,
-      sandbox,
-      templateId: resolvedTemplateId,
-    };
-    const proxyConfig: ProxyConfig = {
-      sessionId: proxySessionId,
-      baseUrl: PROXY_BASE_URL,
-    };
+      const sandboxContext: SandboxContext = {
+        sandboxId: sandbox.sandboxId,
+        sandbox,
+        templateId: resolvedTemplateId,
+      };
+      const proxyConfig: ProxyConfig = {
+        sessionId: proxySessionId,
+        baseUrl: PROXY_BASE_URL,
+      };
 
-    // Accumulate messages for persistence
-    const accumulator = new MessageAccumulator();
-    accumulator.setUserMessage(prompt);
-    accumulator.processChunk({
-      type: "data",
-      dataType: "preview-url",
-      data: previewUrlEvent.data,
-    });
+      // Accumulate messages for persistence
+      const accumulator = new MessageAccumulator();
+      accumulator.setUserMessage(prompt);
+      accumulator.processChunk({
+        type: "data",
+        dataType: "preview-url",
+        data: previewUrlEvent.data,
+      });
 
-    for await (const chunk of agent.execute({
-      prompt,
-      sandboxContext,
-      sessionId,
-      proxyConfig,
-    })) {
-      accumulator.processChunk(chunk);
-      yield chunk;
-    }
+      for await (const chunk of agent.execute({
+        prompt,
+        sandboxContext,
+        sessionId,
+        proxyConfig,
+      })) {
+        accumulator.processChunk(chunk);
+        yield chunk;
+      }
 
-    // Persist the session (messages + metadata) to Redis
-    const { messages: newMessages, previewUrl } = accumulator.finalize();
+      // Persist the session (messages + metadata) to Redis
+      const { messages: newMessages, previewUrl, agentSessionId } = accumulator.finalize();
 
-    // Load existing session and append new messages
-    const existingSession = await getSandboxSession(sandbox.sandboxId);
-    const existingMessages = existingSession?.messages ?? [];
+      // Load existing session and append new messages
+      const existingSession = await getSandboxSession(sandbox.sandboxId);
+      const existingMessages = existingSession?.messages ?? [];
 
-    const persistResult = await Result.tryPromise({
-      try: () =>
-        saveSandboxSession(sandbox.sandboxId, {
-          messages: [...existingMessages, ...newMessages],
-          previewUrl: previewUrl ?? existingSession?.previewUrl,
-          // Preserve deployment state across follow-up messages
-          projectId: existingSession?.projectId,
-          projectOwnership: existingSession?.projectOwnership,
-          deploymentUrl: existingSession?.deploymentUrl,
-        }),
-      catch: (err) => errorMessage(err),
-    });
+      const persistResult = await Result.tryPromise({
+        try: () =>
+          saveSandboxSession(sandbox.sandboxId, {
+            messages: [...existingMessages, ...newMessages],
+            previewUrl: previewUrl ?? existingSession?.previewUrl,
+            // Preserve deployment state across follow-up messages
+            projectId: existingSession?.projectId,
+            projectOwnership: existingSession?.projectOwnership,
+            deploymentUrl: existingSession?.deploymentUrl,
+            // Preserve agent session ID for --resume across page reloads
+            agentSessionId: agentSessionId ?? existingSession?.agentSessionId,
+          }),
+        catch: (err) => errorMessage(err),
+      });
 
-    if (persistResult.isErr()) {
-      // Log but don't fail the request if persistence fails
-      console.error("[chat] Failed to persist session:", persistResult.error);
+      if (persistResult.isErr()) {
+        // Log but don't fail the request if persistence fails
+        console.error("[chat] Failed to persist session:", persistResult.error);
+      }
+    } catch (error) {
+      const message = errorMessage(error);
+      console.error("[chat] Unexpected error:", message, error);
+      yield { type: "error" as const, message, code: "unexpected_error" };
     }
   });
