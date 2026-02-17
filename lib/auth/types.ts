@@ -20,4 +20,5 @@ export interface User {
 
 export interface SessionUserInfo {
   user: User | undefined;
+  csrfToken?: string;
 }

@@ -4,6 +4,9 @@ export const SESSION_COOKIE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 export const OAUTH_COOKIE_TTL_SECONDS = 60 * 10;
 
+export const CSRF_COOKIE_NAME = "_csrf_token_";
+export const CSRF_COOKIE_TTL_SECONDS = 60 * 60 * 24;
+
 export const VERCEL_OAUTH = {
   authorize: "https://vercel.com/oauth/authorize",
   token: "https://vercel.com/api/login/oauth/token",

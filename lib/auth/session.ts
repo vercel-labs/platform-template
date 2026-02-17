@@ -44,6 +44,7 @@ export async function saveSession(
         path: "/",
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
+        sameSite: "strict",
       }),
     );
     return;
@@ -59,6 +60,7 @@ export async function saveSession(
       expires: new Date(Date.now() + SESSION_COOKIE_TTL_MS),
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
     }),
   );
 
@@ -104,7 +106,7 @@ interface CookieOptions {
   sameSite?: "strict" | "lax" | "none";
 }
 
-function serializeCookie(
+export function serializeCookie(
   name: string,
   value: string,
   options: CookieOptions = {},
