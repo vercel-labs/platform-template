@@ -27,15 +27,23 @@ export const useSession = create<SessionState>((set) => ({
   },
 }));
 
+async function ensureBotIdSession(): Promise<void> {
+  try {
+    await fetch("/api/botid/session", { method: "POST" });
+  } catch {}
+}
+
 export function SessionProvider() {
   const refresh = useSession((s) => s.refresh);
 
   useEffect(() => {
     refresh();
+    ensureBotIdSession();
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         refresh();
+        ensureBotIdSession();
       }
     };
 

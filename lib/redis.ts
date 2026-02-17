@@ -72,3 +72,44 @@ export async function updateProxySessionSandbox(
 
   return true;
 }
+
+export const BOTID_SESSION_COOKIE_NAME = "_botid_session_";
+export const BOTID_SESSION_TTL_SECONDS = 10 * 60;
+const BOTID_SESSION_PREFIX = "botid-session:";
+
+export async function createBotIdSession(sessionId: string): Promise<void> {
+  await redis.set(`${BOTID_SESSION_PREFIX}${sessionId}`, "1", {
+    ex: BOTID_SESSION_TTL_SECONDS,
+  });
+}
+
+export async function isBotIdSessionValid(
+  sessionId: string,
+): Promise<boolean> {
+  const value = await redis.get(`${BOTID_SESSION_PREFIX}${sessionId}`);
+  return !!value;
+}
+
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetInSeconds: number | null;
+}
+
+export async function rateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<RateLimitResult> {
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, windowSeconds);
+  }
+
+  const ttl = await redis.ttl(key);
+  return {
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
+    resetInSeconds: ttl >= 0 ? ttl : null,
+  };
+}
