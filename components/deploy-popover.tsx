@@ -2,31 +2,20 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ChevronLeft,
   ChevronRight,
   Edit3,
   ExternalLink,
-  Eye,
-  Globe,
-  Lock,
   Rocket,
   UserPlus,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { rpc } from "@/lib/rpc/client";
 import type { LogEvent, ProjectOwnership } from "@/lib/rpc/procedures/deploy";
 import { useSandboxStore } from "@/lib/store/sandbox-store";
@@ -44,8 +33,7 @@ type DeploymentState =
   | { status: "ready"; url: string; ownership: ProjectOwnership }
   | { status: "error"; message: string; logs?: LogEvent[] };
 
-type ViewState = "main" | "domain" | "visibility";
-type VisibilityOption = "public" | "private";
+type ViewState = "main" | "domain";
 
 interface UseDeploymentOptions {
   sandboxId: string;
@@ -92,12 +80,16 @@ function useDeployment({
     }
     if (initialDeploymentUrl) {
       setDeploymentUrl(initialDeploymentUrl);
-      setReadyState("READY");
+      // Only set READY state if there's no active deployment in progress.
+      // During an active deployment, readyState is managed by the log stream.
+      if (!deploymentId) {
+        setReadyState("READY");
+      }
     }
     if (initialOwnership) {
       setOwnership(initialOwnership);
     }
-  }, [initialProjectId, initialDeploymentUrl, initialOwnership]);
+  }, [initialProjectId, initialDeploymentUrl, initialOwnership, deploymentId]);
 
   useEffect(() => {
     if (!deploymentId || !projectId) return;
@@ -158,7 +150,7 @@ function useDeployment({
         setProjectId(result.value.projectId);
         setOwnership(result.value.ownership);
 
-        // Notify parent about deployment completion
+        // Notify parent that deployment was created (build is still in progress)
         if (onDeploymentComplete) {
           onDeploymentComplete(
             result.value.projectId,
@@ -241,12 +233,8 @@ interface DeployPopoverProps {
 export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   const [viewState, setViewState] = useState<ViewState>("main");
   const [customDomain, setCustomDomain] = useState<string>("");
-  const [visibility, setVisibility] = useState<VisibilityOption>("public");
-  const [tempVisibility, setTempVisibility] =
-    useState<VisibilityOption>("public");
   const [open, setOpen] = useState(false);
   const [isClaimLoading, setIsClaimLoading] = useState(false);
-  const visibilityId = useId();
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Get project state from store
@@ -318,16 +306,6 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     setViewState("main");
   };
 
-  const handleSaveVisibility = () => {
-    setVisibility(tempVisibility);
-    setViewState("main");
-  };
-
-  const handleCancelVisibility = () => {
-    setTempVisibility(visibility);
-    setViewState("main");
-  };
-
   const handleAddDomain = () => {
     setViewState("main");
   };
@@ -394,83 +372,6 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     );
   }
 
-  if (viewState === "visibility") {
-    return (
-      <Popover open={open} onOpenChange={handleOpenChange}>
-        <PopoverTrigger asChild>
-          <Button size="sm" disabled={!canDeploy}>
-            <Rocket className="h-4 w-4" />
-            Deploy
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-96 p-0">
-          <div className="flex items-center gap-2 border-b p-2">
-            <Button
-              aria-label="Back"
-              className="size-8"
-              onClick={handleBack}
-              size="icon"
-              variant="ghost"
-            >
-              <ChevronLeft className="h-3" />
-            </Button>
-            <h3 className="font-medium">Visibility</h3>
-          </div>
-
-          <div className="space-y-4 p-4">
-            <div className="space-y-2">
-              <Label
-                className="text-muted-foreground text-sm"
-                htmlFor={visibilityId}
-              >
-                Visibility
-              </Label>
-              <Select
-                onValueChange={(value: VisibilityOption) =>
-                  setTempVisibility(value)
-                }
-                value={tempVisibility}
-              >
-                <SelectTrigger className="w-full" id={visibilityId}>
-                  <div className="flex items-center gap-2">
-                    <SelectValue />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="public">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      <span>Public</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="private">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" />
-                      <span>Private</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                onClick={handleCancelVisibility}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button className="flex-1" onClick={handleSaveVisibility}>
-                Save
-              </Button>
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  }
-
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -504,23 +405,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </Button>
 
-              <Button
-                className="w-full justify-between shadow-none"
-                onClick={() => setViewState("visibility")}
-                type="button"
-                variant="secondary"
-              >
-                <div className="flex items-center gap-3">
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Visibility</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-sm capitalize">
-                    {visibility}
-                  </span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </Button>
+
             </div>
           )}
 

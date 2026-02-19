@@ -1,4 +1,4 @@
-import type { Sandbox, CommandFinished } from "@vercel/sandbox";
+import type { Sandbox } from "@vercel/sandbox";
 import {
   SANDBOX_BASE_PATH,
   DEV_SERVER_READY_TIMEOUT_MS,
@@ -8,6 +8,7 @@ import {
   type TemplateId,
   DEFAULT_TEMPLATE_ID,
 } from "@/lib/templates";
+import { run } from "@/lib/templates/utils";
 import { Result } from "better-result";
 
 export type SetupStage =
@@ -39,21 +40,6 @@ const AGENTS: Record<string, { install: string; sudo: boolean }> = {
     sudo: false,
   },
 };
-
-async function run(
-  sandbox: Sandbox,
-  opts: Parameters<Sandbox["runCommand"]>[0],
-  label?: string,
-): Promise<CommandFinished> {
-  const result = await sandbox.runCommand(opts);
-  if (result.exitCode !== 0 && label) {
-    console.error(
-      `[setup] ${label} failed (exit ${result.exitCode}):`,
-      await result.stderr(),
-    );
-  }
-  return result;
-}
 
 export async function* setupSandbox(
   sandbox: Sandbox,

@@ -4,6 +4,7 @@ import { Vercel } from "@vercel/sdk";
 import { SkipAutoDetectionConfirmation } from "@vercel/sdk/models/createdeploymentop.js";
 import { z } from "zod";
 import { Result } from "better-result";
+import { after } from "next/server";
 import { SANDBOX_BASE_PATH } from "@/lib/agents";
 import {
   SandboxError,
@@ -241,18 +242,22 @@ export const deployFiles = os
         await Promise.all(postDeployOps);
       }
 
-      // Persist deployment state to Redis so it survives page reloads (e.g. after claim flow)
+      // Persist deployment state to Redis so it survives page reloads (e.g. after claim flow).
+      // Using after() ensures the serverless function stays alive until this completes.
       const sandboxIdForSession = sandboxId;
-      getSandboxSession(sandboxIdForSession).then((existing) => {
-        saveSandboxSession(sandboxIdForSession, {
-          ...existing,
-          messages: existing?.messages ?? [],
-          projectId: deployment.projectId,
-          projectOwnership: ownership,
-          deploymentUrl: deployment.url,
-        });
-      }).catch((err) => {
-        console.warn("[deploy] Failed to persist deployment state:", err);
+      after(async () => {
+        try {
+          const existing = await getSandboxSession(sandboxIdForSession);
+          await saveSandboxSession(sandboxIdForSession, {
+            ...existing,
+            messages: existing?.messages ?? [],
+            projectId: deployment.projectId,
+            projectOwnership: ownership,
+            deploymentUrl: deployment.url,
+          });
+        } catch (err) {
+          console.warn("[deploy] Failed to persist deployment state:", err);
+        }
       });
 
       return Result.ok({

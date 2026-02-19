@@ -1,8 +1,7 @@
 import type { Sandbox } from "@vercel/sandbox";
 import type { Template, SetupProgress } from "../types";
 import { run, runOrThrow } from "../utils";
-
-const SANDBOX_BASE_PATH = "/vercel/sandbox";
+import { SANDBOX_BASE_PATH } from "@/lib/agents/constants";
 
 export const tanstackStartTemplate: Template = {
   id: "tanstack-start",
