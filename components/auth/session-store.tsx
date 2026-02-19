@@ -27,10 +27,29 @@ export const useSession = create<SessionState>((set) => ({
   },
 }));
 
+let resolveBotIdReady: () => void;
+let botIdReadyPromise: Promise<void> = new Promise(
+  (r) => (resolveBotIdReady = r),
+);
+
+/**
+ * Returns a promise that resolves once the BotID session cookie has been
+ * established. RPC calls should await this before firing to avoid 403s.
+ */
+export function waitForBotIdSession(): Promise<void> {
+  return botIdReadyPromise;
+}
+
 async function ensureBotIdSession(): Promise<void> {
   try {
     await fetch("/api/botid/session", { method: "POST" });
-  } catch {}
+    resolveBotIdReady();
+  } catch {
+    // Resolve anyway so we don't permanently block RPC calls -- the server
+    // will still 403 if the session truly failed, and the next visibility
+    // change will retry.
+    resolveBotIdReady();
+  }
 }
 
 export function SessionProvider() {
@@ -43,6 +62,8 @@ export function SessionProvider() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         refresh();
+        // Reset the gate so RPC calls wait for the refreshed session
+        botIdReadyPromise = new Promise((r) => (resolveBotIdReady = r));
         ensureBotIdSession();
       }
     };

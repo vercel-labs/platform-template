@@ -86,9 +86,9 @@ type ClaudeMessage =
 
 export class ClaudeAgentProvider implements AgentProvider {
   id = "claude";
-  name = "Claude";
+  name = "Claude Code";
   description = "Anthropic's Claude Code";
-  logo = "anthropic";
+  logo = "/claude.svg";
 
   // Track current streaming tool state
   private currentToolId: string | null = null;

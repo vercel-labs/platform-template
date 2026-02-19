@@ -34,7 +34,19 @@ export function TemplateSelector({ className, disabled }: TemplateSelectorProps)
         )}
       >
         <TemplateIcon templateId={selectedTemplate.id} />
-        <span>{selectedTemplate.name}</span>
+        <span className="grid text-left">
+          {TEMPLATES.map((template) => (
+            <span
+              key={template.id}
+              className={cn(
+                "col-start-1 row-start-1",
+                template.id !== selectedTemplate.id && "invisible",
+              )}
+            >
+              {template.name}
+            </span>
+          ))}
+        </span>
         <ChevronDown className="h-4 w-4 text-zinc-500" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

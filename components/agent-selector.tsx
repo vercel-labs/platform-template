@@ -33,7 +33,19 @@ export function AgentSelector({ className, disabled }: AgentSelectorProps) {
         )}
       >
         <AgentLogo provider={selectedAgent.logo} />
-        <span>{selectedAgent.name}</span>
+        <span className="grid text-left">
+          {AGENTS.map((agent) => (
+            <span
+              key={agent.id}
+              className={cn(
+                "col-start-1 row-start-1",
+                agent.id !== selectedAgent.id && "invisible",
+              )}
+            >
+              {agent.name}
+            </span>
+          ))}
+        </span>
         <ChevronDown className="h-4 w-4 text-zinc-500" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -62,11 +74,15 @@ function AgentLogo({
   provider: string;
   className?: string;
 }) {
+  const isLocal = provider.startsWith("/");
+  const src = isLocal
+    ? provider
+    : `https://models.dev/logos/${provider}.svg`;
   return (
     <img
-      src={`https://models.dev/logos/${provider}.svg`}
+      src={src}
       alt={`${provider} logo`}
-      className={cn("h-4 w-4 dark:invert", className)}
+      className={cn("h-4 w-4", !isLocal && "dark:invert", className)}
       width={16}
       height={16}
     />

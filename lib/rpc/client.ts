@@ -21,6 +21,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { AppRouter } from "./router";
 import { customJsonSerializers } from "./result-serializer";
+import { waitForBotIdSession } from "@/components/auth/session-store";
 
 const link = new RPCLink({
   url: () => {
@@ -30,6 +31,12 @@ const link = new RPCLink({
     return `${window.location.origin}/rpc`;
   },
   customJsonSerializers,
+  fetch: async (request, init) => {
+    // Wait for the BotID session cookie to be established before sending
+    // any RPC request, preventing 403s from the server-side gate.
+    await waitForBotIdSession();
+    return globalThis.fetch(request, init);
+  },
 });
 
 export const rpc: RouterClient<AppRouter> = createORPCClient(link);
