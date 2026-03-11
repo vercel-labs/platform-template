@@ -345,7 +345,7 @@ export function Chat({ className, standalone }: ChatProps) {
             'mx-auto flex w-full max-w-2xl flex-col gap-2 transition-[border-color,padding] duration-500 ease-in-out',
             standalone
               ? 'border-transparent pt-0'
-              : 'border-t border-zinc-200 pt-3 dark:border-zinc-800',
+              : 'pt-3',
           )}
         >
           {!hasStartedChat && (
