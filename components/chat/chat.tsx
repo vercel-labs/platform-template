@@ -417,7 +417,7 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
     }
 
     return (
-      <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none break-words">
+      <div className="prose prose-zinc dark:prose-invert max-w-none break-words text-sm">
         <MessageResponse>{part.content}</MessageResponse>
       </div>
     );
