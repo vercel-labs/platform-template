@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { MessageCircle, Send, Loader2, Server } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Loader2, MessageCircle, Server } from 'lucide-react';
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputTools,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
 
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import {
@@ -50,9 +58,7 @@ interface ChatProps {
 }
 
 export function Chat({ className, standalone }: ChatProps) {
-  const [input, setInput] = useState('');
   const [status, setStatus] = useState<'ready' | 'streaming'>('ready');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { messages, setMessages } = usePersistedChat();
 
@@ -77,7 +83,6 @@ export function Chat({ className, standalone }: ChatProps) {
         parts: [{ type: 'text', content: text }],
       };
       setMessages((prev) => [...prev, userMessage]);
-      setInput('');
       setStatus('streaming');
 
       const assistantId = crypto.randomUUID();
@@ -261,21 +266,6 @@ export function Chat({ className, standalone }: ChatProps) {
     ],
   );
 
-  // Auto-resize textarea as content changes
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-  }, [input]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
-  };
-
   const isStreaming = status === 'streaming';
   // Disable selectors once chat has started (has messages)
   const hasStartedChat = messages.length > 0;
@@ -364,30 +354,21 @@ export function Chat({ className, standalone }: ChatProps) {
               <AgentSelector disabled={isStreaming} />
             </div>
           )}
-          <div className="flex gap-2">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
-              disabled={isStreaming}
-              rows={3}
-              className="flex-1 resize-none rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:focus:border-zinc-500"
-            />
-            <button
-              type="button"
-              onClick={() => sendMessage(input)}
-              disabled={isStreaming || !input.trim()}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              {isStreaming ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </button>
-          </div>
+          <PromptInput onSubmit={(msg) => sendMessage(msg.text)}>
+            <PromptInputBody>
+              <PromptInputTextarea
+                placeholder="Type your message..."
+                disabled={isStreaming}
+              />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools />
+              <PromptInputSubmit
+                status={isStreaming ? 'streaming' : undefined}
+                disabled={isStreaming}
+              />
+            </PromptInputFooter>
+          </PromptInput>
         </div>
       </div>
     </Panel>
