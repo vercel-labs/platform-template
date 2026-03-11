@@ -327,7 +327,7 @@ export function Chat({ className, standalone }: ChatProps) {
               {/* Sandbox setup indicator */}
               {(sandboxStatus === 'creating' ||
                 sandboxStatus === 'warming') && (
-                <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950">
+                <div className="-mt-6 ml-11 flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900">
                     <Server className="h-4 w-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
                   </div>
