@@ -45,7 +45,7 @@ export function usePersistedChat() {
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
 
   // Fetch session from Redis when sandboxId exists
-  const { data, isLoading, mutate } = useSWR(
+  const { data, isLoading } = useSWR(
     sandboxId ? ["sandbox-session", sandboxId] : null,
     ([, id]) => fetchSession(id),
     {
@@ -109,21 +109,8 @@ export function usePersistedChat() {
           typeof updater === "function" ? updater(prev) : updater;
         return newMessages;
       });
-
-      // Also update SWR cache if we have a sandboxId
-      if (sandboxId) {
-        mutate(
-          (current) => {
-            const prevMessages = current?.messages ?? localMessages;
-            const newMessages =
-              typeof updater === "function" ? updater(prevMessages) : updater;
-            return { ...current, messages: newMessages };
-          },
-          { revalidate: false },
-        );
-      }
     },
-    [sandboxId, mutate, localMessages],
+    [],
   );
 
   return {
