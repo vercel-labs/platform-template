@@ -2,7 +2,14 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
-import { Panel, PanelHeader, PanelContent } from "@/components/ui/panel";
+
+import { Panel, PanelHeader } from "@/components/ui/panel";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
 import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
 import { rpc } from "@/lib/rpc/client";
 import type { StreamChunk } from "@/lib/agents/types";
@@ -32,7 +39,7 @@ export function Chat({ className, standalone }: ChatProps) {
   const [status, setStatus] = useState<"ready" | "streaming">("ready");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, setMessages, isLoading: isLoadingHistory } =
+  const { messages, setMessages } =
     usePersistedChat();
 
   const {
@@ -264,50 +271,55 @@ export function Chat({ className, standalone }: ChatProps) {
       </div>
 
       {/* Messages or Empty State */}
-      {messages.length === 0 ? (
-        <PanelContent className="flex min-h-0 flex-col items-center justify-center px-4">
-          <p className="mb-4 text-center text-sm text-zinc-500">
-            Try one of these prompts:
-          </p>
-          <ul className="w-full max-w-md space-y-2">
-            {EXAMPLE_PROMPTS.map((prompt) => (
-              <li key={prompt}>
-                <button
-                  type="button"
-                  className="w-full rounded-md border border-dashed border-zinc-300 px-4 py-3 text-left text-sm transition-colors hover:border-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
-                  onClick={() => sendMessage(prompt)}
-                  disabled={isStreaming}
-                >
-                  {prompt}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </PanelContent>
-      ) : (
-        <PanelContent className="mx-auto min-h-0 w-full max-w-2xl space-y-4">
-          {messages.map((message) => (
-            <MessageView key={message.id} message={message} />
-          ))}
-          {/* Sandbox setup indicator */}
-          {(sandboxStatus === "creating" || sandboxStatus === "warming") && (
-            <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900">
-                <Server className="h-4 w-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div className="flex-1">
-                <p className="font-mono text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                  {statusMessage || "Setting up sandbox..."}
-                </p>
-                <p className="font-mono text-xs text-yellow-600 dark:text-yellow-400">
-                  Preparing your development environment
-                </p>
-              </div>
-              <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
-            </div>
+      <Conversation>
+        <ConversationContent className="mx-auto w-full max-w-2xl">
+          {messages.length === 0 ? (
+            <ConversationEmptyState>
+              <p className="mb-4 text-center text-sm text-zinc-500">
+                Try one of these prompts:
+              </p>
+              <ul className="w-full max-w-md space-y-2">
+                {EXAMPLE_PROMPTS.map((prompt) => (
+                  <li key={prompt}>
+                    <button
+                      type="button"
+                      className="w-full rounded-md border border-dashed border-zinc-300 px-4 py-3 text-left text-sm transition-colors hover:border-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
+                      onClick={() => sendMessage(prompt)}
+                      disabled={isStreaming}
+                    >
+                      {prompt}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </ConversationEmptyState>
+          ) : (
+            <>
+              {messages.map((message) => (
+                <MessageView key={message.id} message={message} />
+              ))}
+              {/* Sandbox setup indicator */}
+              {(sandboxStatus === "creating" || sandboxStatus === "warming") && (
+                <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900">
+                    <Server className="h-4 w-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-mono text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                      {statusMessage || "Setting up sandbox..."}
+                    </p>
+                    <p className="font-mono text-xs text-yellow-600 dark:text-yellow-400">
+                      Preparing your development environment
+                    </p>
+                  </div>
+                  <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
+                </div>
+              )}
+            </>
           )}
-        </PanelContent>
-      )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
 
       {/* Input */}
       <div className="p-3 sm:p-4">
