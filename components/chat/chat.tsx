@@ -125,6 +125,9 @@ export function Chat({ className, standalone }: ChatProps) {
               break;
 
             case 'tool-start':
+              if (streamChunk.toolName === 'buildApp') {
+                useSandboxStore.getState().setIsBuildingApp(true);
+              }
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;

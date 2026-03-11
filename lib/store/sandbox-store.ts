@@ -38,6 +38,7 @@ export type ProjectOwnership = "partner" | "user" | null;
 export interface SandboxState {
   sandboxId: string | null;
   previewUrl: string | null;
+  isBuildingApp: boolean;
   status: SandboxStatus | null;
   statusMessage: string | null;
 
@@ -59,6 +60,7 @@ export interface SandboxState {
 export interface SandboxActions {
   setSandbox: (sandboxId: string, status?: SandboxState["status"]) => void;
   setPreviewUrl: (url: string) => void;
+  setIsBuildingApp: (value: boolean) => void;
   setStatus: (status: SandboxState["status"], message?: string) => void;
 
   setSessionId: (sessionId: string) => void;
@@ -89,6 +91,7 @@ export type SandboxStore = SandboxState & SandboxActions;
 const initialState: SandboxState = {
   sandboxId: null,
   previewUrl: null,
+  isBuildingApp: false,
   status: null,
   statusMessage: null,
   sessionId: null,
@@ -123,6 +126,8 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
     }),
 
   setPreviewUrl: (previewUrl) => set({ previewUrl }),
+
+  setIsBuildingApp: (isBuildingApp) => set({ isBuildingApp }),
 
   setStatus: (status, message) =>
     set({ status, statusMessage: message ?? null }),
