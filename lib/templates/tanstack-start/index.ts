@@ -37,6 +37,7 @@ CRITICAL RULES:
 - NEVER create package.json - it exists
  - Do not start a second dev server manually; setup handles it
 - Just edit files and the preview updates automatically
+- Always Read a file before using Write or Edit on it
 `,
 
   async *setup(sandbox: Sandbox): AsyncGenerator<SetupProgress> {
