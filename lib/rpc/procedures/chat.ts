@@ -51,7 +51,8 @@ if (!PROXY_BASE_URL) {
 class MessageAccumulator {
   private userMessage: ChatMessage | null = null;
   private assistantMessage: ChatMessage | null = null;
-  private currentText = '';
+  // Tracks insertion order of parts: text content inline, tools by id reference
+  private partsOrder: Array<{ type: 'text'; content: string } | { type: 'tool'; id: string }> = [];
   private tools: Map<
     string,
     { name: string; input: string; output?: string; isError?: boolean }
@@ -80,15 +81,19 @@ class MessageAccumulator {
         }
         break;
 
-      case 'text-delta':
-        this.currentText += chunk.text;
+      case 'text-delta': {
+        const last = this.partsOrder[this.partsOrder.length - 1];
+        if (last?.type === 'text') {
+          last.content += chunk.text;
+        } else {
+          this.partsOrder.push({ type: 'text', content: chunk.text });
+        }
         break;
+      }
 
       case 'tool-start':
-        this.tools.set(chunk.toolCallId, {
-          name: chunk.toolName,
-          input: '',
-        });
+        this.tools.set(chunk.toolCallId, { name: chunk.toolName, input: '' });
+        this.partsOrder.push({ type: 'tool', id: chunk.toolCallId });
         break;
 
       case 'tool-input-delta': {
@@ -128,25 +133,21 @@ class MessageAccumulator {
     }
 
     if (this.assistantMessage) {
-      const parts: MessagePart[] = [];
-
-      // Add text part if there's content
-      if (this.currentText) {
-        parts.push({ type: 'text', content: this.currentText });
-      }
-
-      // Add tool parts
-      for (const [id, tool] of this.tools) {
-        parts.push({
+      const parts: MessagePart[] = this.partsOrder.map((entry) => {
+        if (entry.type === 'text') {
+          return { type: 'text', content: entry.content };
+        }
+        const tool = this.tools.get(entry.id)!;
+        return {
           type: 'tool',
-          id,
+          id: entry.id,
           name: tool.name,
           input: tool.input,
           output: tool.output,
           isError: tool.isError,
-          state: 'done',
-        });
-      }
+          state: 'done' as const,
+        };
+      });
 
       this.assistantMessage.parts = parts;
       messages.push(this.assistantMessage);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, MessageCircle, Server } from 'lucide-react';
 import {
   PromptInput,
@@ -55,12 +56,15 @@ interface ChatProps {
   className?: string;
   /** When true, the chat is centered on the page with no sidebar — hides internal divider borders */
   standalone?: boolean;
+  /** When true, a session exists at the URL sandboxId — show loading instead of empty state */
+  hasSession?: boolean;
 }
 
-export function Chat({ className, standalone }: ChatProps) {
+export function Chat({ className, standalone, hasSession = false }: ChatProps) {
+  const router = useRouter();
   const [status, setStatus] = useState<'ready' | 'streaming'>('ready');
 
-  const { messages, setMessages } = usePersistedChat();
+  const { messages, setMessages, isLoading } = usePersistedChat();
 
   const {
     sandboxId,
@@ -100,8 +104,11 @@ export function Chat({ className, standalone }: ChatProps) {
           sessionId: sessionId ?? undefined,
         });
 
+        let newSandboxId: string | null = null;
+
         for await (const chunk of iterator) {
           if (chunk.type === 'sandbox-id') {
+            newSandboxId = chunk.sandboxId;
             setSandbox(chunk.sandboxId, 'ready');
             continue;
           }
@@ -234,6 +241,11 @@ export function Chat({ className, standalone }: ChatProps) {
               break;
           }
         }
+
+        // Update URL after stream completes — session is now saved in Redis
+        if (newSandboxId && !sandboxId) {
+          router.replace(`/?sandboxId=${newSandboxId}`, { scroll: false });
+        }
       } catch (error) {
         console.error('[chat] RPC error:', error);
         const errorDetail =
@@ -263,12 +275,15 @@ export function Chat({ className, standalone }: ChatProps) {
       templateId,
       setSandbox,
       setSessionId,
+      router,
     ],
   );
 
   const isStreaming = status === 'streaming';
   // Disable selectors once chat has started (has messages)
   const hasStartedChat = messages.length > 0;
+  // Show loading instead of empty state while restoring a session from URL
+  const isLoadingSession = hasSession && messages.length === 0 && (!sandboxId || isLoading);
 
   return (
     <Panel className={cn('flex min-h-0 flex-col', className)}>
@@ -289,7 +304,11 @@ export function Chat({ className, standalone }: ChatProps) {
       {/* Messages or Empty State */}
       <Conversation>
         <ConversationContent className="mx-auto w-full max-w-2xl">
-          {messages.length === 0 ? (
+          {isLoadingSession ? (
+            <ConversationEmptyState>
+              <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+            </ConversationEmptyState>
+          ) : messages.length === 0 ? (
             <ConversationEmptyState>
               <p className="mb-4 text-center text-sm text-zinc-500">
                 Try one of these prompts:

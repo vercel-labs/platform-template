@@ -50,7 +50,7 @@ function DevPreviewToggle() {
   );
 }
 
-export function MainLayout() {
+export function MainLayout({ hasSession = false }: { hasSession?: boolean }) {
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat');
   const { previewUrl, isBuildingApp } = useSandboxStore();
 
@@ -112,6 +112,7 @@ export function MainLayout() {
         <Chat
           className="h-full rounded-none border-0"
           standalone={!showRightPanel}
+          hasSession={hasSession}
         />
       </div>
 
