@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from '@/components/ui/popover';
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,26 +14,26 @@ import {
   ExternalLink,
   Rocket,
   UserPlus,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { rpc } from "@/lib/rpc/client";
-import type { LogEvent, ProjectOwnership } from "@/lib/rpc/procedures/deploy";
-import { useSandboxStore } from "@/lib/store/sandbox-store";
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { rpc } from '@/lib/rpc/client';
+import type { LogEvent, ProjectOwnership } from '@/lib/rpc/procedures/deploy';
+import { useSandboxStore } from '@/lib/store/sandbox-store';
 
 type TextLogEvent = Extract<LogEvent, { text: string }>;
 
 function isTextLog(log: LogEvent): log is TextLogEvent {
-  return "text" in log;
+  return 'text' in log;
 }
 
 type DeploymentState =
-  | { status: "idle" }
-  | { status: "deploying"; progress: string }
-  | { status: "building"; deploymentId: string; url?: string; logs: LogEvent[] }
-  | { status: "ready"; url: string; ownership: ProjectOwnership }
-  | { status: "error"; message: string; logs?: LogEvent[] };
+  | { status: 'idle' }
+  | { status: 'deploying'; progress: string }
+  | { status: 'building'; deploymentId: string; url?: string; logs: LogEvent[] }
+  | { status: 'ready'; url: string; ownership: ProjectOwnership }
+  | { status: 'error'; message: string; logs?: LogEvent[] };
 
-type ViewState = "main" | "domain";
+type ViewState = 'main' | 'domain';
 
 interface UseDeploymentOptions {
   sandboxId: string;
@@ -60,14 +60,16 @@ function useDeployment({
   const [deploymentUrl, setDeploymentUrl] = useState<string | null>(
     initialDeploymentUrl ?? null,
   );
-  const [projectId, setProjectId] = useState<string | null>(initialProjectId ?? null);
+  const [projectId, setProjectId] = useState<string | null>(
+    initialProjectId ?? null,
+  );
   const [ownership, setOwnership] = useState<ProjectOwnership>(
-    initialOwnership ?? "partner",
+    initialOwnership ?? 'partner',
   );
   const [logs, setLogs] = useState<LogEvent[]>([]);
   const [readyState, setReadyState] = useState<string | null>(
     // If we already have a completed deployment from the store, start in READY state
-    initialDeploymentUrl && initialProjectId ? "READY" : null,
+    initialDeploymentUrl && initialProjectId ? 'READY' : null,
   );
   const [error, setError] = useState<string | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
@@ -83,7 +85,7 @@ function useDeployment({
       // Only set READY state if there's no active deployment in progress.
       // During an active deployment, readyState is managed by the log stream.
       if (!deploymentId) {
-        setReadyState("READY");
+        setReadyState('READY');
       }
     }
     if (initialOwnership) {
@@ -103,23 +105,23 @@ function useDeployment({
         for await (const entry of iterator) {
           if (abortRef.current) break;
 
-          if (entry.type === "state" && entry.readyState) {
+          if (entry.type === 'state' && entry.readyState) {
             setReadyState(entry.readyState);
           }
 
-          if (entry.type === "done" && entry.readyState) {
+          if (entry.type === 'done' && entry.readyState) {
             setReadyState(entry.readyState);
           }
 
-          if (entry.type === "error") {
-            setError(entry.message || "Build failed");
+          if (entry.type === 'error') {
+            setError(entry.message || 'Build failed');
           }
 
           setLogs((prev) => [...prev, entry]);
         }
       } catch (err) {
         if (!abortRef.current) {
-          console.error("Log stream error:", err);
+          console.error('Log stream error:', err);
         }
       }
     };
@@ -166,7 +168,7 @@ function useDeployment({
         throw new Error(message);
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Deployment failed";
+      const message = e instanceof Error ? e.message : 'Deployment failed';
       setError(message);
       throw e;
     } finally {
@@ -177,35 +179,43 @@ function useDeployment({
   const getDeploymentState = useCallback((): DeploymentState => {
     if (error) {
       return {
-        status: "error",
+        status: 'error',
         message: error,
         logs: logs.length > 0 ? logs : undefined,
       };
     }
 
     if (isDeploying) {
-      return { status: "deploying", progress: "Starting deployment..." };
+      return { status: 'deploying', progress: 'Starting deployment...' };
     }
 
-    if (readyState === "READY" && deploymentUrl) {
-      return { status: "ready", url: deploymentUrl, ownership };
+    if (readyState === 'READY' && deploymentUrl) {
+      return { status: 'ready', url: deploymentUrl, ownership };
     }
 
-    if (deploymentId && (readyState === "ERROR" || readyState === "CANCELED")) {
-      return { status: "error", message: "Deployment failed", logs };
+    if (deploymentId && (readyState === 'ERROR' || readyState === 'CANCELED')) {
+      return { status: 'error', message: 'Deployment failed', logs };
     }
 
     if (deploymentId) {
       return {
-        status: "building",
+        status: 'building',
         deploymentId,
         url: deploymentUrl || undefined,
         logs,
       };
     }
 
-    return { status: "idle" };
-  }, [isDeploying, deploymentId, deploymentUrl, readyState, logs, error, ownership]);
+    return { status: 'idle' };
+  }, [
+    isDeploying,
+    deploymentId,
+    deploymentUrl,
+    readyState,
+    logs,
+    error,
+    ownership,
+  ]);
 
   const reset = useCallback(() => {
     abortRef.current = true;
@@ -231,8 +241,8 @@ interface DeployPopoverProps {
 }
 
 export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
-  const [viewState, setViewState] = useState<ViewState>("main");
-  const [customDomain, setCustomDomain] = useState<string>("");
+  const [viewState, setViewState] = useState<ViewState>('main');
+  const [customDomain, setCustomDomain] = useState<string>('');
   const [open, setOpen] = useState(false);
   const [isClaimLoading, setIsClaimLoading] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -250,14 +260,16 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     [setProject],
   );
 
-  const { state, startDeployment, reset, projectId, ownership } = useDeployment({
-    sandboxId: sandboxId || "",
-    initialProjectId: storeProjectId,
-    initialDeploymentUrl: storeDeploymentUrl,
-    initialOwnership: storeOwnership ?? undefined,
-    customDomain: customDomain || undefined,
-    onDeploymentComplete: handleDeploymentComplete,
-  });
+  const { state, startDeployment, reset, projectId, ownership } = useDeployment(
+    {
+      sandboxId: sandboxId || '',
+      initialProjectId: storeProjectId,
+      initialDeploymentUrl: storeDeploymentUrl,
+      initialOwnership: storeOwnership ?? undefined,
+      customDomain: customDomain || undefined,
+      onDeploymentComplete: handleDeploymentComplete,
+    },
+  );
 
   // Handle claim button click - redirect to OAuth with transfer code
   const handleClaim = useCallback(async () => {
@@ -268,7 +280,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     try {
       // Build redirect URL that includes sandboxId to restore state after OAuth
       const redirectUrl = new URL(window.location.origin);
-      redirectUrl.searchParams.set("sandboxId", sandboxId);
+      redirectUrl.searchParams.set('sandboxId', sandboxId);
 
       const result = await rpc.claim.getClaimUrl({
         projectId: currentProjectId,
@@ -277,21 +289,25 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
 
       if (result.isOk()) {
         // Redirect to OAuth flow with transfer code
-        const value = result.value as { url: string; transferCode: string; projectId: string };
+        const value = result.value as {
+          url: string;
+          transferCode: string;
+          projectId: string;
+        };
         window.location.href = value.url;
       } else {
-        console.error("Failed to get claim URL:", result.error);
+        console.error('Failed to get claim URL:', result.error);
       }
     } catch (err) {
-      console.error("Claim error:", err);
+      console.error('Claim error:', err);
     } finally {
       setIsClaimLoading(false);
     }
   }, [projectId, storeProjectId, sandboxId]);
 
   useEffect(() => {
-    if (state.status === "building") {
-      logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (state.status === 'building') {
+      logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [state]);
 
@@ -303,36 +319,36 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   }, [startDeployment, canDeploy]);
 
   const handleBack = () => {
-    setViewState("main");
+    setViewState('main');
   };
 
   const handleAddDomain = () => {
-    setViewState("main");
+    setViewState('main');
   };
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (
       !newOpen &&
-      state.status !== "building" &&
-      state.status !== "deploying" &&
-      state.status !== "ready"
+      state.status !== 'building' &&
+      state.status !== 'deploying' &&
+      state.status !== 'ready'
     ) {
       reset();
     }
   };
 
-  if (viewState === "domain") {
+  if (viewState === 'domain') {
     return (
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-        <Button size="sm" disabled={!canDeploy}>
-          <Rocket className="h-4 w-4" />
-          Deploy
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-96 p-0">
-        <div className="flex items-center gap-2 border-b p-2">
+          <Button size="sm" disabled={!canDeploy}>
+            <Rocket className="h-4 w-4" />
+            Deploy Your Own Platform
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-96 p-0">
+          <div className="flex items-center gap-2 border-b p-2">
             <Button
               aria-label="Back"
               className="size-8"
@@ -377,7 +393,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
       <PopoverTrigger asChild>
         <Button size="sm" disabled={!canDeploy}>
           <Rocket className="h-4 w-4" />
-          Deploy
+          Deploy Your Own Platform
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[28rem] p-0">
@@ -390,11 +406,11 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
             </p>
           </div>
 
-          {state.status === "idle" && (
+          {state.status === 'idle' && (
             <div className="space-y-2">
               <Button
                 className="w-full justify-between shadow-none"
-                onClick={() => setViewState("domain")}
+                onClick={() => setViewState('domain')}
                 type="button"
                 variant="secondary"
               >
@@ -404,38 +420,36 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </Button>
-
-
             </div>
           )}
 
-          {state.status === "building" && (
+          {state.status === 'building' && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
                 Building...
               </div>
               <div className="h-48 overflow-y-auto rounded-md bg-zinc-950 p-3 font-mono text-xs">
-{state.logs.filter(isTextLog).map((log) => (
-                    <div
-                      key={`${log.timestamp}-${log.text.slice(0, 20)}`}
-                      className={
-                        log.type === "stderr"
-                          ? "text-red-400"
-                          : log.type === "command"
-                            ? "text-blue-400"
-                            : "text-zinc-300"
-                      }
-                    >
-                      {log.text}
-                    </div>
-                  ))}
+                {state.logs.filter(isTextLog).map((log) => (
+                  <div
+                    key={`${log.timestamp}-${log.text.slice(0, 20)}`}
+                    className={
+                      log.type === 'stderr'
+                        ? 'text-red-400'
+                        : log.type === 'command'
+                          ? 'text-blue-400'
+                          : 'text-zinc-300'
+                    }
+                  >
+                    {log.text}
+                  </div>
+                ))}
                 <div ref={logsEndRef} />
               </div>
             </div>
           )}
 
-          {state.status === "error" && (
+          {state.status === 'error' && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-destructive">
                 <div className="h-2 w-2 rounded-full bg-destructive" />
@@ -447,11 +461,11 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                     <div
                       key={`${log.timestamp}-${log.text.slice(0, 20)}`}
                       className={
-                        log.type === "stderr"
-                          ? "text-red-400"
-                          : log.type === "command"
-                            ? "text-blue-400"
-                            : "text-zinc-300"
+                        log.type === 'stderr'
+                          ? 'text-red-400'
+                          : log.type === 'command'
+                            ? 'text-blue-400'
+                            : 'text-zinc-300'
                       }
                     >
                       {log.text}
@@ -465,7 +479,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
             </div>
           )}
 
-          {state.status === "ready" ? (
+          {state.status === 'ready' ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-green-600">
                 <div className="h-2 w-2 rounded-full bg-green-500" />
@@ -476,8 +490,8 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                 onClick={() =>
                   window.open(
                     `https://${state.url}`,
-                    "_blank",
-                    "noopener,noreferrer",
+                    '_blank',
+                    'noopener,noreferrer',
                   )
                 }
               >
@@ -495,7 +509,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
               </Button>
 
               {/* Show claim button for partner-owned projects */}
-              {state.ownership === "partner" && (
+              {state.ownership === 'partner' && (
                 <div className="border-t pt-3">
                   <p className="mb-2 text-xs text-muted-foreground">
                     Claim this project to your Vercel account to manage it
@@ -508,16 +522,16 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
                     disabled={isClaimLoading}
                   >
                     <UserPlus className="h-4 w-4" />
-                    {isClaimLoading ? "Loading..." : "Claim to Your Account"}
+                    {isClaimLoading ? 'Loading...' : 'Claim to Your Account'}
                   </Button>
                 </div>
               )}
             </div>
-          ) : state.status === "idle" ? (
+          ) : state.status === 'idle' ? (
             <Button className="w-full" onClick={handleDeploy}>
               Deploy to Production
             </Button>
-          ) : state.status === "deploying" ? (
+          ) : state.status === 'deploying' ? (
             <Button className="w-full" disabled>
               {state.progress}
             </Button>
