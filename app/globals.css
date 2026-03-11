@@ -115,6 +115,15 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@theme inline {
+  --animate-shimmer: shimmer 2s linear infinite;
+
+  @keyframes shimmer {
+    from { background-position: 200% center; }
+    to { background-position: -200% center; }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -394,19 +394,33 @@ export function Chat({ className, standalone }: ChatProps) {
   );
 }
 
+function ThinkingIndicator() {
+  return (
+    <div className="prose prose-zinc dark:prose-invert max-w-none break-words text-sm">
+      <span className="animate-shimmer bg-[length:200%_100%] bg-gradient-to-r from-zinc-300 via-zinc-100 to-zinc-300 bg-clip-text text-transparent dark:from-zinc-600 dark:via-zinc-400 dark:to-zinc-600">
+        Thinking ...
+      </span>
+    </div>
+  );
+}
+
 function MessageView({ message }: { message: ChatMessage }) {
   const from = message.role === 'user' ? 'user' : 'assistant';
 
   return (
     <Message from={from}>
       <MessageContent from={from}>
-        {message.parts.map((part: MessagePart, index: number) => (
-          <PartView
-            key={`${message.id}-${index}`}
-            part={part}
-            isUser={from === 'user'}
-          />
-        ))}
+        {message.parts.length === 0 && from === 'assistant' ? (
+          <ThinkingIndicator />
+        ) : (
+          message.parts.map((part: MessagePart, index: number) => (
+            <PartView
+              key={`${message.id}-${index}`}
+              part={part}
+              isUser={from === 'user'}
+            />
+          ))
+        )}
       </MessageContent>
     </Message>
   );
