@@ -1,32 +1,39 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import { MessageCircle, Send, Loader2, User, Bot, Server } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { MessageCircle, Send, Loader2, Server } from 'lucide-react';
 
-import { Panel, PanelHeader } from "@/components/ui/panel";
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
-import { useSandboxStore, handleDataPart } from "@/lib/store/sandbox-store";
-import { rpc } from "@/lib/rpc/client";
-import type { StreamChunk } from "@/lib/agents/types";
-import { UI_DATA_PART_TYPES } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { MessageResponse } from "@/components/ai-elements/message";
-import { AgentSelector } from "@/components/agent-selector";
-import { TemplateSelector } from "@/components/template-selector";
-import { usePersistedChat, type ChatMessage } from "@/lib/hooks/use-persisted-chat";
+} from '@/components/ai-elements/conversation';
+import { useSandboxStore, handleDataPart } from '@/lib/store/sandbox-store';
+import { rpc } from '@/lib/rpc/client';
+import type { StreamChunk } from '@/lib/agents/types';
+import { UI_DATA_PART_TYPES } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from '@/components/ai-elements/message';
+import { AgentSelector } from '@/components/agent-selector';
+import { TemplateSelector } from '@/components/template-selector';
+import {
+  usePersistedChat,
+  type ChatMessage,
+} from '@/lib/hooks/use-persisted-chat';
 
 const EXAMPLE_PROMPTS = [
-  "Build a pomodoro timer with sound notifications",
-  "Create a mood tracker with emoji reactions and a weekly chart",
-  "Make a password generator with strength indicator",
+  'Build a pomodoro timer with sound notifications',
+  'Create a mood tracker with emoji reactions and a weekly chart',
+  'Make a password generator with strength indicator',
 ];
 
-type MessagePart = ChatMessage["parts"][number];
+type MessagePart = ChatMessage['parts'][number];
 
 interface ChatProps {
   className?: string;
@@ -35,12 +42,11 @@ interface ChatProps {
 }
 
 export function Chat({ className, standalone }: ChatProps) {
-  const [input, setInput] = useState("");
-  const [status, setStatus] = useState<"ready" | "streaming">("ready");
+  const [input, setInput] = useState('');
+  const [status, setStatus] = useState<'ready' | 'streaming'>('ready');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, setMessages } =
-    usePersistedChat();
+  const { messages, setMessages } = usePersistedChat();
 
   const {
     sandboxId,
@@ -55,21 +61,21 @@ export function Chat({ className, standalone }: ChatProps) {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || status === "streaming") return;
+      if (!text.trim() || status === 'streaming') return;
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        role: "user",
-        parts: [{ type: "text", content: text }],
+        role: 'user',
+        parts: [{ type: 'text', content: text }],
       };
       setMessages((prev) => [...prev, userMessage]);
-      setInput("");
-      setStatus("streaming");
+      setInput('');
+      setStatus('streaming');
 
       const assistantId = crypto.randomUUID();
       setMessages((prev) => [
         ...prev,
-        { id: assistantId, role: "assistant", parts: [] },
+        { id: assistantId, role: 'assistant', parts: [] },
       ]);
 
       try {
@@ -82,21 +88,21 @@ export function Chat({ className, standalone }: ChatProps) {
         });
 
         for await (const chunk of iterator) {
-          if (chunk.type === "sandbox-id") {
-            setSandbox(chunk.sandboxId, "ready");
+          if (chunk.type === 'sandbox-id') {
+            setSandbox(chunk.sandboxId, 'ready');
             continue;
           }
 
           const streamChunk = chunk as StreamChunk;
 
           switch (streamChunk.type) {
-            case "message-start":
+            case 'message-start':
               if (streamChunk.sessionId) {
                 setSessionId(streamChunk.sessionId);
               }
               break;
 
-            case "text-delta":
+            case 'text-delta':
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
@@ -104,13 +110,13 @@ export function Chat({ className, standalone }: ChatProps) {
                   const parts = [...m.parts];
                   const lastPart = parts[parts.length - 1];
 
-                  if (lastPart && lastPart.type === "text") {
+                  if (lastPart && lastPart.type === 'text') {
                     parts[parts.length - 1] = {
                       ...lastPart,
                       content: lastPart.content + streamChunk.text,
                     };
                   } else {
-                    parts.push({ type: "text", content: streamChunk.text });
+                    parts.push({ type: 'text', content: streamChunk.text });
                   }
 
                   return { ...m, parts };
@@ -118,18 +124,18 @@ export function Chat({ className, standalone }: ChatProps) {
               );
               break;
 
-            case "tool-start":
+            case 'tool-start':
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
 
                   const parts = [...m.parts];
                   parts.push({
-                    type: "tool",
+                    type: 'tool',
                     id: streamChunk.toolCallId,
                     name: streamChunk.toolName,
-                    input: "",
-                    state: "streaming",
+                    input: '',
+                    state: 'streaming',
                   });
 
                   return { ...m, parts };
@@ -137,19 +143,19 @@ export function Chat({ className, standalone }: ChatProps) {
               );
               break;
 
-            case "tool-input-delta":
+            case 'tool-input-delta':
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
 
                   const parts = [...m.parts];
                   const toolIdx = parts.findIndex(
-                    (p) => p.type === "tool" && p.id === streamChunk.toolCallId,
+                    (p) => p.type === 'tool' && p.id === streamChunk.toolCallId,
                   );
                   if (toolIdx !== -1) {
                     const tool = parts[toolIdx] as Extract<
                       MessagePart,
-                      { type: "tool" }
+                      { type: 'tool' }
                     >;
                     parts[toolIdx] = {
                       ...tool,
@@ -162,25 +168,25 @@ export function Chat({ className, standalone }: ChatProps) {
               );
               break;
 
-            case "tool-result":
+            case 'tool-result':
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
 
                   const parts = [...m.parts];
                   const toolIdx = parts.findIndex(
-                    (p) => p.type === "tool" && p.id === streamChunk.toolCallId,
+                    (p) => p.type === 'tool' && p.id === streamChunk.toolCallId,
                   );
                   if (toolIdx !== -1) {
                     const tool = parts[toolIdx] as Extract<
                       MessagePart,
-                      { type: "tool" }
+                      { type: 'tool' }
                     >;
                     parts[toolIdx] = {
                       ...tool,
                       output: streamChunk.output,
                       isError: streamChunk.isError,
-                      state: "done",
+                      state: 'done',
                     };
                   }
 
@@ -189,7 +195,7 @@ export function Chat({ className, standalone }: ChatProps) {
               );
               break;
 
-            case "data": {
+            case 'data': {
               const dataType =
                 `data-${streamChunk.dataType}` as (typeof UI_DATA_PART_TYPES)[keyof typeof UI_DATA_PART_TYPES];
               const store = useSandboxStore.getState();
@@ -197,13 +203,13 @@ export function Chat({ className, standalone }: ChatProps) {
               break;
             }
 
-            case "error":
+            case 'error':
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m;
                   const parts = [...m.parts];
                   parts.push({
-                    type: "text",
+                    type: 'text',
                     content: `\n\nError: ${streamChunk.message}`,
                   });
                   return { ...m, parts };
@@ -213,53 +219,62 @@ export function Chat({ className, standalone }: ChatProps) {
           }
         }
       } catch (error) {
-        console.error("[chat] RPC error:", error);
-        const errorDetail = error instanceof Error
-          ? `${error.message}${(error as { code?: string }).code ? ` (code: ${(error as { code?: string }).code})` : ""}${error.cause ? ` | cause: ${error.cause}` : ""}`
-          : String(error);
+        console.error('[chat] RPC error:', error);
+        const errorDetail =
+          error instanceof Error
+            ? `${error.message}${(error as { code?: string }).code ? ` (code: ${(error as { code?: string }).code})` : ''}${error.cause ? ` | cause: ${error.cause}` : ''}`
+            : String(error);
         setMessages((prev) =>
           prev.map((m) => {
             if (m.id !== assistantId) return m;
             const parts = [...m.parts];
             parts.push({
-              type: "text",
+              type: 'text',
               content: `Error: ${errorDetail}`,
             });
             return { ...m, parts };
           }),
         );
       } finally {
-        setStatus("ready");
+        setStatus('ready');
       }
     },
-    [status, sandboxId, sessionId, agentId, templateId, setSandbox, setSessionId],
+    [
+      status,
+      sandboxId,
+      sessionId,
+      agentId,
+      templateId,
+      setSandbox,
+      setSessionId,
+    ],
   );
 
   // Auto-resize textarea as content changes
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    textarea.style.height = "auto";
+    textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
   }, [input]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage(input);
     }
   };
 
-  const isStreaming = status === "streaming";
+  const isStreaming = status === 'streaming';
   // Disable selectors once chat has started (has messages)
   const hasStartedChat = messages.length > 0;
 
   return (
-    <Panel className={cn("flex min-h-0 flex-col", className)}>
+    <Panel className={cn('flex min-h-0 flex-col', className)}>
       <div
         className={cn(
-          "overflow-hidden transition-all duration-500 ease-in-out",
-          standalone ? "max-h-0 opacity-0" : "max-h-12 opacity-100",
+          'overflow-hidden transition-all duration-500 ease-in-out',
+          standalone ? 'max-h-0 opacity-0' : 'max-h-12 opacity-100',
         )}
       >
         <PanelHeader>
@@ -299,14 +314,15 @@ export function Chat({ className, standalone }: ChatProps) {
                 <MessageView key={message.id} message={message} />
               ))}
               {/* Sandbox setup indicator */}
-              {(sandboxStatus === "creating" || sandboxStatus === "warming") && (
+              {(sandboxStatus === 'creating' ||
+                sandboxStatus === 'warming') && (
                 <div className="flex items-center gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900">
                     <Server className="h-4 w-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
                   </div>
                   <div className="flex-1">
                     <p className="font-mono text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                      {statusMessage || "Setting up sandbox..."}
+                      {statusMessage || 'Setting up sandbox...'}
                     </p>
                     <p className="font-mono text-xs text-yellow-600 dark:text-yellow-400">
                       Preparing your development environment
@@ -323,12 +339,14 @@ export function Chat({ className, standalone }: ChatProps) {
 
       {/* Input */}
       <div className="p-3 sm:p-4">
-        <div className={cn(
-          "mx-auto flex w-full max-w-2xl flex-col gap-2 transition-[border-color,padding] duration-500 ease-in-out",
-          standalone
-            ? "border-transparent pt-0"
-            : "border-t border-zinc-200 pt-3 dark:border-zinc-800",
-        )}>
+        <div
+          className={cn(
+            'mx-auto flex w-full max-w-2xl flex-col gap-2 transition-[border-color,padding] duration-500 ease-in-out',
+            standalone
+              ? 'border-transparent pt-0'
+              : 'border-t border-zinc-200 pt-3 dark:border-zinc-800',
+          )}
+        >
           {!hasStartedChat && (
             <div className="flex flex-wrap gap-2">
               <TemplateSelector disabled={isStreaming} />
@@ -366,43 +384,25 @@ export function Chat({ className, standalone }: ChatProps) {
 }
 
 function MessageView({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
+  const from = message.role === 'user' ? 'user' : 'assistant';
 
   return (
-    <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
-      {/* Avatar */}
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          isUser
-            ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-            : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100",
-        )}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-      </div>
-
-      {/* Content - parts in order */}
-      <div
-        className={cn(
-          "min-w-0 flex-1 space-y-2",
-          isUser ? "text-right" : "text-left",
-        )}
-      >
+    <Message from={from}>
+      <MessageContent from={from}>
         {message.parts.map((part: MessagePart, index: number) => (
           <PartView
             key={`${message.id}-${index}`}
             part={part}
-            isUser={isUser}
+            isUser={from === 'user'}
           />
         ))}
-      </div>
-    </div>
+      </MessageContent>
+    </Message>
   );
 }
 
 function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
-  if (part.type === "text") {
+  if (part.type === 'text') {
     if (!part.content) return null;
 
     if (isUser) {
@@ -424,12 +424,12 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-2 flex items-center gap-2">
         <span className="font-mono text-xs font-semibold uppercase text-zinc-500">
-          Tool: {part.name.replace("mcp__sandbox__", "")}
+          Tool: {part.name.replace('mcp__sandbox__', '')}
         </span>
-        {part.state === "streaming" && (
+        {part.state === 'streaming' && (
           <span className="text-xs text-yellow-500">Running...</span>
         )}
-        {part.state === "done" && !part.isError && (
+        {part.state === 'done' && !part.isError && (
           <span className="text-xs text-green-500">Done</span>
         )}
         {part.isError && <span className="text-xs text-red-500">Error</span>}
@@ -453,10 +453,10 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
           </summary>
           <pre
             className={cn(
-              "mt-1 max-h-40 overflow-x-auto whitespace-pre-wrap break-all rounded p-2 font-mono text-xs",
+              'mt-1 max-h-40 overflow-x-auto whitespace-pre-wrap break-all rounded p-2 font-mono text-xs',
               part.isError
-                ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
-                : "bg-zinc-100 dark:bg-zinc-800",
+                ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                : 'bg-zinc-100 dark:bg-zinc-800',
             )}
           >
             {part.output}
