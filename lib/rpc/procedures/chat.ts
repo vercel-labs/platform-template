@@ -1,44 +1,47 @@
-import { os } from "@orpc/server";
-import { Sandbox } from "@vercel/sandbox";
-import { z } from "zod";
-import { nanoid } from "nanoid";
-import { Result } from "better-result";
+import { os } from '@orpc/server';
+import { Sandbox } from '@vercel/sandbox';
+import { z } from 'zod';
+import { nanoid } from 'nanoid';
+import { Result } from 'better-result';
 import {
   getAgent,
   isValidAgent,
   getDefaultAgent,
   SANDBOX_TIMEOUT_MS,
-} from "@/lib/agents";
+} from '@/lib/agents';
 import {
   isValidTemplate,
   getTemplate,
   DEFAULT_TEMPLATE_ID,
   type TemplateId,
-} from "@/lib/templates";
-import { createProxySession } from "@/lib/redis";
-import { events } from "@/lib/types";
-import { setupSandbox } from "@/lib/sandbox/setup";
-import { SandboxError, errorMessage } from "@/lib/errors";
+} from '@/lib/templates';
+import { createProxySession } from '@/lib/redis';
+import { events } from '@/lib/types';
+import { setupSandbox } from '@/lib/sandbox/setup';
+import { SandboxError, errorMessage } from '@/lib/errors';
 import type {
   SandboxContext,
   ProxyConfig,
   StreamChunk,
-} from "@/lib/agents/types";
+} from '@/lib/agents/types';
 import {
   saveSandboxSession,
   getSandboxSession,
   type ChatMessage,
   type MessagePart,
-} from "@/lib/chat-history";
+} from '@/lib/chat-history';
+import { createOrchestratorStream } from '@/lib/agents/orchestrator-agent';
 
 const PROXY_BASE_URL =
   process.env.PROXY_BASE_URL ||
-  (process.env.NODE_ENV === "development"
-    ? "http://localhost:3000/api/ai/proxy"
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3000/api/ai/proxy'
     : undefined);
 
 if (!PROXY_BASE_URL) {
-  throw new Error("PROXY_BASE_URL environment variable is required in production");
+  throw new Error(
+    'PROXY_BASE_URL environment variable is required in production',
+  );
 }
 
 /**
@@ -48,7 +51,7 @@ if (!PROXY_BASE_URL) {
 class MessageAccumulator {
   private userMessage: ChatMessage | null = null;
   private assistantMessage: ChatMessage | null = null;
-  private currentText = "";
+  private currentText = '';
   private tools: Map<
     string,
     { name: string; input: string; output?: string; isError?: boolean }
@@ -59,17 +62,17 @@ class MessageAccumulator {
   setUserMessage(prompt: string): void {
     this.userMessage = {
       id: nanoid(),
-      role: "user",
-      parts: [{ type: "text", content: prompt }],
+      role: 'user',
+      parts: [{ type: 'text', content: prompt }],
     };
   }
 
   processChunk(chunk: StreamChunk): void {
     switch (chunk.type) {
-      case "message-start":
+      case 'message-start':
         this.assistantMessage = {
           id: chunk.id,
-          role: "assistant",
+          role: 'assistant',
           parts: [],
         };
         if (chunk.sessionId) {
@@ -77,18 +80,18 @@ class MessageAccumulator {
         }
         break;
 
-      case "text-delta":
+      case 'text-delta':
         this.currentText += chunk.text;
         break;
 
-      case "tool-start":
+      case 'tool-start':
         this.tools.set(chunk.toolCallId, {
           name: chunk.toolName,
-          input: "",
+          input: '',
         });
         break;
 
-      case "tool-input-delta": {
+      case 'tool-input-delta': {
         const tool = this.tools.get(chunk.toolCallId);
         if (tool) {
           tool.input += chunk.input;
@@ -96,7 +99,7 @@ class MessageAccumulator {
         break;
       }
 
-      case "tool-result": {
+      case 'tool-result': {
         const tool = this.tools.get(chunk.toolCallId);
         if (tool) {
           tool.output = chunk.output;
@@ -105,15 +108,19 @@ class MessageAccumulator {
         break;
       }
 
-      case "data":
-        if (chunk.dataType === "preview-url") {
+      case 'data':
+        if (chunk.dataType === 'preview-url') {
           this.previewUrl = (chunk.data as { url: string }).url;
         }
         break;
     }
   }
 
-  finalize(): { messages: ChatMessage[]; previewUrl?: string; agentSessionId?: string } {
+  finalize(): {
+    messages: ChatMessage[];
+    previewUrl?: string;
+    agentSessionId?: string;
+  } {
     const messages: ChatMessage[] = [];
 
     if (this.userMessage) {
@@ -125,19 +132,19 @@ class MessageAccumulator {
 
       // Add text part if there's content
       if (this.currentText) {
-        parts.push({ type: "text", content: this.currentText });
+        parts.push({ type: 'text', content: this.currentText });
       }
 
       // Add tool parts
       for (const [id, tool] of this.tools) {
         parts.push({
-          type: "tool",
+          type: 'tool',
           id,
           name: tool.name,
           input: tool.input,
           output: tool.output,
           isError: tool.isError,
-          state: "done",
+          state: 'done',
         });
       }
 
@@ -166,20 +173,62 @@ export const sendMessage = os
   .handler(async function* ({
     input: { prompt, agentId, templateId, sandboxId, sessionId },
   }) {
-    const agent = agentId && isValidAgent(agentId)
-      ? getAgent(agentId)
-      : getDefaultAgent();
+    const agent =
+      agentId && isValidAgent(agentId) ? getAgent(agentId) : getDefaultAgent();
 
-    const template = templateId && isValidTemplate(templateId)
-      ? getTemplate(templateId)
-      : getTemplate(DEFAULT_TEMPLATE_ID);
+    const template =
+      templateId && isValidTemplate(templateId)
+        ? getTemplate(templateId)
+        : getTemplate(DEFAULT_TEMPLATE_ID);
 
-    const resolvedTemplateId: TemplateId = isValidTemplate(templateId ?? "")
+    const resolvedTemplateId: TemplateId = isValidTemplate(templateId ?? '')
       ? (templateId as TemplateId)
       : DEFAULT_TEMPLATE_ID;
 
     // Expose template-specific port
     const devPort = template.devPort;
+
+    // Load existing session upfront (needed for orchestrator history + persistence)
+    const existingSession = sandboxId
+      ? await getSandboxSession(sandboxId)
+      : null;
+    const history = existingSession?.messages ?? [];
+    const hasSandbox = !!sandboxId;
+    let toolCallId: string | null = null;
+
+    try {
+      const orchestratorResult = createOrchestratorStream({
+        prompt,
+        history,
+        hasSandbox,
+      });
+      yield {
+        type: 'message-start' as const,
+        id: nanoid(),
+        role: 'assistant' as const,
+      };
+
+      for await (const part of orchestratorResult.fullStream) {
+        if (part.type === 'text-delta') {
+          yield part;
+        } else if (part.type === 'tool-call' && part.toolName === 'buildApp') {
+          toolCallId = part.toolCallId;
+        }
+      }
+    } catch (error) {
+      const message = errorMessage(error);
+      console.error('[chat] Orchestrator error:', message);
+      yield { type: 'error' as const, message, code: 'orchestrator_error' };
+      return;
+    }
+
+    if (!toolCallId) {
+      return;
+    }
+
+    // Sandbox path — orchestrator called buildApp
+    // Yield tool-start for the buildApp call so the client sees it
+    yield { type: 'tool-start' as const, toolCallId, toolName: 'buildApp' };
 
     const sandboxResult = await Result.tryPromise({
       try: () =>
@@ -192,13 +241,13 @@ export const sendMessage = os
 
     if (sandboxResult.isErr()) {
       const msg = sandboxResult.error.message;
-      console.error("[chat] Sandbox error:", msg);
-      yield { type: "error" as const, message: msg, code: "sandbox_error" };
+      console.error('[chat] Sandbox error:', msg);
+      yield { type: 'error' as const, message: msg, code: 'sandbox_error' };
       return;
     }
     const sandbox = sandboxResult.value;
 
-    yield { type: "sandbox-id" as const, sandboxId: sandbox.sandboxId };
+    yield { type: 'sandbox-id' as const, sandboxId: sandbox.sandboxId };
 
     if (!sandboxId) {
       try {
@@ -207,7 +256,7 @@ export const sendMessage = os
           templateId: resolvedTemplateId,
         })) {
           if (progress) {
-            const status = progress.stage === "ready" ? "ready" : "creating";
+            const status = progress.stage === 'ready' ? 'ready' : 'creating';
             yield events.sandboxStatus(
               sandbox.sandboxId,
               status,
@@ -217,25 +266,34 @@ export const sendMessage = os
         }
       } catch (error) {
         const message = errorMessage(error);
-        console.error("[chat] Setup failed:", message);
+        console.error('[chat] Setup failed:', message);
         yield events.sandboxStatus(
           sandbox.sandboxId,
-          "error",
+          'error',
           undefined,
           message,
         );
-        yield { type: "error" as const, message: `Sandbox setup failed: ${message}`, code: "setup_error" };
+        yield {
+          type: 'error' as const,
+          message: `Sandbox setup failed: ${message}`,
+          code: 'setup_error',
+        };
         return;
       }
     }
 
     try {
       // Yield preview URL immediately so the preview iframe loads while the agent works
-      const previewUrlEvent = events.previewUrl(sandbox.domain(devPort), devPort);
+      const previewUrlEvent = events.previewUrl(
+        sandbox.domain(devPort),
+        devPort,
+      );
       yield previewUrlEvent;
 
       const proxySessionId = nanoid(32);
-      await createProxySession(proxySessionId, { sandboxId: sandbox.sandboxId });
+      await createProxySession(proxySessionId, {
+        sandboxId: sandbox.sandboxId,
+      });
 
       const sandboxContext: SandboxContext = {
         sandboxId: sandbox.sandboxId,
@@ -247,36 +305,47 @@ export const sendMessage = os
         baseUrl: PROXY_BASE_URL,
       };
 
-      // Accumulate messages for persistence
-      const accumulator = new MessageAccumulator();
-      accumulator.setUserMessage(prompt);
-      accumulator.processChunk({
-        type: "data",
-        dataType: "preview-url",
+      // Accumulate sandbox messages for persistence
+      const sandboxAccumulator = new MessageAccumulator();
+      sandboxAccumulator.setUserMessage(prompt);
+      sandboxAccumulator.processChunk({
+        type: 'data',
+        dataType: 'preview-url',
         data: previewUrlEvent.data,
       });
 
+      // Stream all sandbox agent chunks (including tool calls) to the client
+      const summaryParts: string[] = [];
       for await (const chunk of agent.execute({
         prompt,
         sandboxContext,
         sessionId,
         proxyConfig,
       })) {
-        accumulator.processChunk(chunk);
+        sandboxAccumulator.processChunk(chunk);
+        if (chunk.type === 'text-delta') summaryParts.push(chunk.text);
         yield chunk;
       }
 
-      // Persist the session (messages + metadata) to Redis
-      const { messages: newMessages, previewUrl, agentSessionId } = accumulator.finalize();
+      // Yield tool-result for the buildApp call to close it in the UI
+      const sandboxSummary = summaryParts.join('') || 'Task completed.';
+      yield {
+        type: 'tool-result' as const,
+        toolCallId,
+        output: sandboxSummary,
+      };
 
-      // Load existing session and append new messages
-      const existingSession = await getSandboxSession(sandbox.sandboxId);
-      const existingMessages = existingSession?.messages ?? [];
+      // Persist the session (sandbox messages + metadata) to Redis
+      const {
+        messages: sandboxMessages,
+        previewUrl,
+        agentSessionId,
+      } = sandboxAccumulator.finalize();
 
       const persistResult = await Result.tryPromise({
         try: () =>
           saveSandboxSession(sandbox.sandboxId, {
-            messages: [...existingMessages, ...newMessages],
+            messages: [...history, ...sandboxMessages],
             previewUrl: previewUrl ?? existingSession?.previewUrl,
             // Preserve deployment state across follow-up messages
             projectId: existingSession?.projectId,
@@ -290,11 +359,11 @@ export const sendMessage = os
 
       if (persistResult.isErr()) {
         // Log but don't fail the request if persistence fails
-        console.error("[chat] Failed to persist session:", persistResult.error);
+        console.error('[chat] Failed to persist session:', persistResult.error);
       }
     } catch (error) {
       const message = errorMessage(error);
-      console.error("[chat] Unexpected error:", message, error);
-      yield { type: "error" as const, message, code: "unexpected_error" };
+      console.error('[chat] Unexpected error:', message, error);
+      yield { type: 'error' as const, message, code: 'unexpected_error' };
     }
   });
