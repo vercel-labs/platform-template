@@ -20,6 +20,14 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
+import type { ToolPart } from '@/components/ai-elements/tool';
 import { AgentSelector } from '@/components/agent-selector';
 import { TemplateSelector } from '@/components/template-selector';
 import {
@@ -125,7 +133,7 @@ export function Chat({ className, standalone }: ChatProps) {
               break;
 
             case 'tool-start':
-              if (streamChunk.toolName === 'buildApp') {
+              if (streamChunk.toolName === 'BuildApp') {
                 useSandboxStore.getState().setIsBuildingApp(true);
               }
               setMessages((prev) =>
@@ -324,7 +332,7 @@ export function Chat({ className, standalone }: ChatProps) {
                     <Server className="h-4 w-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-mono text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    <p className="font-mono text-xs font-medium text-yellow-800 dark:text-yellow-200">
                       {statusMessage || 'Setting up sandbox...'}
                     </p>
                     <p className="font-mono text-xs text-yellow-600 dark:text-yellow-400">
@@ -423,49 +431,34 @@ function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
     );
   }
 
+  const toolState: ToolPart['state'] =
+    part.state === 'streaming'
+      ? 'input-streaming'
+      : part.isError
+        ? 'output-error'
+        : 'output-available';
+
+  let parsedInput = null;
+  try {
+    parsedInput = typeof part.input === "string" ? JSON.parse(part.input) : part.input;
+  } catch {
+    parsedInput = part.input;
+  }
+
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="font-mono text-xs font-semibold uppercase text-zinc-500">
-          Tool: {part.name.replace('mcp__sandbox__', '')}
-        </span>
-        {part.state === 'streaming' && (
-          <span className="text-xs text-yellow-500">Running...</span>
-        )}
-        {part.state === 'done' && !part.isError && (
-          <span className="text-xs text-green-500">Done</span>
-        )}
-        {part.isError && <span className="text-xs text-red-500">Error</span>}
-      </div>
-
-      {part.input && (
-        <details className="mb-2">
-          <summary className="cursor-pointer font-mono text-xs text-zinc-400">
-            Input
-          </summary>
-          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-800">
-            {part.input}
-          </pre>
-        </details>
-      )}
-
-      {part.output && (
-        <details open={part.isError}>
-          <summary className="cursor-pointer font-mono text-xs text-zinc-400">
-            Output
-          </summary>
-          <pre
-            className={cn(
-              'mt-1 max-h-40 overflow-x-auto whitespace-pre-wrap break-all rounded p-2 font-mono text-xs',
-              part.isError
-                ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
-                : 'bg-zinc-100 dark:bg-zinc-800',
-            )}
-          >
-            {part.output}
-          </pre>
-        </details>
-      )}
-    </div>
+    <Tool>
+      <ToolHeader
+        type="dynamic-tool"
+        toolName={part.name.replace('mcp__sandbox__', '')}
+        state={toolState}
+      />
+      <ToolContent>
+        {<ToolInput input={parsedInput} />}
+        <ToolOutput
+          output={part.isError ? undefined : part.output}
+          errorText={part.isError ? part.output : undefined}
+        />
+      </ToolContent>
+    </Tool>
   );
 }

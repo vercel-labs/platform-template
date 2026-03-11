@@ -211,7 +211,7 @@ export const sendMessage = os
       for await (const part of orchestratorResult.fullStream) {
         if (part.type === 'text-delta') {
           yield part;
-        } else if (part.type === 'tool-call' && part.toolName === 'buildApp') {
+        } else if (part.type === 'tool-call' && part.toolName === 'BuildApp') {
           toolCallId = part.toolCallId;
         }
       }
@@ -226,9 +226,9 @@ export const sendMessage = os
       return;
     }
 
-    // Sandbox path — orchestrator called buildApp
-    // Yield tool-start for the buildApp call so the client sees it
-    yield { type: 'tool-start' as const, toolCallId, toolName: 'buildApp' };
+    // Sandbox path — orchestrator called BuildApp
+    // Yield tool-start for the BuildApp call so the client sees it
+    yield { type: 'tool-start' as const, toolCallId, toolName: 'BuildApp' };
 
     const sandboxResult = await Result.tryPromise({
       try: () =>
@@ -327,7 +327,7 @@ export const sendMessage = os
         yield chunk;
       }
 
-      // Yield tool-result for the buildApp call to close it in the UI
+      // Yield tool-result for the BuildApp call to close it in the UI
       const sandboxSummary = summaryParts.join('') || 'Task completed.';
       yield {
         type: 'tool-result' as const,

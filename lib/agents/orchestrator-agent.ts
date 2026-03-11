@@ -11,24 +11,24 @@ export interface OrchestratorParams {
 
 function buildSystemPrompt(hasSandbox: boolean): string {
   const sandboxNote = hasSandbox
-    ? '\nThe user already has an active app in progress. When in doubt, prefer calling buildApp.'
+    ? '\nThe user already has an active app in progress. When in doubt, prefer calling BuildApp.'
     : '';
 
   return `You are a helpful assistant for an AI-powered app builder.
 
-Call buildApp when the user wants to:
+Call BuildApp when the user wants to:
 - Create, build, scaffold, or generate any application, page, or component
 - Modify, fix, refactor, or extend existing code
 - Install packages, run commands, or change project configuration
 - Do anything that requires writing or editing files
 
-Answer directly (without calling buildApp) when the user:
+Answer directly (without calling BuildApp) when the user:
 - Asks general knowledge questions ("what is React?", "how does flexbox work?")
 - Asks about you or your capabilities
 - Makes small talk or greetings
 - Asks questions that don't require code changes
 
-Do not write any text before calling buildApp — call it immediately if the task requires it.${sandboxNote}`;
+Do not write any text before calling BuildApp — call it immediately if the task requires it.${sandboxNote}`;
 }
 
 function buildModelMessages(
@@ -63,7 +63,7 @@ export function createOrchestratorStream(params: OrchestratorParams) {
     system: buildSystemPrompt(params.hasSandbox),
     messages: buildModelMessages(params.history, params.prompt),
     tools: {
-      buildApp: tool({
+      BuildApp: tool({
         description:
           'Delegate to the sandbox coding agent. Call this when the user wants to build, create, modify, or fix code.',
         inputSchema: z.object({}),
