@@ -1,4 +1,4 @@
-import { streamText, tool } from 'ai';
+import { streamText, smoothStream, tool } from 'ai';
 import type { ModelMessage } from 'ai';
 import { z } from 'zod';
 import type { ChatMessage } from '@/lib/chat-history';
@@ -70,5 +70,8 @@ export function createOrchestratorStream(params: OrchestratorParams) {
       }),
     },
     maxRetries: 1,
+    experimental_transform: smoothStream({
+      delayInMs: 20
+    }),
   });
 }
