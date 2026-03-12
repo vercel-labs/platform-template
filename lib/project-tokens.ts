@@ -50,11 +50,11 @@ export async function storeProjectTokens(
   await redis.set(
     `${PROJECT_TOKENS_PREFIX}${tokens.projectId}`,
     storedValue,
-    { ex: TOKEN_TTL_SECONDS },
+    { EX: TOKEN_TTL_SECONDS },
   );
 
   // Add to the user's project index
-  await redis.sadd(`${USER_PROJECTS_PREFIX}${tokens.userId}`, tokens.projectId);
+  await redis.sAdd(`${USER_PROJECTS_PREFIX}${tokens.userId}`, tokens.projectId);
 }
 
 /**
@@ -65,10 +65,6 @@ export async function getProjectTokens(
 ): Promise<ProjectTokens | null> {
   const data = await redis.get(`${PROJECT_TOKENS_PREFIX}${projectId}`);
   if (!data) return null;
-
-  if (typeof data !== "string") {
-    return data as ProjectTokens;
-  }
 
   const decrypted = await decryptJWE<ProjectTokens>(data);
   if (decrypted) {
@@ -102,7 +98,7 @@ export async function updateProjectTokens(
   await redis.set(
     `${PROJECT_TOKENS_PREFIX}${projectId}`,
     storedValue,
-    { ex: TOKEN_TTL_SECONDS },
+    { EX: TOKEN_TTL_SECONDS },
   );
 
   return true;
@@ -114,7 +110,7 @@ export async function updateProjectTokens(
 export async function deleteProjectTokens(projectId: string): Promise<void> {
   const existing = await getProjectTokens(projectId);
   if (existing) {
-    await redis.srem(
+    await redis.sRem(
       `${USER_PROJECTS_PREFIX}${existing.userId}`,
       projectId,
     );
@@ -126,8 +122,7 @@ export async function deleteProjectTokens(projectId: string): Promise<void> {
  * Get all project IDs a user has claimed
  */
 export async function getUserProjects(userId: string): Promise<string[]> {
-  const projects = await redis.smembers(`${USER_PROJECTS_PREFIX}${userId}`);
-  return projects as string[];
+  return await redis.sMembers(`${USER_PROJECTS_PREFIX}${userId}`);
 }
 
 /**
@@ -157,7 +152,7 @@ export async function markProjectTransferred(projectId: string): Promise<boolean
   await redis.set(
     `${PROJECT_TOKENS_PREFIX}${projectId}`,
     storedValue,
-    { ex: TOKEN_TTL_SECONDS },
+    { EX: TOKEN_TTL_SECONDS },
   );
 
   return true;

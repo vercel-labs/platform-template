@@ -51,7 +51,7 @@ export async function saveSandboxSession(
   await redis.set(
     `${SANDBOX_SESSION_PREFIX}${sandboxId}`,
     JSON.stringify(data),
-    { ex: SESSION_TTL_SECONDS },
+    { EX: SESSION_TTL_SECONDS },
   );
 }
 
@@ -63,10 +63,6 @@ export async function getSandboxSession(
 ): Promise<SandboxSessionData | null> {
   const data = await redis.get(`${SANDBOX_SESSION_PREFIX}${sandboxId}`);
   if (!data) return null;
-
-  if (typeof data !== "string") {
-    return data as SandboxSessionData;
-  }
 
   const parseResult = Result.try({
     try: () => JSON.parse(data) as SandboxSessionData,

@@ -6,12 +6,12 @@
  * Not to be confused with user auth sessions in lib/auth/session.ts.
  */
 
-import { Redis } from "@upstash/redis";
+import { createClient } from "redis";
 
-export const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-});
+export const redis = createClient({ url: process.env.REDIS_URL })
+  .on("error", (err) => console.error("[redis] Client error:", err));
+redis.connect();
+
 export interface ProxySessionData {
   createdAt: number;
   expiresAt: number;
@@ -31,7 +31,7 @@ export async function createProxySession(
   };
 
   await redis.set(`session:${sessionId}`, JSON.stringify(sessionData), {
-    ex: PROXY_SESSION_TTL_SECONDS,
+    EX: PROXY_SESSION_TTL_SECONDS,
   });
 
   return sessionData;
@@ -43,10 +43,7 @@ async function getProxySession(
   if (!data) return null;
 
   try {
-    if (typeof data === "string") {
-      return JSON.parse(data) as ProxySessionData;
-    }
-    return data as ProxySessionData;
+    return JSON.parse(data) as ProxySessionData;
   } catch (error) {
     console.error("[redis] Failed to parse session data:", error);
     return null;
@@ -67,7 +64,7 @@ export async function updateProxySessionSandbox(
   );
 
   await redis.set(`session:${sessionId}`, JSON.stringify(session), {
-    ex: remainingTtl,
+    EX: remainingTtl,
   });
 
   return true;
@@ -79,7 +76,7 @@ const BOTID_SESSION_PREFIX = "botid-session:";
 
 export async function createBotIdSession(sessionId: string): Promise<void> {
   await redis.set(`${BOTID_SESSION_PREFIX}${sessionId}`, "1", {
-    ex: BOTID_SESSION_TTL_SECONDS,
+    EX: BOTID_SESSION_TTL_SECONDS,
   });
 }
 
