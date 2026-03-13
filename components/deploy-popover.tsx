@@ -352,7 +352,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
         <PopoverTrigger asChild>
           <Button size="sm" disabled={!canDeploy}>
             <Rocket className="h-4 w-4" />
-            Deploy Your Own Platform
+            Deploy
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-96 p-0">
@@ -401,7 +401,7 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
       <PopoverTrigger asChild>
         <Button size="sm" disabled={!canDeploy}>
           <Rocket className="h-4 w-4" />
-          Deploy Your Own Platform
+          Deploy
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[28rem] p-0">
