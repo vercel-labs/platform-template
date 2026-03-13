@@ -1,8 +1,14 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useRef } from 'react';
 import { Loader2, MessageCircle, Server } from 'lucide-react';
+import { useChat } from '@ai-sdk/react';
+import {
+  DefaultChatTransport,
+  type UIMessage,
+  isToolUIPart,
+  getToolName,
+} from 'ai';
 import {
   PromptInput,
   PromptInputBody,
@@ -19,10 +25,15 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
-import { useSandboxStore, handleDataPart } from '@/lib/store/sandbox-store';
-import { rpc } from '@/lib/rpc/client';
-import type { StreamChunk } from '@/lib/agents/types';
-import { UI_DATA_PART_TYPES } from '@/lib/types';
+import {
+  useChatId,
+  useSessionId,
+  useAgentId,
+  useTemplateId,
+  useSandboxStatus,
+  useStatusMessage,
+  useApplyStreamData,
+} from '@/lib/store/sandbox-store';
 import { cn } from '@/lib/utils';
 import {
   Message,
@@ -39,10 +50,7 @@ import {
 import type { ToolPart } from '@/components/ai-elements/tool';
 import { AgentSelector } from '@/components/agent-selector';
 import { TemplateSelector } from '@/components/template-selector';
-import {
-  usePersistedChat,
-  type ChatMessage,
-} from '@/lib/hooks/use-persisted-chat';
+import type { ChatMessage } from '@/lib/types';
 
 const EXAMPLE_PROMPTS = [
   'Build a pomodoro timer with sound notifications',
@@ -50,240 +58,65 @@ const EXAMPLE_PROMPTS = [
   'Make a password generator with strength indicator',
 ];
 
-type MessagePart = ChatMessage['parts'][number];
+// ---------------------------------------------------------------------------
+// Chat component
+// ---------------------------------------------------------------------------
 
 interface ChatProps {
   className?: string;
   /** When true, the chat is centered on the page with no sidebar — hides internal divider borders */
   standalone?: boolean;
-  /** When true, a session exists at the URL sandboxId — show loading instead of empty state */
-  hasSession?: boolean;
+  /** Messages loaded server-side for existing chats */
+  initialMessages?: ChatMessage[];
 }
 
-export function Chat({ className, standalone, hasSession = false }: ChatProps) {
-  const router = useRouter();
-  const [status, setStatus] = useState<'ready' | 'streaming'>('ready');
+export function Chat({
+  className,
+  standalone,
+  initialMessages,
+}: ChatProps) {
+  const chatId = useChatId()!;
+  const sessionId = useSessionId();
+  const agentId = useAgentId();
+  const templateId = useTemplateId();
+  const sandboxStatus = useSandboxStatus();
+  const statusMessage = useStatusMessage();
+  const applyStreamData = useApplyStreamData();
 
-  const { messages, setMessages, isLoading } = usePersistedChat();
-
-  const {
-    sandboxId,
-    sessionId,
-    agentId,
-    templateId,
-    status: sandboxStatus,
-    statusMessage,
-    setSandbox,
-    setSessionId,
-  } = useSandboxStore();
-
-  const sendMessage = useCallback(
-    async (text: string) => {
-      if (!text.trim() || status === 'streaming') return;
-
-      const userMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        parts: [{ type: 'text', content: text }],
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      setStatus('streaming');
-
-      const assistantId = crypto.randomUUID();
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: 'assistant', parts: [] },
-      ]);
-
-      try {
-        const iterator = await rpc.chat.send({
-          prompt: text,
-          agentId,
-          templateId,
-          sandboxId: sandboxId ?? undefined,
-          sessionId: sessionId ?? undefined,
-        });
-
-        let newSandboxId: string | null = null;
-
-        for await (const chunk of iterator) {
-          if (chunk.type === 'sandbox-id') {
-            newSandboxId = chunk.sandboxId;
-            setSandbox(chunk.sandboxId, 'ready');
-            continue;
-          }
-
-          const streamChunk = chunk as StreamChunk;
-
-          switch (streamChunk.type) {
-            case 'message-start':
-              if (streamChunk.sessionId) {
-                setSessionId(streamChunk.sessionId);
-              }
-              break;
-
-            case 'text-delta':
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-
-                  const parts = [...m.parts];
-                  const lastPart = parts[parts.length - 1];
-
-                  if (lastPart && lastPart.type === 'text') {
-                    parts[parts.length - 1] = {
-                      ...lastPart,
-                      content: lastPart.content + streamChunk.text,
-                    };
-                  } else {
-                    parts.push({ type: 'text', content: streamChunk.text });
-                  }
-
-                  return { ...m, parts };
-                }),
-              );
-              break;
-
-            case 'tool-start':
-              if (streamChunk.toolName === 'BuildApp') {
-                useSandboxStore.getState().setIsBuildingApp(true);
-              }
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-
-                  const parts = [...m.parts];
-                  parts.push({
-                    type: 'tool',
-                    id: streamChunk.toolCallId,
-                    name: streamChunk.toolName,
-                    input: '',
-                    state: 'streaming',
-                  });
-
-                  return { ...m, parts };
-                }),
-              );
-              break;
-
-            case 'tool-input-delta':
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-
-                  const parts = [...m.parts];
-                  const toolIdx = parts.findIndex(
-                    (p) => p.type === 'tool' && p.id === streamChunk.toolCallId,
-                  );
-                  if (toolIdx !== -1) {
-                    const tool = parts[toolIdx] as Extract<
-                      MessagePart,
-                      { type: 'tool' }
-                    >;
-                    parts[toolIdx] = {
-                      ...tool,
-                      input: tool.input + streamChunk.input,
-                    };
-                  }
-
-                  return { ...m, parts };
-                }),
-              );
-              break;
-
-            case 'tool-result':
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-
-                  const parts = [...m.parts];
-                  const toolIdx = parts.findIndex(
-                    (p) => p.type === 'tool' && p.id === streamChunk.toolCallId,
-                  );
-                  if (toolIdx !== -1) {
-                    const tool = parts[toolIdx] as Extract<
-                      MessagePart,
-                      { type: 'tool' }
-                    >;
-                    parts[toolIdx] = {
-                      ...tool,
-                      output: streamChunk.output,
-                      isError: streamChunk.isError,
-                      state: 'done',
-                    };
-                  }
-
-                  return { ...m, parts };
-                }),
-              );
-              break;
-
-            case 'data': {
-              const dataType =
-                `data-${streamChunk.dataType}` as (typeof UI_DATA_PART_TYPES)[keyof typeof UI_DATA_PART_TYPES];
-              const store = useSandboxStore.getState();
-              handleDataPart(store, dataType, streamChunk.data);
-              break;
-            }
-
-            case 'error':
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-                  const parts = [...m.parts];
-                  parts.push({
-                    type: 'text',
-                    content: `\n\nError: ${streamChunk.message}`,
-                  });
-                  return { ...m, parts };
-                }),
-              );
-              break;
-          }
-        }
-
-        // Update URL after stream completes — session is now saved in Redis
-        if (newSandboxId && !sandboxId) {
-          router.replace(`/?sandboxId=${newSandboxId}`, { scroll: false });
-        }
-      } catch (error) {
-        console.error('[chat] RPC error:', error);
-        const errorDetail =
-          error instanceof Error
-            ? `${error.message}${(error as { code?: string }).code ? ` (code: ${(error as { code?: string }).code})` : ''}${error.cause ? ` | cause: ${error.cause}` : ''}`
-            : String(error);
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.id !== assistantId) return m;
-            const parts = [...m.parts];
-            parts.push({
-              type: 'text',
-              content: `Error: ${errorDetail}`,
-            });
-            return { ...m, parts };
-          }),
-        );
-      } finally {
-        setStatus('ready');
-      }
-    },
-    [
-      status,
-      sandboxId,
-      sessionId,
-      agentId,
-      templateId,
-      setSandbox,
-      setSessionId,
-      router,
-    ],
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: '/api/chat' }),
+    [],
   );
 
-  const isStreaming = status === 'streaming';
-  // Disable selectors once chat has started (has messages)
+  const { messages, sendMessage, status, stop } = useChat({
+    id: chatId,
+    messages: initialMessages,
+    transport,
+    onData: (dataPart) => {
+      applyStreamData(dataPart.type, dataPart.data);
+    },
+  });
+
+  // Update URL when a new chat starts (i.e. we're on "/" not "/chat/...").
+  // Use replaceState to avoid a Next.js server navigation that would remount.
+  const hasUpdatedUrl = useRef(false);
+  useEffect(() => {
+    if (
+      !hasUpdatedUrl.current &&
+      !window.location.pathname.startsWith('/chat/') &&
+      messages.length > 0
+    ) {
+      window.history.replaceState(null, '', `/chat/${chatId}`);
+      hasUpdatedUrl.current = true;
+    }
+  }, [messages.length, chatId]);
+
+  // -------------------------------------------------------------------
+  // Derived state
+  // -------------------------------------------------------------------
+
+  const isStreaming = status === 'streaming' || status === 'submitted';
   const hasStartedChat = messages.length > 0;
-  // Show loading instead of empty state while restoring a session from URL
-  const isLoadingSession = hasSession && messages.length === 0 && (!sandboxId || isLoading);
 
   return (
     <Panel className={cn('flex min-h-0 flex-col', className)}>
@@ -304,11 +137,7 @@ export function Chat({ className, standalone, hasSession = false }: ChatProps) {
       {/* Messages or Empty State */}
       <Conversation>
         <ConversationContent className="mx-auto w-full max-w-2xl">
-          {isLoadingSession ? (
-            <ConversationEmptyState>
-              <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
-            </ConversationEmptyState>
-          ) : messages.length === 0 ? (
+          {messages.length === 0 ? (
             <ConversationEmptyState>
               <p className="mb-4 text-center text-sm text-zinc-500">
                 Try one of these prompts:
@@ -319,7 +148,19 @@ export function Chat({ className, standalone, hasSession = false }: ChatProps) {
                     <button
                       type="button"
                       className="w-full rounded-md border border-dashed border-zinc-300 px-4 py-3 text-left text-sm transition-colors hover:border-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
-                      onClick={() => sendMessage(prompt)}
+                      onClick={() =>
+                        sendMessage(
+                          { text: prompt },
+                          {
+                            body: {
+                              chatId,
+                              agentId,
+                              templateId,
+                              sessionId: sessionId ?? undefined,
+                            },
+                          },
+                        )
+                      }
                       disabled={isStreaming}
                     >
                       {prompt}
@@ -362,9 +203,7 @@ export function Chat({ className, standalone, hasSession = false }: ChatProps) {
         <div
           className={cn(
             'mx-auto flex w-full max-w-2xl flex-col gap-2 transition-[border-color,padding] duration-500 ease-in-out',
-            standalone
-              ? 'border-transparent pt-0'
-              : 'pt-3',
+            standalone ? 'border-transparent pt-0' : 'pt-3',
           )}
         >
           {!hasStartedChat && (
@@ -373,7 +212,21 @@ export function Chat({ className, standalone, hasSession = false }: ChatProps) {
               <AgentSelector disabled={isStreaming} />
             </div>
           )}
-          <PromptInput onSubmit={(msg) => sendMessage(msg.text)}>
+          <PromptInput
+            onSubmit={(msg) =>
+              sendMessage(
+                { text: msg.text },
+                {
+                  body: {
+                    chatId,
+                    agentId,
+                    templateId,
+                    sessionId: sessionId ?? undefined,
+                  },
+                },
+              )
+            }
+          >
             <PromptInputBody>
               <PromptInputTextarea
                 placeholder="Type your message..."
@@ -385,6 +238,7 @@ export function Chat({ className, standalone, hasSession = false }: ChatProps) {
               <PromptInputSubmit
                 status={isStreaming ? 'streaming' : undefined}
                 disabled={isStreaming}
+                onStop={stop}
               />
             </PromptInputFooter>
           </PromptInput>
@@ -404,7 +258,7 @@ function ThinkingIndicator() {
   );
 }
 
-function MessageView({ message }: { message: ChatMessage }) {
+function MessageView({ message }: { message: UIMessage }) {
   const from = message.role === 'user' ? 'user' : 'assistant';
 
   return (
@@ -413,7 +267,7 @@ function MessageView({ message }: { message: ChatMessage }) {
         {message.parts.length === 0 && from === 'assistant' ? (
           <ThinkingIndicator />
         ) : (
-          message.parts.map((part: MessagePart, index: number) => (
+          message.parts.map((part, index) => (
             <PartView
               key={`${message.id}-${index}`}
               part={part}
@@ -426,53 +280,61 @@ function MessageView({ message }: { message: ChatMessage }) {
   );
 }
 
-function PartView({ part, isUser }: { part: MessagePart; isUser: boolean }) {
+type UIMessagePart = UIMessage['parts'][number];
+
+function PartView({ part, isUser }: { part: UIMessagePart; isUser: boolean }) {
   if (part.type === 'text') {
-    if (!part.content) return null;
+    if (!part.text) return null;
 
     if (isUser) {
       return (
         <div className="inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
-          <p className="whitespace-pre-wrap">{part.content}</p>
+          <p className="whitespace-pre-wrap">{part.text}</p>
         </div>
       );
     }
 
     return (
       <div className="prose prose-zinc dark:prose-invert max-w-none break-words text-sm">
-        <MessageResponse>{part.content}</MessageResponse>
+        <MessageResponse>{part.text}</MessageResponse>
       </div>
     );
   }
 
-  const toolState: ToolPart['state'] =
-    part.state === 'streaming'
-      ? 'input-streaming'
-      : part.isError
+  // Handle tool invocations (static "tool-{name}" and "dynamic-tool" parts)
+  if (isToolUIPart(part)) {
+    const toolState: ToolPart['state'] =
+      part.state === 'output-error'
         ? 'output-error'
-        : 'output-available';
+        : part.state === 'output-available'
+          ? 'output-available'
+          : 'input-streaming';
 
-  let parsedInput = null;
-  try {
-    parsedInput = typeof part.input === "string" ? JSON.parse(part.input) : part.input;
-  } catch {
-    parsedInput = part.input;
+    const output =
+      'output' in part && part.output !== undefined
+        ? typeof part.output === 'string'
+          ? part.output
+          : JSON.stringify(part.output)
+        : undefined;
+
+    return (
+      <Tool>
+        <ToolHeader
+          type="dynamic-tool"
+          toolName={getToolName(part).replace('mcp__sandbox__', '')}
+          state={toolState}
+        />
+        <ToolContent>
+          <ToolInput input={'input' in part ? part.input : undefined} />
+          <ToolOutput
+            output={part.state !== 'output-error' ? output : undefined}
+            errorText={part.state === 'output-error' ? part.errorText : undefined}
+          />
+        </ToolContent>
+      </Tool>
+    );
   }
 
-  return (
-    <Tool>
-      <ToolHeader
-        type="dynamic-tool"
-        toolName={part.name.replace('mcp__sandbox__', '')}
-        state={toolState}
-      />
-      <ToolContent>
-        {<ToolInput input={parsedInput} />}
-        <ToolOutput
-          output={part.isError ? undefined : part.output}
-          errorText={part.isError ? part.output : undefined}
-        />
-      </ToolContent>
-    </Tool>
-  );
+  // Skip data parts and other unknown types in rendering
+  return null;
 }

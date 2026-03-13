@@ -3,7 +3,11 @@ import { initBotId } from "botid/client/core";
 initBotId({
   protect: [
     {
-      path: "/api/botid/session",
+      path: "/api/chat",
+      method: "POST",
+    },
+    {
+      path: "/rpc/*",
       method: "POST",
     },
   ],

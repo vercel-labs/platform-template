@@ -1,23 +1,18 @@
 'use client';
 
-import { useState, useCallback, Suspense } from 'react';
+import { useState, useCallback } from 'react';
 import { MessageCircle, Monitor } from 'lucide-react';
 import { Chat } from '@/components/chat/chat';
 import { Preview } from '@/components/preview';
 import { cn } from '@/lib/utils';
-import { useSandboxFromUrl } from '@/lib/hooks/use-sandbox-from-url';
-import { useSandboxStore } from '@/lib/store/sandbox-store';
+import {
+  usePreviewUrl,
+  useSetPreviewUrl,
+  useShowPreview,
+} from '@/lib/store/sandbox-store';
+import type { ChatMessage } from '@/lib/types';
 
 type MobileTab = 'chat' | 'preview';
-
-/**
- * Restores sandboxId from URL params.
- * Wrapped in Suspense because useSearchParams requires it for static rendering.
- */
-function SandboxFromUrl() {
-  useSandboxFromUrl();
-  return null;
-}
 
 const FAKE_PREVIEW_URL = 'https://example.vercel.app';
 
@@ -26,15 +21,11 @@ const FAKE_PREVIEW_URL = 'https://example.vercel.app';
  * Only renders in development mode.
  */
 function DevPreviewToggle() {
-  const { previewUrl, setPreviewUrl } = useSandboxStore();
+  const previewUrl = usePreviewUrl();
+  const setPreviewUrl = useSetPreviewUrl();
 
   const toggle = useCallback(() => {
-    if (previewUrl) {
-      // Clear it — use reset-like approach via direct set
-      useSandboxStore.setState({ previewUrl: null });
-    } else {
-      setPreviewUrl(FAKE_PREVIEW_URL);
-    }
+    setPreviewUrl(previewUrl ? null : FAKE_PREVIEW_URL);
   }, [previewUrl, setPreviewUrl]);
 
   if (process.env.NODE_ENV !== 'development') return null;
@@ -50,19 +41,16 @@ function DevPreviewToggle() {
   );
 }
 
-export function MainLayout({ hasSession = false }: { hasSession?: boolean }) {
-  const [mobileTab, setMobileTab] = useState<MobileTab>('chat');
-  const { previewUrl, isBuildingApp } = useSandboxStore();
+interface MainLayoutProps {
+  initialMessages?: ChatMessage[];
+}
 
-  const showRightPanel = !!previewUrl || isBuildingApp;
+export function MainLayout({ initialMessages }: MainLayoutProps) {
+  const [mobileTab, setMobileTab] = useState<MobileTab>('chat');
+  const showRightPanel = useShowPreview();
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-      {/* Restore sandboxId from URL if present (e.g., after OAuth redirect) */}
-      <Suspense fallback={null}>
-        <SandboxFromUrl />
-      </Suspense>
-
       <DevPreviewToggle />
 
       {/* Mobile Tab Switcher - only show when preview is available */}
@@ -112,7 +100,7 @@ export function MainLayout({ hasSession = false }: { hasSession?: boolean }) {
         <Chat
           className="h-full rounded-none border-0"
           standalone={!showRightPanel}
-          hasSession={hasSession}
+          initialMessages={initialMessages}
         />
       </div>
 

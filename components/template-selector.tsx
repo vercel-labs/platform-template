@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { useTemplateId, useSetTemplateId } from "@/lib/store/sandbox-store";
 import { listTemplates, type TemplateId } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,8 @@ interface TemplateSelectorProps {
 }
 
 export function TemplateSelector({ className, disabled }: TemplateSelectorProps) {
-  const { templateId, setTemplateId } = useSandboxStore();
+  const templateId = useTemplateId();
+  const setTemplateId = useSetTemplateId();
 
   const selectedTemplate = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
 

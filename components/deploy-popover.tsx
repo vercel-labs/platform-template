@@ -18,7 +18,13 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { rpc } from '@/lib/rpc/client';
 import type { LogEvent, ProjectOwnership } from '@/lib/rpc/procedures/deploy';
-import { useSandboxStore } from '@/lib/store/sandbox-store';
+import {
+  useChatId,
+  useProjectId,
+  useProjectOwnership,
+  useDeploymentUrl,
+  useSetProject,
+} from '@/lib/store/sandbox-store';
 
 type TextLogEvent = Extract<LogEvent, { text: string }>;
 
@@ -241,6 +247,7 @@ interface DeployPopoverProps {
 }
 
 export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
+  const chatId = useChatId();
   const [viewState, setViewState] = useState<ViewState>('main');
   const [customDomain, setCustomDomain] = useState<string>('');
   const [open, setOpen] = useState(false);
@@ -248,10 +255,10 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Get project state from store
-  const storeProjectId = useSandboxStore((s) => s.projectId);
-  const storeOwnership = useSandboxStore((s) => s.projectOwnership);
-  const storeDeploymentUrl = useSandboxStore((s) => s.deploymentUrl);
-  const setProject = useSandboxStore((s) => s.setProject);
+  const storeProjectId = useProjectId();
+  const storeOwnership = useProjectOwnership();
+  const storeDeploymentUrl = useDeploymentUrl();
+  const setProject = useSetProject();
 
   const handleDeploymentComplete = useCallback(
     (projectId: string, ownership: ProjectOwnership, url: string) => {
@@ -278,9 +285,10 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
 
     setIsClaimLoading(true);
     try {
-      // Build redirect URL that includes sandboxId to restore state after OAuth
-      const redirectUrl = new URL(window.location.origin);
-      redirectUrl.searchParams.set('sandboxId', sandboxId);
+      // Build redirect URL to restore state after OAuth
+      const redirectUrl = chatId
+        ? new URL(`/chat/${chatId}`, window.location.origin)
+        : new URL(window.location.origin);
 
       const result = await rpc.claim.getClaimUrl({
         projectId: currentProjectId,
@@ -303,13 +311,13 @@ export function DeployPopover({ sandboxId, disabled }: DeployPopoverProps) {
     } finally {
       setIsClaimLoading(false);
     }
-  }, [projectId, storeProjectId, sandboxId]);
+  }, [projectId, storeProjectId, sandboxId, chatId]);
 
   useEffect(() => {
     if (state.status === 'building') {
       logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [state]);
+  }, [state.status]);
 
   const canDeploy = sandboxId && !disabled;
 

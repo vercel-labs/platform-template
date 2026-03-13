@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { useAgentId, useSetAgentId } from "@/lib/store/sandbox-store";
 import { listAgents } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,8 @@ interface AgentSelectorProps {
 }
 
 export function AgentSelector({ className, disabled }: AgentSelectorProps) {
-  const { agentId, setAgentId } = useSandboxStore();
+  const agentId = useAgentId();
+  const setAgentId = useSetAgentId();
 
   const selectedAgent = AGENTS.find((a) => a.id === agentId) ?? AGENTS[0];
 

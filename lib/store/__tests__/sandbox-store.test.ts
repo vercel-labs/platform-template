@@ -1,16 +1,19 @@
 import { describe, test, expect, beforeEach } from "vitest";
-import { useSandboxStore, handleDataPart } from "../sandbox-store";
+import { createSandboxStore } from "../sandbox-store";
+import type { SandboxStoreApi } from "../sandbox-store";
+
+let store: SandboxStoreApi;
 
 describe("SandboxStore", () => {
   beforeEach(() => {
-    useSandboxStore.getState().reset();
+    store = createSandboxStore();
   });
 
   describe("sandbox state", () => {
     test("setSandbox initializes sandbox with ID and status", () => {
-      useSandboxStore.getState().setSandbox("sbx-123", "ready");
+      store.getState().setSandbox("sbx-123", "ready");
 
-      const state = useSandboxStore.getState();
+      const state = store.getState();
       expect(state.sandboxId).toBe("sbx-123");
       expect(state.status).toBe("ready");
       expect(state.files).toEqual([]);
@@ -18,51 +21,46 @@ describe("SandboxStore", () => {
     });
 
     test("setPreviewUrl updates preview URL", () => {
-      const store = useSandboxStore.getState();
-      store.setPreviewUrl("https://preview.vercel.app");
+      store.getState().setPreviewUrl("https://preview.vercel.app");
 
-      expect(useSandboxStore.getState().previewUrl).toBe(
+      expect(store.getState().previewUrl).toBe(
         "https://preview.vercel.app",
       );
     });
 
     test("setStatus updates status", () => {
-      const store = useSandboxStore.getState();
-      store.setStatus("creating");
-      expect(useSandboxStore.getState().status).toBe("creating");
+      store.getState().setStatus("creating");
+      expect(store.getState().status).toBe("creating");
 
-      store.setStatus("ready");
-      expect(useSandboxStore.getState().status).toBe("ready");
+      store.getState().setStatus("ready");
+      expect(store.getState().status).toBe("ready");
     });
   });
 
   describe("file management", () => {
     test("addFile adds a file path", () => {
-      const store = useSandboxStore.getState();
-      store.addFile("/vercel/sandbox/index.ts");
+      store.getState().addFile("/vercel/sandbox/index.ts");
 
-      expect(useSandboxStore.getState().files).toEqual([
+      expect(store.getState().files).toEqual([
         "/vercel/sandbox/index.ts",
       ]);
     });
 
     test("addFile deduplicates paths", () => {
-      const store = useSandboxStore.getState();
-      store.addFile("/vercel/sandbox/index.ts");
-      store.addFile("/vercel/sandbox/index.ts");
+      store.getState().addFile("/vercel/sandbox/index.ts");
+      store.getState().addFile("/vercel/sandbox/index.ts");
 
-      expect(useSandboxStore.getState().files).toEqual([
+      expect(store.getState().files).toEqual([
         "/vercel/sandbox/index.ts",
       ]);
     });
 
     test("addFile sorts paths", () => {
-      const store = useSandboxStore.getState();
-      store.addFile("/vercel/sandbox/z.ts");
-      store.addFile("/vercel/sandbox/a.ts");
-      store.addFile("/vercel/sandbox/m.ts");
+      store.getState().addFile("/vercel/sandbox/z.ts");
+      store.getState().addFile("/vercel/sandbox/a.ts");
+      store.getState().addFile("/vercel/sandbox/m.ts");
 
-      expect(useSandboxStore.getState().files).toEqual([
+      expect(store.getState().files).toEqual([
         "/vercel/sandbox/a.ts",
         "/vercel/sandbox/m.ts",
         "/vercel/sandbox/z.ts",
@@ -70,35 +68,32 @@ describe("SandboxStore", () => {
     });
 
     test("addFiles adds multiple files", () => {
-      const store = useSandboxStore.getState();
-      store.addFiles([
+      store.getState().addFiles([
         "/vercel/sandbox/index.ts",
         "/vercel/sandbox/app.tsx",
         "/vercel/sandbox/styles.css",
       ]);
 
-      expect(useSandboxStore.getState().files).toHaveLength(3);
+      expect(store.getState().files).toHaveLength(3);
     });
 
     test("addFiles deduplicates", () => {
-      const store = useSandboxStore.getState();
-      store.addFile("/vercel/sandbox/index.ts");
-      store.addFiles(["/vercel/sandbox/index.ts", "/vercel/sandbox/app.tsx"]);
+      store.getState().addFile("/vercel/sandbox/index.ts");
+      store.getState().addFiles(["/vercel/sandbox/index.ts", "/vercel/sandbox/app.tsx"]);
 
-      expect(useSandboxStore.getState().files).toHaveLength(2);
+      expect(store.getState().files).toHaveLength(2);
     });
   });
 
   describe("command management", () => {
     test("addCommand adds a new command", () => {
-      const store = useSandboxStore.getState();
-      store.addCommand({
+      store.getState().addCommand({
         cmdId: "cmd-1",
         command: "npm",
         args: ["install"],
       });
 
-      const commands = useSandboxStore.getState().commands;
+      const commands = store.getState().commands;
       expect(commands).toHaveLength(1);
       expect(commands[0].cmdId).toBe("cmd-1");
       expect(commands[0].command).toBe("npm");
@@ -108,20 +103,18 @@ describe("SandboxStore", () => {
     });
 
     test("addCommand does not duplicate", () => {
-      const store = useSandboxStore.getState();
-      store.addCommand({ cmdId: "cmd-1", command: "npm" });
-      store.addCommand({ cmdId: "cmd-1", command: "npm" });
+      store.getState().addCommand({ cmdId: "cmd-1", command: "npm" });
+      store.getState().addCommand({ cmdId: "cmd-1", command: "npm" });
 
-      expect(useSandboxStore.getState().commands).toHaveLength(1);
+      expect(store.getState().commands).toHaveLength(1);
     });
 
     test("addCommandLog appends log to command", () => {
-      const store = useSandboxStore.getState();
-      store.addCommand({ cmdId: "cmd-1", command: "npm" });
-      store.addCommandLog("cmd-1", { stream: "stdout", data: "Installing..." });
-      store.addCommandLog("cmd-1", { stream: "stdout", data: "Done!" });
+      store.getState().addCommand({ cmdId: "cmd-1", command: "npm" });
+      store.getState().addCommandLog("cmd-1", { stream: "stdout", data: "Installing..." });
+      store.getState().addCommandLog("cmd-1", { stream: "stdout", data: "Done!" });
 
-      const commands = useSandboxStore.getState().commands;
+      const commands = store.getState().commands;
       expect(commands[0].logs).toHaveLength(2);
       expect(commands[0].logs[0].data).toBe("Installing...");
       expect(commands[0].logs[0].stream).toBe("stdout");
@@ -129,32 +122,29 @@ describe("SandboxStore", () => {
     });
 
     test("addCommandLog ignores unknown command", () => {
-      const store = useSandboxStore.getState();
-      store.addCommandLog("unknown-cmd", { stream: "stdout", data: "test" });
+      store.getState().addCommandLog("unknown-cmd", { stream: "stdout", data: "test" });
 
-      expect(useSandboxStore.getState().commands).toHaveLength(0);
+      expect(store.getState().commands).toHaveLength(0);
     });
 
     test("setCommandExitCode sets exit code", () => {
-      const store = useSandboxStore.getState();
-      store.addCommand({ cmdId: "cmd-1", command: "npm" });
-      store.setCommandExitCode("cmd-1", 0);
+      store.getState().addCommand({ cmdId: "cmd-1", command: "npm" });
+      store.getState().setCommandExitCode("cmd-1", 0);
 
-      expect(useSandboxStore.getState().commands[0].exitCode).toBe(0);
+      expect(store.getState().commands[0].exitCode).toBe(0);
     });
   });
 
   describe("reset", () => {
     test("reset clears all state", () => {
-      const store = useSandboxStore.getState();
-      store.setSandbox("sbx-123");
-      store.addFile("/vercel/sandbox/index.ts");
-      store.addCommand({ cmdId: "cmd-1", command: "npm" });
-      store.setPreviewUrl("https://preview.vercel.app");
+      store.getState().setSandbox("sbx-123");
+      store.getState().addFile("/vercel/sandbox/index.ts");
+      store.getState().addCommand({ cmdId: "cmd-1", command: "npm" });
+      store.getState().setPreviewUrl("https://preview.vercel.app");
 
-      store.reset();
+      store.getState().reset();
 
-      const state = useSandboxStore.getState();
+      const state = store.getState();
       expect(state.sandboxId).toBeNull();
       expect(state.status).toBeNull();
       expect(state.files).toEqual([]);
@@ -164,127 +154,118 @@ describe("SandboxStore", () => {
   });
 });
 
-describe("handleDataPart", () => {
+describe("applyStreamData", () => {
   beforeEach(() => {
-    useSandboxStore.getState().reset();
+    store = createSandboxStore();
   });
 
   test("handles data-sandbox-status with sandboxId", () => {
-    const store = useSandboxStore.getState();
-    handleDataPart(store, "data-sandbox-status", {
+    store.getState().applyStreamData("data-sandbox-status", {
       sandboxId: "sbx-456",
       status: "ready",
     });
 
-    expect(useSandboxStore.getState().sandboxId).toBe("sbx-456");
-    expect(useSandboxStore.getState().status).toBe("ready");
+    expect(store.getState().sandboxId).toBe("sbx-456");
+    expect(store.getState().status).toBe("ready");
   });
 
   test("handles data-sandbox-status without sandboxId", () => {
-    const store = useSandboxStore.getState();
-    store.setSandbox("sbx-123");
-    handleDataPart(store, "data-sandbox-status", { status: "error" });
+    store.getState().setSandbox("sbx-123");
+    store.getState().applyStreamData("data-sandbox-status", { status: "error" });
 
-    expect(useSandboxStore.getState().sandboxId).toBe("sbx-123");
-    expect(useSandboxStore.getState().status).toBe("error");
+    expect(store.getState().sandboxId).toBe("sbx-123");
+    expect(store.getState().status).toBe("error");
   });
 
   test("handles data-file-written", () => {
-    const store = useSandboxStore.getState();
-    handleDataPart(store, "data-file-written", {
+    store.getState().applyStreamData("data-file-written", {
       path: "/vercel/sandbox/app.tsx",
     });
 
-    expect(useSandboxStore.getState().files).toContain(
+    expect(store.getState().files).toContain(
       "/vercel/sandbox/app.tsx",
     );
   });
 
   test("handles data-preview-url", () => {
-    const store = useSandboxStore.getState();
-    handleDataPart(store, "data-preview-url", {
+    store.getState().applyStreamData("data-preview-url", {
       url: "https://my-app.vercel.run",
       port: 3000,
     });
 
-    expect(useSandboxStore.getState().previewUrl).toBe(
+    expect(store.getState().previewUrl).toBe(
       "https://my-app.vercel.run",
     );
   });
 
   test("handles data-command-output", () => {
-    const store = useSandboxStore.getState();
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm install",
       output: "added 100 packages",
       stream: "stdout",
     });
 
-    const commands = useSandboxStore.getState().commands;
+    const commands = store.getState().commands;
     expect(commands).toHaveLength(1);
     expect(commands[0].cmdId).toBe("npm install");
     expect(commands[0].logs[0].data).toBe("added 100 packages");
   });
 
   test("handles data-command-output with exitCode", () => {
-    const store = useSandboxStore.getState();
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm test",
       output: "All tests passed",
       stream: "stdout",
       exitCode: 0,
     });
 
-    const commands = useSandboxStore.getState().commands;
+    const commands = store.getState().commands;
     expect(commands[0].exitCode).toBe(0);
   });
 
   test("ignores unknown data part types", () => {
-    const store = useSandboxStore.getState();
-    handleDataPart(store, "data-unknown-type", { foo: "bar" });
+    store.getState().applyStreamData("data-unknown-type", { foo: "bar" });
 
-    expect(useSandboxStore.getState().sandboxId).toBeNull();
+    expect(store.getState().sandboxId).toBeNull();
   });
 
   test("accumulates multiple file writes", () => {
-    const store = useSandboxStore.getState();
+    const s = store.getState();
 
-    handleDataPart(store, "data-file-written", {
+    s.applyStreamData("data-file-written", {
       path: "/vercel/sandbox/index.ts",
     });
-    handleDataPart(store, "data-file-written", {
+    store.getState().applyStreamData("data-file-written", {
       path: "/vercel/sandbox/app.tsx",
     });
-    handleDataPart(store, "data-file-written", {
+    store.getState().applyStreamData("data-file-written", {
       path: "/vercel/sandbox/styles.css",
     });
 
-    expect(useSandboxStore.getState().files).toHaveLength(3);
+    expect(store.getState().files).toHaveLength(3);
   });
 
   test("accumulates command output over time", () => {
-    const store = useSandboxStore.getState();
-
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm run build",
       output: "Building...",
       stream: "stdout",
     });
 
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm run build",
       output: "Compiling TypeScript...",
       stream: "stdout",
     });
 
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm run build",
       output: "Done!",
       stream: "stdout",
       exitCode: 0,
     });
 
-    const commands = useSandboxStore.getState().commands;
+    const commands = store.getState().commands;
     expect(commands).toHaveLength(1);
     expect(commands[0].logs).toHaveLength(3);
     expect(commands[0].exitCode).toBe(0);
@@ -293,46 +274,46 @@ describe("handleDataPart", () => {
 
 describe("integration: simulated agent stream", () => {
   beforeEach(() => {
-    useSandboxStore.getState().reset();
+    store = createSandboxStore();
   });
 
   test("processes a typical agent session", () => {
-    const store = useSandboxStore.getState();
+    const s = store.getState();
 
-    handleDataPart(store, "data-sandbox-status", {
+    s.applyStreamData("data-sandbox-status", {
       sandboxId: "sbx-test-123",
       status: "ready",
     });
 
-    handleDataPart(store, "data-file-written", {
+    store.getState().applyStreamData("data-file-written", {
       path: "/vercel/sandbox/package.json",
     });
-    handleDataPart(store, "data-file-written", {
+    store.getState().applyStreamData("data-file-written", {
       path: "/vercel/sandbox/src/index.ts",
     });
-    handleDataPart(store, "data-file-written", {
+    store.getState().applyStreamData("data-file-written", {
       path: "/vercel/sandbox/src/App.tsx",
     });
 
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm install",
       output: "added 150 packages in 5s",
       stream: "stdout",
       exitCode: 0,
     });
 
-    handleDataPart(store, "data-command-output", {
+    store.getState().applyStreamData("data-command-output", {
       command: "npm run dev",
       output: "Server running on port 3000",
       stream: "stdout",
     });
 
-    handleDataPart(store, "data-preview-url", {
+    store.getState().applyStreamData("data-preview-url", {
       url: "https://sbx-test-123-3000.vercel.run",
       port: 3000,
     });
 
-    const state = useSandboxStore.getState();
+    const state = store.getState();
     expect(state.sandboxId).toBe("sbx-test-123");
     expect(state.status).toBe("ready");
     expect(state.files).toHaveLength(3);

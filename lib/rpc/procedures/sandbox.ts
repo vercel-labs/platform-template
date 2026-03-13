@@ -115,12 +115,12 @@ export const getOrCreateSandbox = os
   });
 
 /**
- * Get full sandbox session (messages + metadata like previewUrl)
- * This is a read-only endpoint - persistence is handled server-side in chat.send
+ * Get full session (messages + metadata like previewUrl)
+ * This is a read-only endpoint - persistence is handled server-side in the chat API route.
  */
 export const getSessionRpc = os
-  .input(z.object({ sandboxId: z.string() }))
-  .handler(async ({ input: { sandboxId } }) => {
-    const session = await getSandboxSession(sandboxId);
+  .input(z.object({ chatId: z.string() }))
+  .handler(async ({ input: { chatId } }) => {
+    const session = await getSandboxSession(chatId);
     return Result.ok({ session });
   });

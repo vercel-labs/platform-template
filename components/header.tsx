@@ -2,10 +2,10 @@
 
 import { AuthButton } from "@/components/auth";
 import { DeployPopover } from "@/components/deploy-popover";
-import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { useSandboxId } from "@/lib/store/sandbox-store";
 
 export function Header() {
-  const { sandboxId } = useSandboxStore();
+  const sandboxId = useSandboxId();
 
   return (
     <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">

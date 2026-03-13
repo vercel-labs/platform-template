@@ -106,11 +106,11 @@ export async function GET(req: NextRequest): Promise<Response> {
       // Update the Redis session ownership so the UI reflects the claim
       try {
         const redirectUrl = new URL(storedRedirectTo, req.nextUrl.origin);
-        const sandboxId = redirectUrl.searchParams.get("sandboxId");
-        if (sandboxId) {
-          const existing = await getSandboxSession(sandboxId);
+        const chatId = redirectUrl.pathname.match(/^\/chat\/(.+)$/)?.[1];
+        if (chatId) {
+          const existing = await getSandboxSession(chatId);
           if (existing && existing.projectId === storedProjectId) {
-            await saveSandboxSession(sandboxId, {
+            await saveSandboxSession(chatId, {
               ...existing,
               projectOwnership: "user",
             });

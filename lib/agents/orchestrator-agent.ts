@@ -1,12 +1,22 @@
-import { streamText, smoothStream, tool } from 'ai';
-import type { ModelMessage } from 'ai';
-import { z } from 'zod';
-import type { ChatMessage } from '@/lib/chat-history';
+import { streamText, smoothStream } from "ai";
+import type { ModelMessage, UIMessageStreamWriter, TextUIPart } from "ai";
+import type { ChatMessage } from "@/lib/types";
+import type { Template } from "@/lib/templates";
+import type { TemplateId } from "@/lib/templates";
+import type { AgentProvider } from "@/lib/agents/types";
+import type { SandboxSessionData } from "@/lib/chat-history";
+import { createBuildAppTool } from "@/lib/agents/build-app-tool";
+
+export type { BuildAppResult } from "@/lib/agents/build-app-tool";
 
 export interface OrchestratorParams {
   prompt: string;
   history: ChatMessage[];
-  hasSandbox: boolean;
+  writer: UIMessageStreamWriter;
+  agent: AgentProvider;
+  template: Template;
+  templateId: TemplateId;
+  existingSession?: SandboxSessionData;
 }
 
 function buildSystemPrompt(hasSandbox: boolean): string {
@@ -38,10 +48,9 @@ function buildModelMessages(
   const messages: ModelMessage[] = [];
 
   for (const msg of history) {
-    // Only include text parts — skip tool call history (not needed for routing)
     const textContent = msg.parts
-      .filter((p): p is { type: 'text'; content: string } => p.type === 'text')
-      .map((p) => p.content)
+      .filter((p): p is TextUIPart => p.type === 'text')
+      .map((p) => p.text)
       .join('\n');
 
     if (!textContent) continue;
@@ -58,20 +67,26 @@ function buildModelMessages(
 }
 
 export function createOrchestratorStream(params: OrchestratorParams) {
+  const { prompt, history, writer, agent, template, templateId, existingSession } = params;
+  const hasSandbox = !!existingSession?.sandboxId;
+
   return streamText({
     model: 'anthropic/claude-sonnet-4-6',
-    system: buildSystemPrompt(params.hasSandbox),
-    messages: buildModelMessages(params.history, params.prompt),
+    system: buildSystemPrompt(hasSandbox),
+    messages: buildModelMessages(history, prompt),
     tools: {
-      BuildApp: tool({
-        description:
-          'Delegate to the sandbox coding agent. Call this when the user wants to build, create, modify, or fix code.',
-        inputSchema: z.object({}),
+      BuildApp: createBuildAppTool({
+        prompt,
+        writer,
+        agent,
+        templateId,
+        devPort: template.devPort,
+        existingSession,
       }),
     },
     maxRetries: 1,
     experimental_transform: smoothStream({
-      delayInMs: 20
+      delayInMs: 20,
     }),
   });
 }

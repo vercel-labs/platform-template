@@ -18,7 +18,7 @@ import {
   TerminalContent,
   TerminalStatus,
 } from "@/components/ai-elements/terminal";
-import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { useFiles, useCommands, useSandboxId } from "@/lib/store/sandbox-store";
 import { rpc } from "@/lib/rpc/client";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +101,9 @@ function TreeNodes({ nodes }: { nodes: TreeNode[] }) {
 }
 
 export function WorkspacePanel({ className }: WorkspacePanelProps) {
-  const { files, commands, sandboxId } = useSandboxStore();
+  const files = useFiles();
+  const commands = useCommands();
+  const sandboxId = useSandboxId();
   const [selectedPath, setSelectedPath] = useState<string | undefined>();
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

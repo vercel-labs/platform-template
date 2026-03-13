@@ -9,7 +9,7 @@ import {
   WebPreviewUrl,
   WebPreviewBody,
 } from "@/components/ai-elements/web-preview";
-import { useSandboxStore } from "@/lib/store/sandbox-store";
+import { usePreviewUrl } from "@/lib/store/sandbox-store";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
 
@@ -18,7 +18,7 @@ interface PreviewProps {
 }
 
 export function Preview({ className }: PreviewProps) {
-  const { previewUrl } = useSandboxStore();
+  const previewUrl = usePreviewUrl();
   const [key, setKey] = useState(0);
 
   const refresh = useCallback(() => {

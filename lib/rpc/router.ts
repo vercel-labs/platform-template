@@ -8,7 +8,6 @@
  */
 
 import * as sandbox from "./procedures/sandbox";
-import * as chat from "./procedures/chat";
 import * as deploy from "./procedures/deploy";
 import * as claim from "./procedures/claim";
 
@@ -17,11 +16,8 @@ export const router = {
     readFile: sandbox.readFile,
     listFiles: sandbox.listFiles,
     getOrCreate: sandbox.getOrCreateSandbox,
-    // Read-only session access - persistence is handled server-side in chat.send
+    // Read-only session access - persistence is handled server-side in the chat API route
     getSession: sandbox.getSessionRpc,
-  },
-  chat: {
-    send: chat.sendMessage,
   },
   deploy: {
     files: deploy.deployFiles,
