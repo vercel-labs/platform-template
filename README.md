@@ -85,8 +85,18 @@ VERCEL_OIDC_TOKEN=        # For AI Gateway auth
 VERCEL_PARTNER_TOKEN=
 VERCEL_PARTNER_TEAM_ID=
 
+# Vercel OAuth
+VERCEL_CLIENT_ID=
+VERCEL_CLIENT_SECRET=
+
+# Redis
+REDIS_URL=                # Redis connection string
+
 # Proxy URL
 PROXY_BASE_URL=
+
+# Session encryption
+JWE_SECRET=               # 256-bit base64 key
 ```
 
 ### Development
@@ -103,11 +113,15 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 platform-template/
 ├── app/                          # Next.js App Router
 │   ├── api/
+│   │   ├── chat/
+│   │   │   ├── route.ts          # Chat streaming endpoint (POST)
+│   │   │   └── [id]/stream/      # Resumable stream endpoint (GET)
 │   │   ├── ai/                   # AI proxy and session management
 │   │   ├── auth/                 # Vercel OAuth routes
 │   │   └── botid/                # Bot detection
 │   ├── rpc/[[...rest]]/          # oRPC endpoint handler
-│   ├── page.tsx                  # Main page
+│   ├── chat/[chatId]/page.tsx    # Resume existing chat
+│   ├── page.tsx                  # Home page (new chat)
 │   └── layout.tsx                # Root layout with providers
 │
 ├── components/                   # React components
@@ -144,7 +158,7 @@ platform-template/
 │   ├── rpc/                      # oRPC router & procedures
 │   │   └── procedures/           # chat, sandbox, deploy, claim
 │   ├── sandbox/                  # Sandbox setup and management
-│   ├── templates/                # Project templates (Next.js, Vite)
+│   ├── templates/                # Project templates (Next.js, Vite, TanStack Start)
 │   └── store/                    # Zustand state management
 │
 └── types/                        # Global TypeScript types
@@ -165,7 +179,8 @@ platform-template/
 | Styling | Tailwind CSS 4 |
 | UI Components | Radix UI |
 | Auth | Arctic (OAuth), Jose (JWT) |
-| Persistence | Upstash Redis |
+| Persistence | Redis |
+| Streaming | resumable-stream (connection recovery) |
 | Markdown | streamdown (streaming markdown) |
 
 ## Key Patterns
@@ -204,6 +219,8 @@ Agents yield `StreamChunk` events that are rendered in real-time:
 - `tool-result` - Tool execution result
 - `data` - Custom data parts (sandbox status, preview URL, file writes, etc.)
 - `error` - Error with optional code
+
+Streams are **resumable** — if the user refreshes mid-generation, the client reconnects via a GET endpoint (`/api/chat/[id]/stream`) backed by `resumable-stream` and Redis pub/sub. The active stream ID is persisted in the chat session and cleared on completion.
 
 ### AI Elements Components
 
