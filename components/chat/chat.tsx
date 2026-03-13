@@ -84,14 +84,21 @@ export function Chat({
   const applyStreamData = useApplyStreamData();
 
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: '/api/chat' }),
+    () =>
+      new DefaultChatTransport({
+        api: '/api/chat',
+        prepareReconnectToStreamRequest: ({ id }) => ({
+          api: `/api/chat/${id}/stream`,
+        }),
+      }),
     [],
   );
 
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, status } = useChat({
     id: chatId,
     messages: initialMessages,
     transport,
+    resume: true,
     onData: (dataPart) => {
       applyStreamData(dataPart.type, dataPart.data);
     },
@@ -236,9 +243,7 @@ export function Chat({
             <PromptInputFooter>
               <PromptInputTools />
               <PromptInputSubmit
-                status={isStreaming ? 'streaming' : undefined}
                 disabled={isStreaming}
-                onStop={stop}
               />
             </PromptInputFooter>
           </PromptInput>

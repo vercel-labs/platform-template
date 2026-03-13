@@ -47,6 +47,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "redis": "^5.11.0",
+    "resumable-stream": "^2.2.10",
     "server-only": "^0.0.1",
     "shiki": "^4.0.2",
     "streamdown": "^2.1.0",

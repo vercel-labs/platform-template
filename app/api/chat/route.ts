@@ -4,11 +4,13 @@ import { z } from "zod";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
+  generateId,
 } from "ai";
+import { createResumableStreamContext } from "resumable-stream";
 import { checkBotId } from "botid/server";
 import type { ChatMessage } from "@/lib/types";
 import { runChat, type ChatStreamResult } from "@/lib/chat";
-import { saveSandboxSession } from "@/lib/chat-history";
+import { getSandboxSession, saveSandboxSession } from "@/lib/chat-history";
 import { errorMessage } from "@/lib/errors";
 
 const messageSchema = z.object({
@@ -58,6 +60,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No message text" }, { status: 400 });
   }
 
+  // Persist the user's messages immediately so that other tabs loading
+  // this chat URL mid-stream can see the conversation history.
+  const existingSession = await getSandboxSession(chatId);
+  await saveSandboxSession(chatId, {
+    ...existingSession,
+    messages: messages as ChatMessage[],
+  });
+
   // Capture session metadata from the chat stream for persistence
   let streamResult: ChatStreamResult = {};
 
@@ -84,6 +94,7 @@ export async function POST(req: NextRequest) {
         projectOwnership: existing?.projectOwnership,
         deploymentUrl: existing?.deploymentUrl,
         agentSessionId: streamResult.agentSessionId,
+        activeStreamId: null,
       });
     },
     onError: (error) => {
@@ -92,17 +103,19 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Use after() to ensure the stream is fully consumed for persistence
-  // even if the client disconnects
-  const [browserStream, persistStream] = stream.tee();
+  return createUIMessageStreamResponse({
+    stream,
+    async consumeSseStream({ stream: sseStream }) {
+      const streamId = generateId();
+      const streamContext = createResumableStreamContext({ waitUntil: after });
+      await streamContext.createNewResumableStream(streamId, () => sseStream);
 
-  after(async () => {
-    const reader = persistStream.getReader();
-    while (true) {
-      const { done } = await reader.read();
-      if (done) break;
-    }
+      // Track the active stream so clients can reconnect after page reload
+      await saveSandboxSession(chatId, {
+        ...existingSession,
+        messages: messages as ChatMessage[],
+        activeStreamId: streamId,
+      });
+    },
   });
-
-  return createUIMessageStreamResponse({ stream: browserStream });
 }

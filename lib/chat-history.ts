@@ -19,6 +19,8 @@ export interface SandboxSessionData {
   deploymentUrl?: string;
   /** Agent session ID (e.g. Claude --resume ID) for conversation continuity */
   agentSessionId?: string;
+  /** Active resumable stream ID, null when stream is complete */
+  activeStreamId?: string | null;
 }
 
 const SESSION_PREFIX = "chat-session:";
